@@ -11,6 +11,10 @@
 >
 > The existing plugin version remains `6.0.5` until Redmine 6.1 compatibility has been verified. Generic fixes should be contributed back upstream when practical.
 
+## Compatibility testing
+
+Pull requests run an automated smoke test against Redmine 6.1.4 with Ruby 3.3.8. The workflow installs the plugin into a clean Redmine checkout, resolves the Redmine bundle with SQLite, migrates the database, boots Rails, verifies that the Mark and Zippy converters are registered, checks `marcel`, `rubyzip`, and `zlib`, and performs a basic Pandoc Markdown conversion.
+
 ---
 
 ## FORK NOTES
@@ -248,8 +252,6 @@ Native speakers: please help to improve localizations
     whereby 'prepend' and the alias chain methodology is incompatible with 
     each other, the coexistence cannot be further maintained.
          
----
-         
 **3.2.0**
   - added new previewer "vince" to preview vcf virtual business cards
         
@@ -261,7 +263,7 @@ Native speakers: please help to improve localizations
         
 **3.1.0**
   - improved rendering of conversions to images
-  - added new converter Maggie, which converts images to one another
+  - added new converter Maggie, which converts images from one another
   - updated nil text comments
         
 **3.0.3**

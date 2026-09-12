@@ -10,10 +10,14 @@ permissions:
   contents: read
 
 jobs:
-  redmine-6-1-smoke:
-    name: Redmine 6.1.4 / Ruby 3.3.8
+  redmine-smoke:
+    name: Redmine ${{ matrix.redmine }} / Ruby 3.3.8
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        redmine: ['6.0.5', '6.1.4']
 
     steps:
       - name: Checkout plugin
@@ -22,11 +26,11 @@ jobs:
           path: plugin
           persist-credentials: false
 
-      - name: Checkout Redmine 6.1.4
+      - name: Checkout Redmine ${{ matrix.redmine }}
         uses: actions/checkout@v5
         with:
           repository: redmine/redmine
-          ref: 6.1.4
+          ref: ${{ matrix.redmine }}
           path: redmine
           persist-credentials: false
 
@@ -70,13 +74,17 @@ jobs:
         working-directory: redmine
         env:
           RAILS_ENV: production
+          EXPECTED_REDMINE: ${{ matrix.redmine }}
         run: |
           cat > /tmp/redmine-more-previews-smoke.rb <<'RUBY'
           plugin = Redmine::Plugin.find(:redmine_more_previews)
           raise 'redmine_more_previews was not loaded' unless plugin
 
           redmine_version = Redmine::VERSION.to_s
-          raise "Unexpected Redmine version: #{redmine_version}" unless redmine_version.start_with?('6.1.4')
+          expected_redmine = ENV.fetch('EXPECTED_REDMINE')
+          unless redmine_version.start_with?(expected_redmine)
+            raise "Unexpected Redmine version: #{redmine_version} (expected #{expected_redmine})"
+          end
 
           %i[mark zippy].each do |converter_id|
             RedmineMorePreviews::Converter.find(converter_id)

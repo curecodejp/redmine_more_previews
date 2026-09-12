@@ -1,5 +1,16 @@
 # redmine_more_previews
 
+> [!IMPORTANT]
+> This repository is a Cure Code Corp. maintained fork focused on compatibility with current Redmine releases.
+>
+> - Maintained fork: https://github.com/curecodejp/redmine_more_previews
+> - Based on: https://github.com/JVsup/redmine_more_previews
+> - Original upstream: https://github.com/HugoHasenbein/redmine_more_previews
+> - License: GNU GPL v2.0, inherited from the upstream project
+> - Current compatibility work: Redmine 6.1.x with Ruby 3.3.x
+>
+> The existing plugin version remains `6.0.5` until Redmine 6.1 compatibility has been verified. Generic fixes should be contributed back upstream when practical.
+
 ---
 
 ## FORK NOTES
@@ -36,7 +47,6 @@ This plugin requires LibreOffice to be installed on your system. LibreOffice mus
 Libre uses LibreOffice to do the conversion. Libre converts almost everything LibreOffice can convert:
 
 .csv , .doc , .docm , .docx , .dotm , .dotx , .fodg , .fodp , .fods , .fodt , .odb , .odc , .odf , .odg , .odi , .odm , .odp , .ods , .odt , .otg , .oth , .otp , .ots , .ott , .oxt , .potm , .potx , .ppt , .pptm , .pptx , .rtf , .sda , .sdc , .sdd , .sdp , .sds , .sdw , .sgl , .smf , .stc , .std , .sti , .stw , .sxc , .sxd , .sxg , .sxi , .sxm , .sxw , .vor , .xls , .xlsm , .xlsx , .xltm , .xltx 
-
 to either pdf, html, inline, png, jpg or gif.
 
 Please note, that not all conversions have been thoroughly tested yet. Please send files for a conversion test to me, if you are uncertain if your files get converted an can be viewed in a browser. Further, please note that the conversion accuracy strongly depends on the availability of installed fonts. Please consult the LibreOffice portals to see how to install fonts.
@@ -241,71 +251,71 @@ Native speakers: please help to improve localizations
          
 **3.2.0**
   - added new previewer "vince" to preview vcf virtual business cards
-         
-**3.1.2**
+
+**3.1.2**  
   - minor code additions
-         
+
 **3.1.1**
   - added fix to zippy's Gemfile
-         
+
 **3.1.0**
   - improved rendering of conversions to images
   - added new converter Maggie, which converts images to one another
   - updated nil text comments
-         
+
 **3.0.3**
   - fixed handling filenames with whitespace for converter 'mark'
-         
+
 **3.0.2**
   - added converter named 'pass'
-         
+
 **3.0.1**
   - fixed 'File' bug for converter 'mark'
-         
+
 **3.0.0b**
   - rearranged code and files to better match zeitwerk
   - made compatible with development mode
   - beta quality
-         
+
 **2.0.11**
   - amended autoload paths
-         
-**2.0.10 
+
+**2.0.10**
   - fixed broken api calls for attachment
-         
+
 **2.0.9**
   - simplified hooks views for cliff
-         
+
 **2.0.8**
   - fixed tmpfile scheme (internals)
-         
+
 **2.0.7**
   - added support for non-ascii email headers in cliff
-         
+
 **2.0.6**
   - added timezone support for mail dates in cliff
-         
+
 **2.0.5**
   - fixed dependency on mimemagick after license change
+
 **2.0.4**
-         
   - fixed mimemagick dependency after license change
-         
+
 **2.0.3**
   - fixed windows glitch for File.read
-         
+
 **2.0.2**
   - fixed virgin startup bug. On some events plugin crashes on first time use
   - removed UserInstallation parameter in libre for windows platforms
   - fixed missing assets bug
-         
-**2.0.1** 
+
+**2.0.1**
   - fixed last minute issues
-         
-**2.0.0** 
+
+**2.0.0**
   - Recoded and published, supports redmine 3+, redmine 4+
-         
-**1.0.0** 
+
+**1.0.0**
   - Running on Redmine 3.4.6, never published
 
 # replaces
@@ -323,4 +333,3 @@ This plugin ideally works together with
 This plugin caches conversions in the Rail tmp-directory. For large repositories (f.i. firm file servers) each conversion will store a copy of the conversion file in the Rails tmp directory and thus the tmp directory may become as large or even larger as the original repository. There are two ways to handle such a situation: 1. swipe Rails tmp/more_previews directory frequently, 2. change the storage path in the plugin's init.rb file to choose a mass storage, which can handle the amount of data.
 
 If two users choose to reload (do a new conversion) concurrently, then thread safety is honored.
- 

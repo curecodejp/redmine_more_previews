@@ -1,0 +1,103 @@
+name: Redmine compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  redmine-6-1-smoke:
+    name: Redmine 6.1.4 / Ruby 3.3.8
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+          persist-credentials: false
+
+      - name: Checkout Redmine 6.1.4
+        uses: actions/checkout@v4
+        with:
+          repository: redmine/redmine
+          ref: 6.1.4
+          path: redmine
+          persist-credentials: false
+
+      - name: Set up Ruby 3.3.8
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.3.8
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev pandoc
+
+      - name: Configure Redmine and install plugin
+        run: |
+          cat > redmine/config/database.yml <<'YAML'
+          production:
+            adapter: sqlite3
+            database: db/redmine.sqlite3
+          YAML
+
+          ln -s "$GITHUB_WORKSPACE/plugin" redmine/plugins/redmine_more_previews
+
+      - name: Install Redmine bundle
+        working-directory: redmine
+        run: |
+          bundle config set --local path vendor/bundle
+          bundle config set --local without 'development test minimagick'
+          bundle install --jobs 4 --retry 3
+
+      - name: Prepare Redmine database
+        working-directory: redmine
+        env:
+          RAILS_ENV: production
+        run: |
+          bundle exec rake generate_secret_token
+          bundle exec rake db:migrate
+
+      - name: Verify plugin boot and dependencies
+        working-directory: redmine
+        env:
+          RAILS_ENV: production
+        run: |
+          cat > /tmp/redmine-more-previews-smoke.rb <<'RUBY'
+          plugin = Redmine::Plugin.find(:redmine_more_previews)
+          raise 'redmine_more_previews was not loaded' unless plugin
+
+          redmine_version = Redmine::VERSION.to_s
+          raise "Unexpected Redmine version: #{redmine_version}" unless redmine_version.start_with?('6.1.4')
+
+          %i[mark zippy].each do |converter_id|
+            RedmineMorePreviews::Converter.find(converter_id)
+          end
+
+          require 'marcel'
+          require 'zip'
+          require 'zlib'
+
+          puts "Redmine #{redmine_version}"
+          puts "Plugin #{plugin.version}"
+          puts "rubyzip #{Zip::VERSION}"
+          puts 'marcel loaded'
+          puts 'zlib loaded'
+          puts 'Mark and Zippy converters registered'
+          RUBY
+
+          bundle exec rails runner /tmp/redmine-more-previews-smoke.rb
+
+      - name: Verify Pandoc Markdown conversion
+        run: |
+          printf '# Smoke test\n\n**Redmine More Previews**\n' > /tmp/smoke.md
+          pandoc /tmp/smoke.md -f markdown -t html -o /tmp/smoke.html
+          grep -q '<h1' /tmp/smoke.html
+          grep -q '<strong>Redmine More Previews</strong>' /tmp/smoke.html

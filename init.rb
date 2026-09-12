@@ -3,6 +3,7 @@
 
 # Redmine plugin to preview various file types in redmine's preview pane
 #
+# Copyright © 2026 Cure Code Corp. (maintained fork)
 # Copyright © 2026 jvsup (fork and modifications) <https://github.com/JVsup>
 # Copyright © 2018 -2022 Stephan Wenzel <stephan.wenzel@drwpatent.de>
 #
@@ -130,13 +131,13 @@
 #-----------------------------------------------------------------------------------------
 Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
-  author       'jvsup (Forked from Stephan Wenzel)'
+  author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
   version      '6.0.5'
-  url          'https://github.com/jvsup/redmine_more_previews'
-  author_url   'https://github.com/jvsup/redmine_more_previews'
+  url          'https://github.com/curecodejp/redmine_more_previews'
+  author_url   'https://github.com/curecodejp/redmine_more_previews'
   
-  requires_redmine(:version_or_higher => '4')
+  requires_redmine(:version_or_higher => '6.0')
   
   settings :default => {'embedding'      => '0',  # use <object><embed>-tag or <iframe>-tag
                         'cache_previews' => '1',  # yes, cache previews

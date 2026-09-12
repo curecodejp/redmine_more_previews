@@ -17,13 +17,13 @@ jobs:
 
     steps:
       - name: Checkout plugin
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: plugin
           persist-credentials: false
 
       - name: Checkout Redmine 6.1.4
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: redmine/redmine
           ref: 6.1.4
@@ -48,7 +48,8 @@ jobs:
             database: db/redmine.sqlite3
           YAML
 
-          ln -s "$GITHUB_WORKSPACE/plugin" redmine/plugins/redmine_more_previews
+          cp -a plugin redmine/plugins/redmine_more_previews
+          rm -rf redmine/plugins/redmine_more_previews/.git
 
       - name: Install Redmine bundle
         working-directory: redmine
@@ -85,9 +86,11 @@ jobs:
           require 'zip'
           require 'zlib'
 
+          rubyzip_version = Gem.loaded_specs.fetch('rubyzip').version
+
           puts "Redmine #{redmine_version}"
           puts "Plugin #{plugin.version}"
-          puts "rubyzip #{Zip::VERSION}"
+          puts "rubyzip #{rubyzip_version}"
           puts 'marcel loaded'
           puts 'zlib loaded'
           puts 'Mark and Zippy converters registered'

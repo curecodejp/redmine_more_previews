@@ -1,5 +1,4 @@
-unless Gem::Specification.all_names.any?{|gem| gem =~ /rubyzip/}
-  gem 'rubyzip'
-end
-
-gem 'zlib'
+# rubyzip is provided by Redmine core on the supported Redmine 6.x line.
+# zlib is part of Ruby's standard/default gems and is required directly by zippy.rb.
+# Do not redeclare either here, because doing so can force incompatible or native
+# gem versions during Redmine's top-level bundle resolution.

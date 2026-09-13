@@ -17,7 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        redmine: ['6.0.5', '6.1.4']
+        include:
+          - redmine: '6.0.5'
+            rubyzip_requirement: '~> 2.3.0'
+          - redmine: '6.1.4'
+            rubyzip_requirement: '~> 2.4.0'
 
     steps:
       - name: Checkout plugin
@@ -75,6 +79,7 @@ jobs:
         env:
           RAILS_ENV: production
           EXPECTED_REDMINE: ${{ matrix.redmine }}
+          EXPECTED_RUBYZIP_REQUIREMENT: ${{ matrix.rubyzip_requirement }}
         run: |
           cat > /tmp/redmine-more-previews-smoke.rb <<'RUBY'
           plugin = Redmine::Plugin.find(:redmine_more_previews)
@@ -95,10 +100,14 @@ jobs:
           require 'zlib'
 
           rubyzip_version = Gem.loaded_specs.fetch('rubyzip').version
+          rubyzip_requirement = Gem::Requirement.new(ENV.fetch('EXPECTED_RUBYZIP_REQUIREMENT'))
+          unless rubyzip_requirement.satisfied_by?(rubyzip_version)
+            raise "Unexpected rubyzip version: #{rubyzip_version} (expected #{rubyzip_requirement})"
+          end
 
           puts "Redmine #{redmine_version}"
           puts "Plugin #{plugin.version}"
-          puts "rubyzip #{rubyzip_version}"
+          puts "rubyzip #{rubyzip_version} (#{rubyzip_requirement})"
           puts 'marcel loaded'
           puts 'zlib loaded'
           puts 'Mark and Zippy converters registered'

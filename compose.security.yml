@@ -1,0 +1,31 @@
+name: redmine-more-previews-security-lab
+
+services:
+  redmine:
+    build:
+      context: .
+      dockerfile: docker/security-lab/Dockerfile
+    environment:
+      RAILS_ENV: production
+      REDMINE_SECRET_KEY_BASE: security-lab-only-not-a-production-secret
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - .:/usr/src/redmine/plugins/redmine_more_previews:ro
+      - redmine_files:/usr/src/redmine/files
+      - redmine_sqlite:/usr/src/redmine/sqlite
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - lab
+    restart: "no"
+
+volumes:
+  redmine_files:
+  redmine_sqlite:
+
+networks:
+  lab:
+    internal: true

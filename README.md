@@ -6,14 +6,14 @@
 > - Maintained fork: https://github.com/curecodejp/redmine_more_previews
 > - Based on: https://github.com/JVsup/redmine_more_previews
 > - Original upstream: https://github.com/HugoHasenbein/redmine_more_previews
-> - License: GNU GPL v2.0, inherited from the upstream project
-> - Current compatibility work: Redmine 6.1.x with Ruby 3.3.x
+> - License: GNU GPL v2.0 or later, inherited from the upstream project
+> - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
 > The existing plugin version remains `6.0.5` until Redmine 6.1 compatibility has been verified. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
-Pull requests run an automated smoke test against Redmine 6.1.4 with Ruby 3.3.8. The workflow installs the plugin into a clean Redmine checkout, resolves the Redmine bundle with SQLite, migrates the database, boots Rails, verifies that the Mark and Zippy converters are registered, checks `marcel`, `rubyzip`, and `zlib`, and performs a basic Pandoc Markdown conversion.
+Pull requests run automated smoke tests against Redmine 6.0.5 and 6.1.4 with Ruby 3.3.8. The workflow installs the plugin into a clean Redmine checkout, resolves the Redmine bundle with SQLite, migrates the database, boots Rails, verifies that the Mark and Zippy converters are registered, checks `marcel`, `rubyzip`, and `zlib`, asserts each Redmine release's `rubyzip` requirement, and performs a basic Pandoc Markdown conversion.
 
 ---
 

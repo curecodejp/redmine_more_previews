@@ -46,7 +46,7 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsqlite3-dev pandoc
+          sudo apt-get install -y libsqlite3-dev pandoc imagemagick fonts-liberation
 
       - name: Configure Redmine and install plugin
         run: |
@@ -63,7 +63,7 @@ jobs:
         working-directory: redmine
         run: |
           bundle config set --local path vendor/bundle
-          bundle config set --local without 'development test minimagick'
+          bundle config set --local without 'development test'
           bundle install --jobs 4 --retry 3
 
       - name: Prepare Redmine database
@@ -98,6 +98,7 @@ jobs:
           require 'marcel'
           require 'zip'
           require 'zlib'
+          require 'mini_magick'
 
           rubyzip_version = Gem.loaded_specs.fetch('rubyzip').version
           rubyzip_requirement = Gem::Requirement.new(ENV.fetch('EXPECTED_RUBYZIP_REQUIREMENT'))
@@ -105,15 +106,32 @@ jobs:
             raise "Unexpected rubyzip version: #{rubyzip_version} (expected #{rubyzip_requirement})"
           end
 
+          mini_magick_version = Gem.loaded_specs.fetch('mini_magick').version
+
           puts "Redmine #{redmine_version}"
           puts "Plugin #{plugin.version}"
           puts "rubyzip #{rubyzip_version} (#{rubyzip_requirement})"
+          puts "mini_magick #{mini_magick_version}"
           puts 'marcel loaded'
           puts 'zlib loaded'
           puts 'Mark and Zippy converters registered'
           RUBY
 
           bundle exec rails runner /tmp/redmine-more-previews-smoke.rb
+
+      - name: Verify MiniMagick debug image generation
+        working-directory: redmine
+        env:
+          RAILS_ENV: production
+        run: |
+          cat > /tmp/redmine-more-previews-minimagick.rb <<'RUBY'
+          blob = RedmineMorePreviews::Lib::RmpImg.to_img("converter=debug\nstatus=ok")
+          raise 'debug image is empty' if blob.nil? || blob.empty?
+          raise 'debug image is not PNG' unless blob.start_with?("\x89PNG\r\n\x1a\n".b)
+          puts "debug image generated (#{blob.bytesize} bytes)"
+          RUBY
+
+          bundle exec rails runner /tmp/redmine-more-previews-minimagick.rb
 
       - name: Verify Pandoc Markdown conversion
         run: |

@@ -34,8 +34,10 @@ module RedmineMorePreviews
           width  =800
           height =1220
           
-          img = MiniMagick::Image.create(".#{format}", false)
-          MiniMagick::Tool::Convert.new do |gc|
+          # mini_magick 5.x (Redmine 6.x): Image.create takes only the extension and
+          # MiniMagick::Tool::Convert was removed in favour of MiniMagick.convert
+          img = MiniMagick::Image.create(".#{format}")
+          MiniMagick.convert do |gc|
           
             # size / background
             gc.size('%dx%d' % [width, height])

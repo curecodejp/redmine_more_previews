@@ -23,6 +23,9 @@
 
 module RedmineMorePreviews
   module ControllerHelper
+
+    HTML_PREVIEW_CSP =
+      "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:".freeze
   
     def preview_params
       params.permit(:format, :asset, :reload, :convert, :unsafe).
@@ -31,6 +34,15 @@ module RedmineMorePreviews
              :format  => params[:format]&.downcase}.compact )
     end #def
     private :preview_params
+
+    def apply_preview_security_headers
+      return unless params[:format].to_s.downcase == 'html'
+
+      response.headers['Content-Security-Policy'] = HTML_PREVIEW_CSP
+      response.headers['X-Content-Type-Options'] = 'nosniff'
+      response.headers['Referrer-Policy'] = 'no-referrer'
+    end
+    private :apply_preview_security_headers
     
   end #module
 end #module

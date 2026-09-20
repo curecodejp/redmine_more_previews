@@ -41,7 +41,7 @@ module RedmineMorePreviews
         # position, expression() ...); Cliff's header tables rely on it
         ALLOWED_ATTRIBUTES = %w[
           abbr align alt border cellpadding cellspacing cite class colspan datetime
-          download height href hreflang lang media name rel rowspan scope span
+          download height href hreflang lang media rel rowspan scope span
           src start style summary title type valign width xml:lang
         ].freeze
 

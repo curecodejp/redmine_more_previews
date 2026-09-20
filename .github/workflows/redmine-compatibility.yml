@@ -152,9 +152,10 @@ jobs:
                       '<a href="javascript:1" onclick="1">l</a><svg onload="1"></svg><iframe src="//x"></iframe>' \
                       '<link rel="stylesheet" href="https://example.invalid/x.css">' \
                       '<link rel="stylesheet" href="/\\example.invalid/x.css"><link rel="stylesheet" href="/attachments/download/1/evil.css">' \
-                      '<link rel="stylesheet" href="/plugin_assets/redmine_more_previews/../../x.css"><span style="position:fixed;background:url(x);font-weight:bold">c</span>'
+                      '<link rel="stylesheet" href="/plugin_assets/redmine_more_previews/../../x.css"><span style="position:fixed;background:url(x);font-weight:bold">c</span>' \
+                      '<img name="ajaxIndicator" src="y">'
           out = helper.sanitize_inline_preview(untrusted).to_s
-          %w[onerror <script SCRIPT_BODY javascript: onclick <svg onload <iframe <link position url(].each do |needle|
+          %w[onerror <script SCRIPT_BODY javascript: onclick <svg onload <iframe <link position url( name=].each do |needle|
             raise "inline preview sanitiser leaked #{needle}: #{out}" if out.include?(needle)
           end
           raise 'inline preview sanitiser must keep benign markup' unless out.include?('<h1>T</h1>') && out.include?('<img src="x">') && out.include?('font-weight')

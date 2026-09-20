@@ -27,9 +27,10 @@ module RedmineMorePreviews
     HTML_PREVIEW_CSP =
       "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:".freeze
 
-    # asset extensions a browser would treat as active content when served inline
-    ACTIVE_CONTENT_ASSET_EXTENSIONS =
-      %w[.html .htm .xhtml .xht .svg .svgz .xml .xsl .xslt .mht .mhtml].freeze
+    # only these media types may be served inline as assets; everything else
+    # (html, svg, xml and any */*+xml, unknown types, ...) is forced to download
+    INLINE_ASSET_MIME_TYPES =
+      %r{\A(?:image/(?!svg)|audio/|video/|application/pdf\z|text/plain\z)}.freeze
   
     def preview_params
       params.permit(:format, :asset, :reload, :convert, :unsafe).
@@ -56,9 +57,9 @@ module RedmineMorePreviews
     # assets extracted from archives etc. must never be rendered inline as
     # active content in the Redmine origin
     def secure_asset_disposition(asset, requested_disposition = nil)
-      extension = File.extname(asset.to_s).downcase
+      mime = Rack::Mime.mime_type(File.extname(asset.to_s).downcase, nil)
 
-      return 'attachment' if ACTIVE_CONTENT_ASSET_EXTENSIONS.include?(extension)
+      return 'attachment' unless mime && mime.match?(INLINE_ASSET_MIME_TYPES)
 
       requested_disposition || 'inline'
     end

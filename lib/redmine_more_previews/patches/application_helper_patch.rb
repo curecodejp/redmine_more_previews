@@ -37,15 +37,21 @@ module RedmineMorePreviews
           table tbody td tfoot th thead time tr tt u ul var
         ].freeze
 
+        # style survives only after Loofah's css safe-list scrub (no url(),
+        # position, expression() ...); Cliff's header tables rely on it
         ALLOWED_ATTRIBUTES = %w[
           abbr align alt border cellpadding cellspacing cite class colspan datetime
           download height href hreflang lang media name rel rowspan scope span
-          src start summary title type valign width xml:lang
+          src start style summary title type valign width xml:lang
         ].freeze
 
         # nodes whose text content must not survive as visible text either;
         # every other disallowed node is stripped but keeps its children
         PRUNED_TAGS = %w[script style noscript template textarea title].freeze
+
+        # strict path charset: no "..", "\\", query or fragment
+        PLUGIN_STYLESHEET_HREF =
+          %r{\A/plugin_assets/redmine_more_previews/(?:[A-Za-z0-9_\-]+/)*[A-Za-z0-9_\-]+\.css\z}.freeze
 
         def initialize
           super
@@ -58,9 +64,11 @@ module RedmineMorePreviews
         def allowed_node?(node)
           return false unless super
           return true  unless node.name == 'link'
-          # only same-origin stylesheets (Vince ships its own css)
+          # only this plugin's own static stylesheets (Vince ships its css this
+          # way); anything else - other same-origin urls included, since
+          # uploaded .css attachments are served as text/css - is dropped
           node['rel'].to_s.strip.casecmp?('stylesheet') &&
-            node['href'].to_s.match?(%r{\A/(?!/)})
+            node['href'].to_s.match?(PLUGIN_STYLESHEET_HREF)
         end
 
         def scrub_node(node)

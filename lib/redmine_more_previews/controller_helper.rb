@@ -26,6 +26,10 @@ module RedmineMorePreviews
 
     HTML_PREVIEW_CSP =
       "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:".freeze
+
+    # asset extensions a browser would treat as active content when served inline
+    ACTIVE_CONTENT_ASSET_EXTENSIONS =
+      %w[.html .htm .xhtml .xht .svg .svgz .xml .xsl .xslt .mht .mhtml].freeze
   
     def preview_params
       params.permit(:format, :asset, :reload, :convert, :unsafe).
@@ -43,6 +47,22 @@ module RedmineMorePreviews
       response.headers['Referrer-Policy'] = 'no-referrer'
     end
     private :apply_preview_security_headers
+
+    def apply_asset_security_headers
+      response.headers['X-Content-Type-Options'] = 'nosniff'
+    end
+    private :apply_asset_security_headers
+
+    # assets extracted from archives etc. must never be rendered inline as
+    # active content in the Redmine origin
+    def secure_asset_disposition(asset, requested_disposition = nil)
+      extension = File.extname(asset.to_s).downcase
+
+      return 'attachment' if ACTIVE_CONTENT_ASSET_EXTENSIONS.include?(extension)
+
+      requested_disposition || 'inline'
+    end
+    private :secure_asset_disposition
     
   end #module
 end #module

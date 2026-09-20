@@ -19,10 +19,10 @@
     </div>
     <div>
     <% if RedmineMorePreviews::Converter.cache_previews? %>
-      <%= @attachment.more_preview( request.query_parameters.merge(:format => "inline", :request => request).symbolize_keys ).to_utf8.html_safe %>
+      <%= sanitize_inline_preview( @attachment.more_preview( request.query_parameters.merge(:format => "inline", :request => request).symbolize_keys ).to_utf8 ) %>
     <% else %>
       <%  @attachment.more_preview( request.query_parameters.merge(:format => "inline", :request => request).symbolize_keys ) do |html| %>
-        <%= html.to_utf8.html_safe %>
+        <%= sanitize_inline_preview( html.to_utf8 ) %>
       <% end %>
     <% end %>
     </div>

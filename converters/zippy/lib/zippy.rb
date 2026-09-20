@@ -185,7 +185,7 @@ class Zippy < RedmineMorePreviews::Conversion
                 number_to_human_size(entry.compressed_size)
                ]
       when :directory
-        arr << ["&nbsp;" * 2 * level + "<strong>" + File.basename(RmpText.to_utf8(entry.name)) + "</strong>", "", ""]
+        arr << ["&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(File.basename(RmpText.to_utf8(entry.name))) + "</strong>", "", ""]
         ziplist( zip_file, RmpText.to_utf8(entry.name), arr, level + 1 )
       end
     end

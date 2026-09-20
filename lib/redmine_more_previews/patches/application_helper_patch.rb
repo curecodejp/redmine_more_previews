@@ -29,8 +29,10 @@ module RedmineMorePreviews
           #unloadable 
           
           def more_previews_tag(path, filename, options={})
-          
-            if RedmineMorePreviews::Converter.embed?
+
+            html_preview = options[:type].to_s.split(';').first == 'text/html'
+
+            if RedmineMorePreviews::Converter.embed? && !html_preview
               content_tag(:div, 
                 content_tag(
                   :object,
@@ -46,22 +48,26 @@ module RedmineMorePreviews
                 :style  => "position:relative;padding-top:141%;",
               )
             else
-              content_tag(:div, 
+              iframe_options = {
+                :style                => "position:absolute;top:0;left:0;width:95%;height:16px;",
+                :seamless             => "seamless",
+                :scrolling            => "no",
+                :frameborder          => "0",
+                :allowtransparency    => "true",
+                :title                => filename,
+                :src                  => path,
+                :id                   => 'preview_frame',
+                :onload               => "$(document).ready(function() {$('#preview_frame').css('height', $(window).height())});".html_safe
+              }.merge(options)
+
+              iframe_options[:sandbox] = "" if html_preview
+
+              content_tag(:div,
                 content_tag(:script, "$(document).ready(function() { $('#ajax-indicator').show()});".html_safe) +
                 content_tag(
                   :iframe,
                   "",
-                  { :style                => "position:absolute;top:0;left:0;width:95%;height:16px;",
-                    :seamless             => "seamless",
-                    :scrolling            => "no",
-                    :frameborder          => "0",
-                    :allowtransparency    => "true",
-                    :title                => filename,
-                    :src                  => path,
-                    :id                   => 'preview_frame',
-                    :onload               => "$(document).ready(function() {$('#preview_frame').css('height', $(window).height())});".html_safe 
-                                             
-                   }.merge(options)
+                  iframe_options
                 ),
                 :id    => "preview_pane",
                 :style => "position:relative;padding-top:141%;"

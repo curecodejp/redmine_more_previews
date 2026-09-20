@@ -108,19 +108,21 @@ module RedmineMorePreviews
           private :send_more_preview
           
           def send_more_asset
+            apply_asset_security_headers
+
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
               if params[:reload] || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
                 send_data @repository.more_asset(@path, @rev, preview_params),
                   :filename    => filename_for_content_disposition( File.basename(@asset) ),
                   :type        => Rack::Mime.mime_type( File.extname(@asset) ),
-                  :disposition => @disposition || 'inline'
+                  :disposition => secure_asset_disposition(@asset, @disposition)
               end
             else #no cache
               @repository.more_asset(@path, @rev, preview_params) do |preview_data, asset_data|
                  send_data asset_data,
                    :filename    => filename_for_content_disposition( File.basename(@asset) ),
                    :type        => Rack::Mime.mime_type( File.extname(@asset) ),
-                   :disposition => @disposition || 'inline'
+                   :disposition => secure_asset_disposition(@asset, @disposition)
               end
             end
           end #def

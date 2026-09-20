@@ -26,6 +26,11 @@ module RedmineMorePreviews
 
     HTML_PREVIEW_CSP =
       "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:".freeze
+
+    # only these media types may be served inline as assets; everything else
+    # (html, svg, xml and any */*+xml, unknown types, ...) is forced to download
+    INLINE_ASSET_MIME_TYPES =
+      %r{\A(?:image/(?!svg)|audio/|video/|application/pdf\z|text/plain\z)}.freeze
   
     def preview_params
       params.permit(:format, :asset, :reload, :convert, :unsafe).
@@ -43,6 +48,22 @@ module RedmineMorePreviews
       response.headers['Referrer-Policy'] = 'no-referrer'
     end
     private :apply_preview_security_headers
+
+    def apply_asset_security_headers
+      response.headers['X-Content-Type-Options'] = 'nosniff'
+    end
+    private :apply_asset_security_headers
+
+    # assets extracted from archives etc. must never be rendered inline as
+    # active content in the Redmine origin
+    def secure_asset_disposition(asset, requested_disposition = nil)
+      mime = Rack::Mime.mime_type(File.extname(asset.to_s).downcase, nil)
+
+      return 'attachment' unless mime && mime.match?(INLINE_ASSET_MIME_TYPES)
+
+      requested_disposition || 'inline'
+    end
+    private :secure_asset_disposition
     
   end #module
 end #module

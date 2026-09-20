@@ -133,6 +133,88 @@ jobs:
 
           bundle exec rails runner /tmp/redmine-more-previews-minimagick.rb
 
+      - name: Verify preview security controls
+        working-directory: redmine
+        env:
+          RAILS_ENV: production
+        run: |
+          cat > /tmp/redmine-more-previews-security.rb <<'RUBY'
+          helper = ApplicationController.helpers
+
+          # full HTML preview: sandboxed iframe, never <object>
+          html = helper.more_previews_tag('/attachments/more_preview/1.html', 'preview.html', type: 'text/html').to_s
+          raise 'HTML preview must use iframe' unless html.include?('<iframe')
+          raise 'HTML preview must not use object' if html.include?('<object')
+          raise 'HTML preview iframe must be sandboxed with no allow-* flags' unless html.match?(/<iframe[^>]*\ssandbox=""/)
+
+          # inline preview: converter output is sanitised before html_safe
+          untrusted = '<h1 id="t">T</h1><p><img src="x" onerror="1"></p><script>SCRIPT_BODY</script>' \
+                      '<a href="javascript:1" onclick="1">l</a><svg onload="1"></svg><iframe src="//x"></iframe>' \
+                      '<link rel="stylesheet" href="https://example.invalid/x.css">' \
+                      '<link rel="stylesheet" href="/\\example.invalid/x.css"><link rel="stylesheet" href="/attachments/download/1/evil.css">' \
+                      '<link rel="stylesheet" href="/plugin_assets/redmine_more_previews/../../x.css"><span style="position:fixed;background:url(x);font-weight:bold">c</span>' \
+                      '<img name="ajaxIndicator" src="y">'
+          out = helper.sanitize_inline_preview(untrusted).to_s
+          %w[onerror <script SCRIPT_BODY javascript: onclick <svg onload <iframe <link position url( name=].each do |needle|
+            raise "inline preview sanitiser leaked #{needle}: #{out}" if out.include?(needle)
+          end
+          raise 'inline preview sanitiser must keep benign markup' unless out.include?('<h1>T</h1>') && out.include?('<img src="x">') && out.include?('font-weight')
+          raise 'inline preview sanitiser must return html_safe' unless helper.sanitize_inline_preview('<p>x</p>').html_safe?
+
+          kept = helper.sanitize_inline_preview(
+            '<table class="list"><tbody><tr><td class="description"><a download="a.txt" href="/attachments/more_preview/1?asset=a.txt">a.txt</a></td></tr></tbody></table>' \
+            '<link rel="stylesheet" media="all" href="/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css">'
+          ).to_s
+          %w[<table <tbody> <td download="a.txt" href="/attachments/more_preview/1?asset=a.txt" <link rel="stylesheet"].each do |needle|
+            raise "inline preview sanitiser dropped converter markup #{needle}: #{kept}" unless kept.include?(needle)
+          end
+
+          # response headers and asset disposition
+          controller = Class.new do
+            include RedmineMorePreviews::ControllerHelper
+            attr_reader :params, :response
+            def initialize(format)
+              @params   = ActionController::Parameters.new(format: format)
+              @response = ActionDispatch::TestResponse.new
+            end
+            public :apply_preview_security_headers, :apply_asset_security_headers, :secure_asset_disposition
+          end.new('html')
+
+          controller.apply_preview_security_headers
+          headers = controller.response.headers
+          raise 'missing preview CSP' unless headers['Content-Security-Policy'] == RedmineMorePreviews::ControllerHelper::HTML_PREVIEW_CSP
+          raise 'missing nosniff' unless headers['X-Content-Type-Options'] == 'nosniff'
+          raise 'missing no-referrer' unless headers['Referrer-Policy'] == 'no-referrer'
+
+          controller = controller.class.new('png')
+          controller.apply_asset_security_headers
+          raise 'asset response must be nosniff' unless controller.response.headers['X-Content-Type-Options'] == 'nosniff'
+
+          %w[file.html file.HTM dir/file.xhtml file.svg file.xml file.xsl file.atom file.rss file.rdf file.kml file.js file.css file.unknownext file].each do |asset|
+            raise "active asset must be attachment: #{asset}" unless controller.secure_asset_disposition(asset) == 'attachment'
+            raise "active asset must ignore requested disposition: #{asset}" unless controller.secure_asset_disposition(asset, 'inline') == 'attachment'
+          end
+          %w[image.png photo.JPG anim.gif doc.pdf notes.txt clip.mp4 sound.mp3].each do |asset|
+            raise "passive asset should remain inline: #{asset}" unless controller.secure_asset_disposition(asset) == 'inline'
+          end
+          raise 'requested disposition should be honoured for passive assets' unless controller.secure_asset_disposition('image.png', 'attachment') == 'attachment'
+
+          # Zippy: directory names from the archive are escaped
+          zip_path = '/tmp/rmp-security.zip'
+          File.delete(zip_path) if File.exist?(zip_path)
+          Zip::File.open(zip_path, Zip::File::CREATE) { |zip| zip.mkdir('<b>dir') }
+          zippy = Zippy.allocate
+          list  = []
+          Zip::File.open(zip_path) { |zip| zippy.ziplist(zip, '', list) }
+          toc = list.flatten.join
+          raise "Zippy leaked raw directory name: #{toc}" if toc.include?('<b>dir')
+          raise "Zippy must escape directory name: #{toc}" unless toc.include?('&lt;b&gt;dir')
+
+          puts 'preview security controls verified'
+          RUBY
+
+          bundle exec rails runner /tmp/redmine-more-previews-security.rb
+
       - name: Verify Pandoc Markdown conversion
         run: |
           printf '# Smoke test\n\n**Redmine More Previews**\n' > /tmp/smoke.md

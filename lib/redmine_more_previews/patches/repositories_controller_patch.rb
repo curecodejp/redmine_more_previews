@@ -127,6 +127,8 @@ module RedmineMorePreviews
                    :type        => Rack::Mime.mime_type( File.extname(@asset) ),
                    :disposition => secure_asset_disposition(@asset, @disposition)
               end
+              # the converter failed (f.i. Zip::EntrySizeError): nothing was yielded
+              render_404 unless performed?
             end
           end #def
           private :send_more_asset

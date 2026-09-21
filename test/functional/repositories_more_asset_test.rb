@@ -1,0 +1,65 @@
+# frozen_string_literal: true
+
+require File.expand_path('../../test_helper', __FILE__)
+
+# The repositories route reaches the converters through RepositoriesController#entry,
+# which validates the asset name itself (not in a before_action).
+class RepositoriesMoreAssetTest < Redmine::ControllerTest
+  include RedmineMorePreviews::TestHelper
+  tests RepositoriesController
+
+  fixtures :users, :email_addresses, :projects, :roles, :members, :member_roles,
+           :enabled_modules, :repositories
+
+  PRJ_ID = 3
+
+  def setup
+    super
+    User.current = nil
+    Setting.enabled_scm << 'Filesystem' unless Setting.enabled_scm.include?('Filesystem')
+    @old_settings = Setting.plugin_redmine_more_previews
+    Setting.plugin_redmine_more_previews = AttachmentsMoreAssetTest::ZIPPY_SETTINGS
+    EnabledModule.create!(project_id: PRJ_ID, name: 'redmine_more_previews')
+
+    @repo_dir = Dir.mktmpdir('rmp-fs-repo')
+    build_zip(File.join(@repo_dir, 'a.zip'), 'dir/file.txt' => 'hello', '../../escaped.txt' => 'owned')
+    @repository = Repository::Filesystem.create!(project: Project.find(PRJ_ID), url: @repo_dir, path_encoding: '')
+
+    @storage = Dir.mktmpdir('rmp-storage')
+    @old_storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @storage)
+    @request.session[:user_id] = 1 # admin
+  end
+
+  def teardown
+    Setting.plugin_redmine_more_previews = @old_settings
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @old_storage)
+    FileUtils.rm_rf(@storage)
+    FileUtils.rm_rf(@repo_dir)
+  end
+
+  def entry_params(extra = {})
+    {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param]}.merge(extra)
+  end
+
+  def test_regular_entry_is_served
+    get :entry, params: entry_params(asset: 'dir/file.txt')
+    assert_response :success
+    assert_equal 'hello', response.body
+  end
+
+  def test_unsafe_asset_is_rejected_with_404_not_500
+    ['../../escaped.txt', '/etc/hostname', 'dir/../../x.txt'].each do |asset|
+      get :entry, params: entry_params(asset: asset)
+      assert_response :not_found, asset
+    end
+    assert_empty Dir.glob(File.join(@storage, '**', 'escaped.txt'))
+  end
+
+  def test_missing_entry_is_answered_with_404
+    get :entry, params: entry_params(asset: 'nope.txt')
+    assert_response :not_found
+  end
+end

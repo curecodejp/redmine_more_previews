@@ -260,7 +260,7 @@ class Zippy < RedmineMorePreviews::Conversion
         end
       end
     end
-  rescue Zip::EntrySizeError => e
+  rescue Zip::EntrySizeError
     FileUtils.rm_f(tmpasset)
     raise
   end #def

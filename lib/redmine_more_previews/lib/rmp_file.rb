@@ -82,7 +82,10 @@ module RedmineMorePreviews
           return nil if _path.start_with?("/", "\\")     # absolute or UNC path
           return nil if _path =~ /\A[A-Za-z]:/            # windows drive letter
           segments = _path.split(%r{[\\/]+}).reject{|seg| seg.empty? || seg == "." }
-          return nil if segments.empty? || segments.include?("..")
+          return nil if segments.empty?
+          # NTFS strips trailing dots and spaces of a component, so ".. " or "..."
+          # would resolve to ".." on a Windows host: judge each segment without them
+          return nil if segments.any?{|seg| ["", ".", ".."].include?(seg.sub(/[. ]+\z/, "")) }
           segments.join("/")
         end #def
         

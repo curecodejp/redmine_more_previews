@@ -98,11 +98,13 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
-  def test_missing_entry_is_not_answered_with_the_preview_page
+  def test_missing_entry_is_answered_with_404
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))
       get :more_preview, params: {id: a.id, format: 'html', asset: 'nope.txt'}
-      assert_not_includes response.body.to_s, '<table'
+      assert_response :not_found
+      get :more_asset, params: {id: a.id, asset: 'nope', assetformat: 'txt'}
+      assert_response :not_found
     end
   end
 end

@@ -112,13 +112,16 @@ module RedmineMorePreviews
 
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
               if params[:reload] || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
-                send_data @repository.more_asset(@path, @rev, preview_params),
+                data = @repository.more_asset(@path, @rev, preview_params)
+                return render_404 if data.nil?
+                send_data data,
                   :filename    => filename_for_content_disposition( File.basename(@asset) ),
                   :type        => Rack::Mime.mime_type( File.extname(@asset) ),
                   :disposition => secure_asset_disposition(@asset, @disposition)
               end
             else #no cache
               @repository.more_asset(@path, @rev, preview_params) do |preview_data, asset_data|
+                 return render_404 if asset_data.nil?
                  send_data asset_data,
                    :filename    => filename_for_content_disposition( File.basename(@asset) ),
                    :type        => Rack::Mime.mime_type( File.extname(@asset) ),
@@ -162,7 +165,11 @@ module RedmineMorePreviews
             end
             
             if params[:asset]
-              find_path_param; @disposition = "attachment"
+              # find_path_param renders 404 for an unsafe asset name; it is not a
+              # before_action here, so stop instead of sending the asset as well
+              find_path_param
+              return if performed?
+              @disposition = "attachment"
               respond_to do |format|
                 format.any { send_more_asset }
               end #respond

@@ -22,6 +22,16 @@ class RmpFileSafePathTest < ActiveSupport::TestCase
     assert_nil RmpFile.safe_relative_path('..\\file.txt')
   end
 
+  # NTFS drops trailing dots and spaces of a path component, so ".. " or "..."
+  # would be treated as ".." on a Windows host
+  def test_safe_relative_path_rejects_dot_segments_with_trailing_dots_or_spaces
+    assert_nil RmpFile.safe_relative_path('.. /file.txt')
+    assert_nil RmpFile.safe_relative_path('dir/.../file.txt')
+    assert_nil RmpFile.safe_relative_path('dir/. /file.txt')
+    assert_nil RmpFile.safe_relative_path('... ')
+    assert_equal 'dir/file.', RmpFile.safe_relative_path('dir/file.')
+  end
+
   def test_safe_relative_path_rejects_absolute_paths
     assert_nil RmpFile.safe_relative_path('/etc/hostname')
     assert_nil RmpFile.safe_relative_path('\\\\server\\share')

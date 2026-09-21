@@ -43,9 +43,10 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     result
   end
 
-  def fake_request
+  def fake_request(query = '')
     ActionDispatch::TestRequest.create(
       'PATH_INFO' => '/attachments/more_preview/1.html',
+      'QUERY_STRING' => query,
       'action_dispatch.request.path_parameters' => {controller: 'attachments', action: 'more_preview', id: '1', format: 'html'}
     )
   end
@@ -87,6 +88,34 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     assert_empty escaped_files
   end
 
+  # --- entry selection ----------------------------------------------------------------
+
+  # "./report.txt" and "report.txt" normalize to the same asset name; the entry whose
+  # raw name equals the request wins over a merely equivalent one
+  def test_exact_entry_name_is_preferred_over_a_normalized_match
+    tar = build_tar(archive('dup.tar'), './report.txt' => 'old', 'report.txt' => 'new')
+    assert_equal 'new', extract(tar, 'report.txt')
+    zip = build_zip(archive('dup.zip'), './report.txt' => 'old', 'report.txt' => 'new')
+    assert_equal 'new', extract(zip, 'report.txt')
+  end
+
+  # tar is read sequentially: a normalized match must be served even when other
+  # entries follow it and no exact match exists
+  def test_tar_normalized_match_followed_by_other_entries_is_extracted
+    tar = build_tar(archive('seq.tar'), './a.txt' => 'A', 'b.txt' => 'B', 'c/d.txt' => 'D')
+    assert_equal 'A', extract(tar, 'a.txt')
+    assert_equal 'D', extract(tar, 'c/d.txt')
+  end
+
+  # rubyzip validates the declared size only in Zip::File#extract; the streamed
+  # extraction must keep refusing entries whose data exceeds the declared size
+  def test_zip_entry_exceeding_its_declared_size_is_not_extracted
+    zip = build_zip(archive('lie.zip'), 'big.txt' => 'x' * 20_000)
+    Zip::Entry.any_instance.stubs(:size).returns(10)
+    assert_nil extract(zip, 'big.txt')
+    assert_empty Dir.glob(File.join(@tmp, 'tmp', '**', 'big.txt'))
+  end
+
   # --- symlink entries ----------------------------------------------------------------
 
   def test_zip_symlink_entry_is_not_extracted
@@ -122,6 +151,17 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     html = toc(build_zip(archive('nested.zip'), 'dir/' => '', 'dir/file.txt' => 'a'))
     assert_includes html, 'href="/attachments/more_preview/1.html?asset=dir%2Ffile.txt"'
     assert_not_includes html, '%252F'
+  end
+
+  # url helpers treat script_name / host etc. in the params hash as options, so
+  # request parameters must not be forwarded wholesale into the listing links
+  def test_toc_links_ignore_url_options_smuggled_in_request_params
+    zip = build_zip(archive('links.zip'), 'ok.txt' => 'a')
+    worker = zippy_worker(target: @target, request: fake_request('script_name=//evil.example&host=evil.example&anchor=x'))
+    html = nil
+    worker.preview(File.new(zip)) { |preview, *| html = preview }
+    assert_includes html, 'href="/attachments/more_preview/1.html?asset=ok.txt"'
+    assert_not_includes html, 'evil.example'
   end
 
   def test_tar_toc_lists_unsafe_entry_names_without_a_link

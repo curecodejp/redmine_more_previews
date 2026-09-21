@@ -130,12 +130,15 @@ class Zippy < RedmineMorePreviews::Conversion
   # entries are listed by name only.
   # The name is passed unencoded: the path helper encodes query parameters itself, an
   # extra URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
+  # Only the route's own parameters are forwarded: url helpers interpret keys such as
+  # script_name / host / anchor as options, so passing request.params wholesale let a
+  # query string rewrite every link in the (cached) listing to another host.
   #---------------------------------------------------------------------------------------
   def entry_link( name )
     basename = File.basename(RmpText.to_utf8(name))
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
-    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => safe))
+    path   = url_helpers.more_preview_path(request.path_parameters.except(:controller, :action).merge(:asset => safe))
     link_to basename, path, :download => basename
   end #def
   
@@ -143,14 +146,29 @@ class Zippy < RedmineMorePreviews::Conversion
   # tarcontent
   #---------------------------------------------------------------------------------------
   def tarcontent( tarball )
-    # asset (validated in Conversion) is compared with the normalized entry name, so
-    # an entry "./dir/file" still matches the request "dir/file". Only regular files
-    # are extracted: symlinks, devices etc. are never materialized in the tmp directory.
+    # Only regular files are extracted: symlinks, devices etc. are never materialized
+    # in the tmp directory. The requested asset matches an entry by its raw name first
+    # and by its normalized name second, so "./dir/file" is still found for "dir/file"
+    # but an entry literally named "dir/file" wins. A tar can only be read forward, so
+    # the first normalized match is written right away and replaced if an exact match
+    # turns up later.
     tarball.each do |entry|
-      next unless entry.file? && RmpFile.safe_relative_path( entry.full_name ) == asset
-      write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
-      break
+      next unless entry.file?
+      if entry.full_name == asset
+        write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+        break
+      elsif !File.exist?(tmpasset) && RmpFile.safe_relative_path( entry.full_name ) == asset
+        write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+      end
     end
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # asset_entry: the entry to serve for asset; exact name first, normalized name second
+  #---------------------------------------------------------------------------------------
+  def asset_entry( entries, &name )
+    entries.find{|e| name.call(e) == asset } ||
+    entries.find{|e| RmpFile.safe_relative_path( name.call(e) ) == asset }
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -227,12 +245,24 @@ class Zippy < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   def zipcontent( zip_file )
     # see tarcontent. The entry is streamed into tmpasset instead of Zip::File#extract,
-    # which would recreate symlink entries.
-    entry = zip_file.entries.find{|e| e.ftype == :file && RmpFile.safe_relative_path( e.name ) == asset }
+    # which would recreate symlink entries. Zip::File#extract also refused entries whose
+    # data exceeds the declared size (Zip::EntrySizeError); the stream does not, so the
+    # check is repeated here.
+    entry = asset_entry( zip_file.entries.select{|e| e.ftype == :file } ){|e| e.name }
     return unless entry
     entry.get_input_stream do |io|
-      write_asset{|f| while( chunk = io.read(8192)) do f.write chunk end }
+      written = 0
+      write_asset do |f|
+        while( chunk = io.read(8192)) do
+          written += chunk.bytesize
+          raise Zip::EntrySizeError, "#{entry.name} exceeds its declared size #{entry.size}" if written > entry.size
+          f.write chunk
+        end
+      end
     end
+  rescue Zip::EntrySizeError => e
+    FileUtils.rm_f(tmpasset)
+    raise
   end #def
   
 end #class

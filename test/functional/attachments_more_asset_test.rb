@@ -12,20 +12,6 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
            :enabled_modules, :issues, :trackers, :issue_statuses, :enumerations,
            :projects_trackers, :attachments
 
-  ZIPPY_SETTINGS = {
-    'embedding' => '0', 'cache_previews' => '1', 'debug' => '0', 'absolute' => '0',
-    'converter' => {
-      'zippy' => {
-        'active' => '1',
-        'mime_types' => {
-          'zip' => {'active' => '1', 'format' => 'html'},
-          'tar' => {'active' => '1', 'format' => 'html'},
-          'tgz' => {'active' => '1', 'format' => 'html'}
-        }
-      }
-    }
-  }.freeze
-
   def setup
     set_tmp_attachments_directory
     @old_settings = Setting.plugin_redmine_more_previews

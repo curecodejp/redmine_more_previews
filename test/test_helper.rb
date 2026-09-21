@@ -5,6 +5,21 @@ require File.expand_path(File.dirname(__FILE__) + '/../../../test/test_helper')
 
 module RedmineMorePreviews
   module TestHelper
+    # plugin settings with the Zippy converter enabled for zip / tar / tgz
+    ZIPPY_SETTINGS = {
+      'embedding' => '0', 'cache_previews' => '1', 'debug' => '0', 'absolute' => '0',
+      'converter' => {
+        'zippy' => {
+          'active' => '1',
+          'mime_types' => {
+            'zip' => {'active' => '1', 'format' => 'html'},
+            'tar' => {'active' => '1', 'format' => 'html'},
+            'tgz' => {'active' => '1', 'format' => 'html'}
+          }
+        }
+      }
+    }.freeze
+
     # Marks an archive entry that should be written as a symlink to +target+.
     Symlink = Struct.new(:target)
 
@@ -61,11 +76,23 @@ module RedmineMorePreviews
 
     private
 
+    # the symlink is added to the archive by path, so it must outlive the builder;
+    # the directory is removed in teardown (see symlink_sources)
     def symlink_source(target)
       dir = Dir.mktmpdir('rmp-symlink')
+      symlink_sources << dir
       link = File.join(dir, 'link')
       File.symlink(target, link)
       link
+    end
+
+    def symlink_sources
+      @symlink_sources ||= []
+    end
+
+    def teardown
+      super
+      symlink_sources.each { |dir| FileUtils.rm_rf(dir) }
     end
   end
 end

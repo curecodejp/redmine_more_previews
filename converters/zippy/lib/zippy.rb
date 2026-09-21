@@ -128,17 +128,20 @@ class Zippy < RedmineMorePreviews::Conversion
   # entry names are attacker controlled. Only names that stay inside the archive root
   # get a download link (the asset parameter is validated again server side); other
   # entries are listed by name only.
-  # The name is passed unencoded: the path helper encodes query parameters itself, an
-  # extra URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
-  # Only the route's own parameters are forwarded: url helpers interpret keys such as
-  # script_name / host / anchor as options, so passing request.params wholesale let a
-  # query string rewrite every link in the (cached) listing to another host.
+  # The link is the preview request itself plus ?asset=<name>: both the attachments and
+  # the repositories preview actions serve the asset when the parameter is present, so
+  # no named route is needed (more_preview_path is the attachments route and produced
+  # /attachments/... links inside repository previews). Using request.path rather than a
+  # url helper with request.params also keeps query parameters such as script_name /
+  # host / anchor, which url helpers interpret as options, out of the (cached) listing.
+  # The name is passed unencoded (to_query encodes it once); an extra
+  # URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
   #---------------------------------------------------------------------------------------
   def entry_link( name )
     basename = File.basename(RmpText.to_utf8(name))
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
-    path   = url_helpers.more_preview_path(request.path_parameters.except(:controller, :action).merge(:asset => safe))
+    path   = "#{request.path}?#{ {:asset => safe}.to_query }"
     link_to basename, path, :download => basename
   end #def
   

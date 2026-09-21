@@ -119,23 +119,45 @@ class Zippy < RedmineMorePreviews::Conversion
   # tarlink
   #---------------------------------------------------------------------------------------
   def tarlink( entry, asset=nil )
-    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => URI.encode_www_form_component(entry.full_name)))
-    link_to File.basename(RmpText.to_utf8(entry.full_name)), path, :download => File.basename(RmpText.to_utf8(entry.full_name))
+    entry_link( entry.full_name )
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # entry_link
+  #
+  # entry names are attacker controlled. Only names that stay inside the archive root
+  # get a download link (the asset parameter is validated again server side); other
+  # entries are listed by name only.
+  #---------------------------------------------------------------------------------------
+  def entry_link( name )
+    basename = File.basename(RmpText.to_utf8(name))
+    safe     = RmpFile.safe_relative_path( name )
+    return CGI.escapeHTML(basename) unless safe
+    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => URI.encode_www_form_component(safe)))
+    link_to basename, path, :download => basename
   end #def
   
   #---------------------------------------------------------------------------------------
   # tarcontent
   #---------------------------------------------------------------------------------------
   def tarcontent( tarball )
-    tarball.seek( asset ) do |entry|
-      FileUtils.rm_rf(tmpasset) if File.exist?(tmpasset)
-      FileUtils.mkdir_p(File.dirname(tmpasset)) 
-      File.open(tmpasset, "wb") do |f| 
-        while( chunk = entry.read(8192)) do
-          f.write chunk
-        end
-      end
+    # asset (validated in Conversion) is compared with the normalized entry name, so
+    # an entry "./dir/file" still matches the request "dir/file". Only regular files
+    # are extracted: symlinks, devices etc. are never materialized in the tmp directory.
+    tarball.each do |entry|
+      next unless entry.file? && RmpFile.safe_relative_path( entry.full_name ) == asset
+      write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+      break
     end
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # write_asset
+  #---------------------------------------------------------------------------------------
+  def write_asset( &block )
+    FileUtils.rm_rf(tmpasset) if File.exist?(tmpasset) || File.symlink?(tmpasset)
+    FileUtils.mkdir_p(File.dirname(tmpasset))
+    File.open(tmpasset, "wb", &block)
   end #def
   
   ########################################################################################
@@ -195,19 +217,20 @@ class Zippy < RedmineMorePreviews::Conversion
   # ziplink
   #---------------------------------------------------------------------------------------
   def ziplink( entry, asset=nil )
-    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => URI.encode_www_form_component(entry.name)))
-    link_to File.basename(RmpText.to_utf8(entry.name)), path, :download => File.basename(RmpText.to_utf8(entry.name))
+    entry_link( entry.name )
   end #def
   
   #---------------------------------------------------------------------------------------
   # zipasset
   #---------------------------------------------------------------------------------------
   def zipcontent( zip_file )
-    if entry = zip_file.find_entry(asset)
-      FileUtils.rm_rf(tmpasset) if File.exist?(tmpasset)
-      FileUtils.mkdir_p(File.dirname(tmpasset)) 
-      zip_file.extract( entry, tmpasset)
-    end #def
+    # see tarcontent. The entry is streamed into tmpasset instead of Zip::File#extract,
+    # which would recreate symlink entries.
+    entry = zip_file.entries.find{|e| e.ftype == :file && RmpFile.safe_relative_path( e.name ) == asset }
+    return unless entry
+    entry.get_input_stream do |io|
+      write_asset{|f| while( chunk = io.read(8192)) do f.write chunk end }
+    end
   end #def
   
 end #class

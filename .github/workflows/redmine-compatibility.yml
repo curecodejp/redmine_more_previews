@@ -54,6 +54,9 @@ jobs:
           production:
             adapter: sqlite3
             database: db/redmine.sqlite3
+          test:
+            adapter: sqlite3
+            database: db/redmine_test.sqlite3
           YAML
 
           cp -a plugin redmine/plugins/redmine_more_previews
@@ -63,7 +66,7 @@ jobs:
         working-directory: redmine
         run: |
           bundle config set --local path vendor/bundle
-          bundle config set --local without 'development test'
+          bundle config set --local without 'development'
           bundle install --jobs 4 --retry 3
 
       - name: Prepare Redmine database
@@ -214,6 +217,14 @@ jobs:
           RUBY
 
           bundle exec rails runner /tmp/redmine-more-previews-security.rb
+
+      - name: Run plugin test suite
+        working-directory: redmine
+        env:
+          RAILS_ENV: test
+        run: |
+          bundle exec rake db:migrate
+          bundle exec rake redmine:plugins:test NAME=redmine_more_previews
 
       - name: Verify Pandoc Markdown conversion
         run: |

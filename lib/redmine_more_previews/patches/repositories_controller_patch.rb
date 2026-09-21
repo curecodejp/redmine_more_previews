@@ -128,10 +128,14 @@ module RedmineMorePreviews
           end #def
           private :send_more_asset
           
+          # see AttachmentsControllerPatch#find_asset_param for the asset validation
           def find_path_param
             @path  = [@path, params[:baseformat]].compact.join(".")
             @asset = params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]
-            @asset = [@asset, params[:assetformat]].compact.join(".")
+            @asset = [@asset, params[:assetformat]].compact.join(".").presence
+            return if @asset.nil?
+            @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
+            render_404 if @asset.nil?
           end #def
           private :find_path_param
           

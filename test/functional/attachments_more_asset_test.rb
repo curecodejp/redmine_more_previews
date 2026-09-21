@@ -1,0 +1,94 @@
+# frozen_string_literal: true
+
+require File.expand_path('../../test_helper', __FILE__)
+
+# End to end: a crafted archive is attached to an issue and its entries are
+# requested through the more_preview / more_asset actions.
+class AttachmentsMoreAssetTest < Redmine::ControllerTest
+  include RedmineMorePreviews::TestHelper
+  tests AttachmentsController
+
+  fixtures :users, :email_addresses, :projects, :roles, :members, :member_roles,
+           :enabled_modules, :issues, :trackers, :issue_statuses, :enumerations,
+           :projects_trackers, :attachments
+
+  ZIPPY_SETTINGS = {
+    'embedding' => '0', 'cache_previews' => '1', 'debug' => '0', 'absolute' => '0',
+    'converter' => {
+      'zippy' => {
+        'active' => '1',
+        'mime_types' => {
+          'zip' => {'active' => '1', 'format' => 'html'},
+          'tar' => {'active' => '1', 'format' => 'html'},
+          'tgz' => {'active' => '1', 'format' => 'html'}
+        }
+      }
+    }
+  }.freeze
+
+  def setup
+    set_tmp_attachments_directory
+    @old_settings = Setting.plugin_redmine_more_previews
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS
+    EnabledModule.create!(project_id: 1, name: 'redmine_more_previews')
+    @storage = Dir.mktmpdir('rmp-storage')
+    @old_storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @storage)
+    @request.session[:user_id] = 2 # jsmith, member of project 1
+  end
+
+  def teardown
+    Setting.plugin_redmine_more_previews = @old_settings
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @old_storage)
+    FileUtils.rm_rf(@storage)
+  end
+
+  def attach(archive_path)
+    file = Rack::Test::UploadedFile.new(archive_path, 'application/zip', true)
+    a = Attachment.new(container: Issue.find(1), file: file, author: User.find(2))
+    assert a.save
+    a
+  end
+
+  def test_regular_entry_is_served_as_attachment
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'ok.zip'), 'dir/file.txt' => 'hello'))
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'dir/file.txt'}
+      assert_response :success
+      assert_equal 'hello', response.body
+      assert_match(/attachment/, response.headers['Content-Disposition'])
+    end
+  end
+
+  def test_asset_escaping_the_preview_directory_is_rejected
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'bad.zip'), '../../escaped.txt' => 'owned'))
+      ['../../escaped.txt', '/etc/hostname', 'dir/../../x.txt'].each do |asset|
+        get :more_preview, params: {id: a.id, format: 'html', asset: asset}
+        assert_response :not_found, asset
+      end
+      assert_empty Dir.glob(File.join(@storage, '**', 'escaped.txt'))
+      assert_empty Dir.glob(File.join(@storage, 'escaped.txt'))
+    end
+  end
+
+  def test_more_asset_route_rejects_traversal
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'bad.zip'), 'ok.txt' => 'x'))
+      get :more_asset, params: {id: a.id, asset: '../../etc/hostname', assetformat: 'txt'}
+      assert_response :not_found
+      get :more_asset, params: {id: a.id, asset: '../..', assetformat: 'txt'}
+      assert_response :not_found
+    end
+  end
+
+  def test_missing_entry_is_not_answered_with_the_preview_page
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'nope.txt'}
+      assert_not_includes response.body.to_s, '<table'
+    end
+  end
+end

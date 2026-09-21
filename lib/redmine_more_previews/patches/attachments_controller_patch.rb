@@ -129,9 +129,14 @@ module RedmineMorePreviews
           end #def
           private :send_more_asset
           
+          # the asset name is joined to directories on disk by the converters; reject
+          # anything that could leave them (see RmpFile.safe_relative_path) with a 404
           def find_asset_param
             @asset = params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
+            return if @asset.nil?
+            @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
+            render_404 if @asset.nil?
           end #def
           private :find_asset_param
         end #base

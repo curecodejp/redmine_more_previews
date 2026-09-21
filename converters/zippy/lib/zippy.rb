@@ -128,12 +128,14 @@ class Zippy < RedmineMorePreviews::Conversion
   # entry names are attacker controlled. Only names that stay inside the archive root
   # get a download link (the asset parameter is validated again server side); other
   # entries are listed by name only.
+  # The name is passed unencoded: the path helper encodes query parameters itself, an
+  # extra URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
   #---------------------------------------------------------------------------------------
   def entry_link( name )
     basename = File.basename(RmpText.to_utf8(name))
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
-    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => URI.encode_www_form_component(safe)))
+    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => safe))
     link_to basename, path, :download => basename
   end #def
   

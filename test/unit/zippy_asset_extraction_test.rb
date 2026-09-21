@@ -118,6 +118,12 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     assert_not_includes html, '..%2F'
   end
 
+  def test_toc_links_nested_entries_encoded_once
+    html = toc(build_zip(archive('nested.zip'), 'dir/' => '', 'dir/file.txt' => 'a'))
+    assert_includes html, 'href="/attachments/more_preview/1.html?asset=dir%2Ffile.txt"'
+    assert_not_includes html, '%252F'
+  end
+
   def test_tar_toc_lists_unsafe_entry_names_without_a_link
     html = toc(build_tar(archive('toc.tar'), 'ok.txt' => 'a', '../bad.txt' => 'b', '/abs.txt' => 'c'))
     assert_includes html, 'href="/attachments/more_preview/1.html?asset=ok.txt"'

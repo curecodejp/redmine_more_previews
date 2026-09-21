@@ -62,6 +62,20 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  def test_toc_link_of_a_nested_entry_resolves_to_the_entry
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'nested.zip'), 'dir/' => '', 'dir/file.txt' => 'nested'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      href = response.body[/href="([^"]*asset=[^"]*)"/, 1]
+      assert href, "no link in #{response.body}"
+      query = Rack::Utils.parse_query(URI.parse(CGI.unescapeHTML(href)).query)
+      get :more_preview, params: {id: a.id, format: 'html'}.merge(query.symbolize_keys)
+      assert_response :success
+      assert_equal 'nested', response.body
+    end
+  end
+
   def test_asset_escaping_the_preview_directory_is_rejected
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'bad.zip'), '../../escaped.txt' => 'owned'))

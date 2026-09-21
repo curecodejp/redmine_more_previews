@@ -19,6 +19,8 @@ module RedmineMorePreviews
         entries.each do |name, content|
           if content.is_a?(Symlink)
             zip.add(name, symlink_source(content.target))
+          elsif name.end_with?('/')
+            zip.mkdir(name.chomp('/'))
           else
             zip.get_output_stream(name) { |io| io.write(content) }
           end

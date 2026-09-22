@@ -159,7 +159,7 @@ jobs:
           html = helper.more_previews_tag('/attachments/more_preview/1.html', 'preview.html', type: 'text/html').to_s
           raise 'HTML preview must use iframe' unless html.include?('<iframe')
           raise 'HTML preview must not use object' if html.include?('<object')
-          raise 'HTML preview iframe must be sandboxed with no allow-* flags' unless html.match?(/<iframe[^>]*\ssandbox=""/)
+          raise 'HTML preview iframe must be sandboxed with allow-downloads only' unless html.match?(/<iframe[^>]*\ssandbox="allow-downloads"/)
 
           # inline preview: converter output is sanitised before html_safe
           untrusted = '<h1 id="t">T</h1><p><img src="x" onerror="1"></p><script>SCRIPT_BODY</script>' \

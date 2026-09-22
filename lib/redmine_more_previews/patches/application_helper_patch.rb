@@ -133,7 +133,12 @@ module RedmineMorePreviews
                 :onload               => "$(document).ready(function() {$('#preview_frame').css('height', $(window).height())});".html_safe
               }.merge(options)
 
-              iframe_options[:sandbox] = "" if html_preview
+              # HTML previews are sandboxed (GHSA-j23w-wwfh-gwfp): no scripts, forms,
+              # top navigation or same-origin access. allow-downloads is the one
+              # capability granted, so that links in a preview (Zippy's archive
+              # listing) can still start a user-initiated download; the assets are
+              # served with Content-Disposition: attachment.
+              iframe_options[:sandbox] = "allow-downloads" if html_preview
 
               content_tag(:div,
                 content_tag(:script, "$(document).ready(function() { $('#ajax-indicator').show()});".html_safe) +

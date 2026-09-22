@@ -50,7 +50,7 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert pane, 'preview pane must be present'
     assert frame, 'preview iframe must be present'
     assert_equal 'position:relative;height:60vh;min-height:280px;max-height:600px;', pane['style']
-    assert_equal 'position:absolute;top:0;bottom:0;left:0;width:95%;', frame['style']
+    assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
     assert_equal 'auto', frame['scrolling']
     assert_nil frame['onload']
     assert_not_includes html, '$(window).height()'

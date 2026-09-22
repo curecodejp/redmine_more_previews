@@ -87,17 +87,18 @@ module RedmineMorePreviews
           #
           ################################################################################
           def send_more_preview
-            apply_preview_security_headers
-
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => @repository.preview_mtime(@path, @rev, preview_params))
-                send_data @repository.more_preview(@path, @rev, preview_params),
+              # read before the freshness check: the ETag needs the selected converter
+              content = entry_content_for_preview
+              if params[:reload] || stale?(:etag => preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content))
+                send_data @repository.more_preview(@path, @rev, preview_params, :entry_content => content),
                   :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
               end
             else #no cache
-              @repository.more_preview(@path, @rev, preview_params) do |preview_data|
+              content = entry_content_for_preview
+              @repository.more_preview(@path, @rev, preview_params, :entry_content => content) do |preview_data|
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
@@ -106,6 +107,16 @@ module RedmineMorePreviews
             end
           end #def
           private :send_more_preview
+
+          # reads the entry once: the CSP and the ETag are decided on these bytes (the
+          # entry is not on disk, and the converter is chosen by content) and the same
+          # bytes are handed to the conversion, so they cannot disagree
+          def entry_content_for_preview
+            content = @repository.cat(@path, @rev)
+            apply_preview_security_headers(@entry&.name || @path, :content => content)
+            content
+          end
+          private :entry_content_for_preview
           
           def send_more_asset
             apply_asset_security_headers
@@ -176,6 +187,12 @@ module RedmineMorePreviews
                 format.any { send_more_asset }
               end #respond
             else
+              # only the html preview is sandboxed, so only that page needs the
+              # download decision (made on the entry's content, like the conversion)
+              if (RedmineMorePreviews::Converter.conversion_ext(@entry.name, :pathonly => true) rescue nil) == 'html'
+                @preview_allows_downloads = RedmineMorePreviews::ControllerHelper.
+                  preview_allows_downloads?(@entry.name, :content => @repository.cat(@path, @rev))
+              end
               render :action => 'more_preview'
             end
           else

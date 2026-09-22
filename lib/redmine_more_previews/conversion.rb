@@ -236,9 +236,60 @@ module RedmineMorePreviews
     # cached_preview
     #-------------------------------------------------------------------------------------
     def cached_preview
-      begin; transient_preview{|*files| copy_over}; end if !valid || reload
-      read_safe
+      # the converter semaphore is per converter (and per process): requests of
+      # two converters for the same file, or two processes, must not interleave
+      # the marker check, the replacement and the read of one cache directory
+      with_cache_lock do
+        # the directory holds the preview and its assets: whatever another
+        # converter left there must go before this one writes into it (an asset
+        # conversion alone would otherwise mark the other converter's index as ours)
+        discard_cache unless cached_by_this_converter?
+        begin; transient_preview{|*files| copy_over}; end if !valid || reload || !cached_by_this_converter?
+        read_safe
+      end
     end #def
+    
+    # an exclusive advisory lock on <dir>.lock, held across processes
+    def with_cache_lock
+      return yield unless dir
+      FileUtils.mkdir_p( File.dirname( dir ) )
+      File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
+        lock.flock( File::LOCK_EX )
+        yield
+      end
+    end #def
+    private :with_cache_lock
+    
+    def discard_cache
+      return unless dir && File.directory?( dir )
+      # only ever remove a preview directory inside the plugin's storage
+      raise ConverterBadArgument unless Lib::RmpFile.within_directory?( RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, dir )
+      FileUtils.rm_rf( dir )
+      FileUtils.rm_f( marker_path )
+    end #def
+    private :discard_cache
+    
+    #-------------------------------------------------------------------------------------
+    # which converter produced the cached preview
+    #-------------------------------------------------------------------------------------
+    # the cache directory is per attachment and format, not per converter: when
+    # the converter selection changes (settings, or a file whose content and
+    # extension point to different converters) a preview produced by another
+    # converter must not be served as this converter's output -- the response
+    # policy (f.i. the download sandbox flag) is chosen for this converter
+    def marker_path
+      dir && "#{dir}.converter"
+    end #def
+    private :marker_path
+    
+    def cached_by_this_converter?
+      marker_path && File.file?( marker_path ) && File.read( marker_path ).strip == id.to_s
+    end #def
+    
+    def write_marker
+      File.write( marker_path, id.to_s ) if marker_path
+    end #def
+    private :write_marker
     
     #-------------------------------------------------------------------------------------
     # copy over
@@ -254,11 +305,13 @@ module RedmineMorePreviews
             Dir.children(tmpdir).each do |f|
               FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
             end
+            write_marker
         else 
           semaphore.synchronize do
             Dir.children(tmpdir).each do |f|
               FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
             end
+            write_marker
           end
         end
       end

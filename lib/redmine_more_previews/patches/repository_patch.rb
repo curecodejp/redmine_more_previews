@@ -35,11 +35,13 @@ module RedmineMorePreviews
           #
           ################################################################################
           # class specific
-          def more_preview(path, rev, options={}, &block)
+          # entry_content: the entry's bytes when the caller has already read them
+          # (the controller decides the CSP on the same bytes that get rendered)
+          def more_preview(path, rev, options={}, entry_content: nil, &block)
             if entry(path, rev)
               Dir.mktmpdir do |tmpdir|
                 filepath = File.join(tmpdir, entry(path, rev).name)
-                File.open( filepath, "wb") {|f| f.write(cat(path, rev))}
+                File.open( filepath, "wb") {|f| f.write(entry_content || cat(path, rev))}
                 RedmineMorePreviews::Converter.convert(
                   filepath,
                   preview_filepath(path, rev, options),

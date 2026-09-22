@@ -88,10 +88,10 @@ module RedmineMorePreviews
           #
           ################################################################################
           def send_more_preview
-            apply_preview_security_headers
+            apply_preview_security_headers(@attachment.diskfile)
 
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => @attachment.preview_mtime(preview_params))
+              if params[:reload] || stale?(:etag => preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile))
                 send_data @attachment.more_preview(preview_params),
                   :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),

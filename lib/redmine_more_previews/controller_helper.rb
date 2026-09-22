@@ -31,6 +31,33 @@ module RedmineMorePreviews
     HTML_PREVIEW_CSP =
       "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:".freeze
 
+    # Converters whose HTML preview may start downloads: the plugin generates that
+    # HTML itself (Zippy's archive listing, entry names escaped). Converters that
+    # render uploaded content (Pass, Mark, ...) keep the bare sandbox, because
+    # allow-downloads removes the sandboxed-downloads flag altogether -- a
+    # <meta refresh> to an attachment response would then start a download
+    # without any click. The browser applies the union of the iframe attribute
+    # and the CSP sandbox directive, so both must carry the flag (see
+    # ApplicationHelperPatch#more_previews_tag).
+    DOWNLOAD_PREVIEW_CONVERTERS = %w(zippy).freeze
+
+    # +file+ and +options+ must select the converter the same way the conversion
+    # does (Converter.convert -> Converter.responsible(file), content detection
+    # first): a text/html upload named archive.zip is rendered by Pass, so the
+    # extension alone must not grant downloads. Pass the attachment's diskfile,
+    # or the entry name with :content => the entry's bytes. Anything unreadable
+    # or unknown gets the bare sandbox.
+    def self.preview_allows_downloads?(file, options = {})
+      return false if file.blank? || (options.key?(:content) && options[:content].nil?)
+      converter = RedmineMorePreviews::Converter.responsible(file.to_s, options)
+      converter.present? && DOWNLOAD_PREVIEW_CONVERTERS.include?(converter.id.to_s)
+    end
+
+    def self.html_preview_csp(file, options = {})
+      return HTML_PREVIEW_CSP unless preview_allows_downloads?(file, options)
+      HTML_PREVIEW_CSP.sub(/\Asandbox;/, 'sandbox allow-downloads;')
+    end
+
     # only these media types may be served inline as assets; everything else
     # (html, svg, xml and any */*+xml, unknown types, ...) is forced to download
     INLINE_ASSET_MIME_TYPES =
@@ -44,10 +71,22 @@ module RedmineMorePreviews
     end #def
     private :preview_params
 
-    def apply_preview_security_headers
+    # ETag for a cached preview: the file's mtime alone would answer a conditional
+    # request with 304 from a cache that another converter produced (the
+    # regeneration in Conversion#cached_preview never runs on that path), so the
+    # selected converter is part of the key. file / options as in
+    # ControllerHelper.preview_allows_downloads?
+    def preview_etag(mtime, file, options = {})
+      [mtime, RedmineMorePreviews::Converter.responsible(file.to_s, options)&.id]
+    end
+    private :preview_etag
+
+    # file / options: see ControllerHelper.preview_allows_downloads?; they decide
+    # whether the CSP sandbox allows downloads (DOWNLOAD_PREVIEW_CONVERTERS)
+    def apply_preview_security_headers(file = nil, options = {})
       return unless params[:format].to_s.downcase == 'html'
 
-      response.headers['Content-Security-Policy'] = HTML_PREVIEW_CSP
+      response.headers['Content-Security-Policy'] = ControllerHelper.html_preview_csp(file, options)
       response.headers['X-Content-Type-Options'] = 'nosniff'
       response.headers['Referrer-Policy'] = 'no-referrer'
     end

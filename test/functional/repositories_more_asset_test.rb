@@ -37,6 +37,7 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     super
     Setting.enabled_scm = @old_enabled_scm
     Setting.plugin_redmine_more_previews = @old_settings
+    Setting.clear_cache # the writer caches the symbol key; the plugin reads the string key
     RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
     RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @old_storage)
     FileUtils.rm_rf(@storage)
@@ -60,6 +61,56 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     get route[:action], params: route.except(:controller, :action).merge(Rack::Utils.parse_query(uri.query).symbolize_keys)
     assert_response :success
     assert_equal 'hello', response.body
+  end
+
+  # the entry is not on disk in the controller: the download decision (CSP and
+  # iframe) is made on its content, like the conversion
+  def test_download_sandbox_flag_follows_the_content_not_the_extension
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.deep_merge(
+      'converter' => {'pass' => {'active' => '1', 'mime_types' => {'html' => {'active' => '1', 'format' => 'html'}}}}
+    )
+    Setting.clear_cache
+    File.write(File.join(@repo_dir, 'spoof.zip'), '<!DOCTYPE html><html><body>not an archive</body></html>')
+    @repository.fetch_changesets
+
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :success
+    assert_match(/\Asandbox allow-downloads; /, response.headers['Content-Security-Policy'].to_s)
+    get :entry, params: entry_params
+    assert_response :success
+    assert_select 'iframe[sandbox="allow-downloads"]'
+
+    spoof = entry_params(path: repository_path_hash(['spoof.zip'])[:param])
+    get :more_preview, params: spoof.merge(format: 'html')
+    assert_response :success
+    assert_match(/\Asandbox; /, response.headers['Content-Security-Policy'].to_s)
+    get :entry, params: spoof
+    assert_response :success
+    assert_select 'iframe[sandbox=""]'
+  end
+
+  # the bytes are read once and shared by the CSP decision and the conversion
+  def test_preview_reads_the_entry_once
+    bytes = File.binread(File.join(@repo_dir, 'a.zip'))
+    Repository::Filesystem.any_instance.expects(:cat).once.returns(bytes)
+    get :more_preview, params: entry_params(format: 'html', reload: 1)
+    assert_response :success
+    assert_match(/\Asandbox allow-downloads; /, response.headers['Content-Security-Policy'].to_s)
+    assert_includes response.body, 'file.txt'
+  end
+
+  # the entry page reads the entry for the download decision only when the
+  # preview is the sandboxed html one; an inline listing is read by the conversion alone
+  def test_inline_entry_page_does_not_read_the_entry_for_the_download_decision
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+    bytes = File.binread(File.join(@repo_dir, 'a.zip'))
+    Repository::Filesystem.any_instance.expects(:cat).once.returns(bytes)
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_includes response.body, 'file.txt'
   end
 
   def test_regular_entry_is_served

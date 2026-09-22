@@ -80,6 +80,15 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
   end
 
+  # cliff ships a second copy of its templates next to the library, and that is
+  # the one a packaged install renders; escaping only one of them would leave
+  # the exposure in place where it is hardest to notice
+  def test_bundled_pre_template_copy_is_in_sync
+    app = File.expand_path('../../converters/cliff/app/views/cliff/pre.html.erb', __dir__)
+    lib = File.expand_path('../../converters/cliff/lib/cliff/pre.html.erb', __dir__)
+    assert_equal File.read(app), File.read(lib)
+  end
+
   # an html message is html by definition: that part is rendered, not escaped,
   # and is protected by the sandbox and the inline sanitiser instead
   def test_html_part_is_still_rendered_as_html

@@ -1,5 +1,6 @@
 <% if @preview_format == 'html' %>
-<%= ApplicationController.helpers.stylesheet_link_tag 'jquery/jquery-ui-1.11.0', 'tribute-3.7.3', 'application', 'responsive', :media => 'all' %>
+<!DOCTYPE html>
+<%= ApplicationController.helpers.stylesheet_link_tag 'application', 'responsive', :media => 'all' %>
 <%= ApplicationController.helpers.heads_for_theme %>
 <% end %>
 <link rel="stylesheet" media="all" href="<%= "#{@converter.public_web_directory}/stylesheets/redmine_more_previews_vince.css" %>">

@@ -58,6 +58,7 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
       assert_response :success
       assert_match(/\Asandbox allow-downloads; /, csp)
       assert_no_match(/allow-(scripts|forms|same-origin|top-navigation|popups)/, csp)
+      assert_includes csp, "style-src 'self' 'unsafe-inline'", 'same-origin CSS stays allowed (#19139)'
       get :show, params: {id: a.id, filename: a.filename, format: 'html'}
       assert_select 'iframe[sandbox="allow-downloads"]'
     end

@@ -55,6 +55,19 @@ module RedmineMorePreviews
         PLUGIN_STYLESHEET_HREF =
           %r{\A/plugin_assets/redmine_more_previews/(?:[A-Za-z0-9_\-]+/)*[A-Za-z0-9_\-]+\.css\z}.freeze
 
+        # <img> is fetched by the browser, so an external src turns viewing a
+        # preview into a request to whoever wrote the converter's input (ip,
+        # user agent, open tracking). Same rule as the html format's CSP
+        # img-src 'self' data: (ControllerHelper::HTML_PREVIEW_CSP). "//host"
+        # and "/\host" are protocol relative urls, not paths, so a leading
+        # slash alone is not enough.
+        LOCAL_IMAGE_SRC = %r{\A(?:data:image/|/(?![/\\]))}i.freeze
+
+        # the browser strips tab, lf and cr out of a url before resolving it,
+        # so "/<tab>/host/x.png" is fetched as "//host/x.png". Match on the
+        # stripped value, never on the bytes as written.
+        URL_IGNORED_CHARS = /[\t\n\r]/.freeze
+
         # +href+ must be the plugin's own stylesheet as this Redmine serves it:
         # under a sub-URI the bare "/plugin_assets/..." path belongs to whatever
         # else is mounted at the server root, so it is not accepted there.
@@ -92,6 +105,17 @@ module RedmineMorePreviews
           else
             super
           end
+        end
+
+        def scrub_attribute(node, attr_node)
+          name = attr_node.name
+          super
+          return unless name == 'src'
+
+          value = node[name]
+          return if value.nil?   # super removed it (javascript:, data:text/html, ...)
+
+          node.remove_attribute(name) unless value.gsub(URL_IGNORED_CHARS, '').match?(LOCAL_IMAGE_SRC)
         end
 
       end #class

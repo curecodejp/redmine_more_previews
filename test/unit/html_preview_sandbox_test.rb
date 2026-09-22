@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'nokogiri'
 
 # The full HTML preview is rendered in a sandboxed iframe (GHSA-j23w-wwfh-gwfp).
 # A bare sandbox also blocks downloads started inside the frame, which made the

@@ -29,7 +29,7 @@ module RedmineMorePreviews
     # response origin. CSP 'self' is matched against the protected response
     # URL's origin; it does not require sandbox allow-same-origin.
     HTML_PREVIEW_CSP =
-      "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'".freeze
+      "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:".freeze
 
     # Converters whose HTML preview may start downloads: the plugin generates that
     # HTML itself (Zippy's archive listing, entry names escaped). Converters that

@@ -62,6 +62,17 @@ jobs:
           cp -a plugin redmine/plugins/redmine_more_previews
           rm -rf redmine/plugins/redmine_more_previews/.git
 
+          # Redmine 6.0.5 does not pin minitest and resolves 6.x, whose Runnable.run
+          # signature breaks Rails 7.2.2.1 (line_filtering.rb: wrong number of
+          # arguments). 6.0-stable and 6.1.x pin it in their own Gemfile (and Bundler
+          # rejects a second, different requirement), so add the pin only when the
+          # Redmine Gemfile has none.
+          if ! grep -q "gem 'minitest'" redmine/Gemfile; then
+            cat > redmine/Gemfile.local <<'RUBY'
+          gem 'minitest', '< 6.0'
+          RUBY
+          fi
+
       - name: Install Redmine bundle
         working-directory: redmine
         run: |

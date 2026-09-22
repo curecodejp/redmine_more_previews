@@ -25,6 +25,7 @@ class HtmlPreviewCspTest < ActiveSupport::TestCase
     assert_includes csp, "default-src 'none'"
     assert_includes csp, "style-src 'self' 'unsafe-inline'"
     assert_includes csp, "img-src 'self' data:"
+    assert_not_includes csp, 'font-src'
     assert_not_includes csp, 'allow-scripts'
   end
 end

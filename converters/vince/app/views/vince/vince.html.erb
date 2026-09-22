@@ -1,6 +1,6 @@
 <% if @preview_format == 'html' %>
-<%= ApplicationController.helpers.stylesheet_link_tag 'jquery/jquery-ui-1.11.0', 'tribute-3.7.3', 'application', 'responsive', :media => 'all' %>
-<%= ApplicationController.helpers.heads_for_theme %>
+<!DOCTYPE html>
+<style>html, body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #333; } a { color: #169; text-decoration: none; } a:hover, a:active { color: #c61a1a; text-decoration: underline; }</style>
 <% end %>
 <link rel="stylesheet" media="all" href="<%= "#{@converter.public_web_directory}/stylesheets/redmine_more_previews_vince.css" %>">
 

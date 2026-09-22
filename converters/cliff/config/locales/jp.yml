@@ -23,7 +23,7 @@ jp:
   label_mail_field_date:                         "日付"
   label_mail_field_from:                         "差出人"
   label_mail_field_to:                           "宛先"
-  label_mail_field_cc:                           "英語"
+  label_mail_field_cc:                           "Cc"
   label_mail_field_subject:                      "件名"
   
   redmine_more_previews:

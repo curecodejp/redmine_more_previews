@@ -9,7 +9,8 @@
   </head>
   <body>
     <pre class='project_email_pre'>
-    <%= @text.html_safe %>
+    <%# Escape at the sink even when a caller has marked plain text as html_safe. %>
+    <%= CGI.escapeHTML(@text.to_s) %>
     </pre>
   </body>
 </html>

@@ -14,6 +14,10 @@ class CliffHeadersTest < ActiveSupport::TestCase
 
   HeaderStub = Struct.new(:display_names)
 
+  FieldStub = Struct.new(:name, :decoded)
+
+  MailWithFields = Struct.new(:header_fields)
+
   def render_headers(cc)
     @mail = MailStub.new(
       'sender@example.test',
@@ -60,5 +64,81 @@ class CliffHeadersTest < ActiveSupport::TestCase
   def test_unparseable_cc_of_a_real_message_is_shown_as_is
     @mail = Mail.new("From: sender@example.test\nTo: to@example.test\nCc: not an address <<\nSubject: Subject\n\nbody\n")
     assert_equal 'not an address <<', cc_cell(render_current_mail)
+  end
+
+  # --- header values are attacker controlled -----------------------------------------
+
+  MARKUP = '<b>bold</b><a href="https://example.invalid/">link</a>'
+
+  def render_fields
+    template = File.expand_path('../../converters/cliff/app/views/cliff/fields.html.erb', __dir__)
+    ERB.new(File.read(template)).result(binding)
+  end
+
+  # the templates are plain ERB (not ActionView), so <%= %> does not escape, and
+  # cliff.rb marks the result html_safe; markup in a header would otherwise be
+  # rendered as markup wherever the preview is shown
+  def test_header_values_are_escaped
+    @mail = MailStub.new(
+      "from#{MARKUP}@example.test",
+      "to#{MARKUP}@example.test",
+      "cc#{MARKUP}@example.test",
+      "Subject#{MARKUP}",
+      {from: HeaderStub.new([])}
+    )
+    html = render_current_mail
+    assert_not_includes html, '<b>', 'a header value must not reach the page as markup'
+    assert_not_includes html, '<a href', 'a header value must not reach the page as markup'
+    assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
+    assert_equal "cc#{MARKUP}@example.test", cc_cell(html), 'the value must still be readable'
+  end
+
+  def test_display_names_are_escaped
+    @mail = MailStub.new(
+      'sender@example.test', 'to@example.test', 'cc@example.test', 'Subject',
+      {from: HeaderStub.new([MARKUP])}
+    )
+    html = render_current_mail
+    assert_not_includes html, '<b>'
+    assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
+  end
+
+  # an unparseable Date header is not a date at all: Mail hands back the raw
+  # string and I18n.localize raises, so the template's rescue puts the header's
+  # own bytes on the page
+  def test_an_unparseable_date_is_escaped
+    @mail = Mail.new("From: a@example.test\nTo: b@example.test\nDate: #{MARKUP}\n\nbody\n")
+    html = render_current_mail
+    assert_not_includes html, '<b>', 'the raw Date header must not reach the page as markup'
+    assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
+  end
+
+  # fields.html.erb lists every header of the message, names included
+  def test_field_names_and_values_are_escaped
+    @mail = MailWithFields.new([FieldStub.new("X-#{MARKUP}", "value#{MARKUP}")])
+    html = render_fields
+    assert_not_includes html, '<b>'
+    assert_not_includes html, '<a href'
+    assert_equal 2, html.scan('&lt;b&gt;bold&lt;/b&gt;').size, 'both the name and the value must be escaped'
+  end
+
+  def test_bundled_fields_template_copy_is_in_sync
+    app = File.expand_path('../../converters/cliff/app/views/cliff/fields.html.erb', __dir__)
+    lib = File.expand_path('../../converters/cliff/lib/cliff/fields.html.erb', __dir__)
+    assert_equal File.read(app), File.read(lib)
+  end
+
+  # --- labels --------------------------------------------------------------------------
+
+  # the japanese Cc label read "英語" ("English", the language name Vince's own
+  # locale uses), so the row was labelled as if it held a language
+  def test_japanese_labels_name_the_mail_fields
+    {
+      :label_mail_field_date => '日付', :label_mail_field_from => '差出人',
+      :label_mail_field_to => '宛先', :label_mail_field_cc => 'Cc',
+      :label_mail_field_subject => '件名'
+    }.each do |key, expected|
+      assert_equal expected, I18n.translate(key, :locale => :ja), "#{key} is mistranslated"
+    end
   end
 end

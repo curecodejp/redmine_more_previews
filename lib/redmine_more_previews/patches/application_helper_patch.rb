@@ -49,9 +49,24 @@ module RedmineMorePreviews
         # every other disallowed node is stripped but keeps its children
         PRUNED_TAGS = %w[script style noscript template textarea title].freeze
 
-        # strict path charset: no "..", "\\", query or fragment
+        # strict path charset: no "..", "\\", query or fragment. The path is
+        # matched below Redmine's relative url root, which is where the plugin's
+        # assets are served from (see Converter#public_web_directory).
         PLUGIN_STYLESHEET_HREF =
           %r{\A/plugin_assets/redmine_more_previews/(?:[A-Za-z0-9_\-]+/)*[A-Za-z0-9_\-]+\.css\z}.freeze
+
+        # +href+ must be the plugin's own stylesheet as this Redmine serves it:
+        # under a sub-URI the bare "/plugin_assets/..." path belongs to whatever
+        # else is mounted at the server root, so it is not accepted there.
+        def self.plugin_stylesheet_href?(href)
+          href = href.to_s
+          root = Redmine::Utils.relative_url_root.to_s.chomp('/')
+          unless root.empty?
+            return false unless href.start_with?("#{root}/")
+            href = href[root.length..-1]
+          end
+          href.match?(PLUGIN_STYLESHEET_HREF)
+        end
 
         def initialize
           super
@@ -68,7 +83,7 @@ module RedmineMorePreviews
           # way); anything else - other same-origin urls included, since
           # uploaded .css attachments are served as text/css - is dropped
           node['rel'].to_s.strip.casecmp?('stylesheet') &&
-            node['href'].to_s.match?(PLUGIN_STYLESHEET_HREF)
+            self.class.plugin_stylesheet_href?(node['href'])
         end
 
         def scrub_node(node)

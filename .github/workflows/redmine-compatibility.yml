@@ -216,6 +216,33 @@ jobs:
             raise "inline preview sanitiser dropped converter markup #{needle}: #{kept}" unless kept.include?(needle)
           end
 
+          # sub-URI: the converters' assets and the stylesheet allow-list move with
+          # Redmine's relative url root, and nothing else becomes acceptable
+          original_root = Redmine::Utils.relative_url_root
+          begin
+            Redmine::Utils.relative_url_root = '/redmine'
+            vince_css = '/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css'
+            emitted = RedmineMorePreviews::Converter.find(:vince).public_web_directory
+            raise "converter assets ignore the sub-URI: #{emitted}" unless emitted == '/redmine/plugin_assets/redmine_more_previews/converters/vince'
+            sub_uri = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="/redmine#{vince_css}">)).to_s
+            raise "sub-URI stylesheet dropped: #{sub_uri}" unless sub_uri.include?("/redmine#{vince_css}")
+            [vince_css, '/redmine/attachments/download/1/evil.css', '/redmine/plugin_assets/redmine_more_previews/../../x.css'].each do |href|
+              leaked = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">)).to_s
+              raise "sub-URI stylesheet allow-list accepted #{href}: #{leaked}" if leaked.include?('<link')
+            end
+            # a root written with a trailing slash works for Redmine itself, so the
+            # url a converter emits must stay one the allow-list accepts
+            ['', '/', '/redmine', '/redmine/'].each do |root|
+              Redmine::Utils.relative_url_root = root
+              href = "#{RedmineMorePreviews::Converter.find(:vince).public_web_directory}/stylesheets/redmine_more_previews_vince.css"
+              raise "doubled slash for relative_url_root #{root.inspect}: #{href}" if href.include?('//')
+              emitted = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">)).to_s
+              raise "stylesheet emitted for relative_url_root #{root.inspect} was dropped: #{emitted}" unless emitted.include?(href)
+            end
+          ensure
+            Redmine::Utils.relative_url_root = original_root
+          end
+
           # response headers and asset disposition
           controller = Class.new do
             include RedmineMorePreviews::ControllerHelper

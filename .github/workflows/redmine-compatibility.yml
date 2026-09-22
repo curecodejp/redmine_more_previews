@@ -230,6 +230,15 @@ jobs:
               leaked = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">)).to_s
               raise "sub-URI stylesheet allow-list accepted #{href}: #{leaked}" if leaked.include?('<link')
             end
+            # a root written with a trailing slash works for Redmine itself, so the
+            # url a converter emits must stay one the allow-list accepts
+            ['', '/', '/redmine', '/redmine/'].each do |root|
+              Redmine::Utils.relative_url_root = root
+              href = "#{RedmineMorePreviews::Converter.find(:vince).public_web_directory}/stylesheets/redmine_more_previews_vince.css"
+              raise "doubled slash for relative_url_root #{root.inspect}: #{href}" if href.include?('//')
+              emitted = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">)).to_s
+              raise "stylesheet emitted for relative_url_root #{root.inspect} was dropped: #{emitted}" unless emitted.include?(href)
+            end
           ensure
             Redmine::Utils.relative_url_root = original_root
           end

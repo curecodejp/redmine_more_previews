@@ -43,6 +43,19 @@ class SubUriAssetsTest < ActiveSupport::TestCase
                  RedmineMorePreviews::Converter.find(:zippy).public_web_directory
   end
 
+  # Rails swallows a trailing slash when it builds urls (asset_url_helper joins
+  # the paths, url.rb chomps the script name), so a root written that way works
+  # for Redmine itself; emitting "//plugin_assets/..." here would both address a
+  # host named plugin_assets and miss the sanitizer's allow-list below
+  def test_public_web_directory_normalizes_a_trailing_slash
+    ['/redmine/', '/'].each do |root|
+      Redmine::Utils.relative_url_root = root
+      assert_equal "#{root.chomp('/')}/plugin_assets/redmine_more_previews/converters/zippy",
+                   RedmineMorePreviews::Converter.find(:zippy).public_web_directory,
+                   "relative_url_root #{root.inspect} must not produce a doubled slash"
+    end
+  end
+
   # --- the allow-list the inline sanitizer matches them against ----------------------
 
   def test_inline_sanitizer_keeps_the_plugin_stylesheet_without_a_sub_uri
@@ -56,6 +69,17 @@ class SubUriAssetsTest < ActiveSupport::TestCase
     href = "/redmine#{vince_stylesheet_path}"
     out = helper.sanitize_inline_preview(stylesheet_link(href)).to_s
     assert_includes out, href, 'the converter\'s own stylesheet must survive under a sub-URI'
+  end
+
+  # the url a converter emits and the allow-list it is matched against must
+  # normalize the root the same way, whatever it is set to
+  def test_inline_sanitizer_keeps_the_stylesheet_a_converter_emits_for_any_root
+    ['', '/', '/redmine', '/redmine/'].each do |root|
+      Redmine::Utils.relative_url_root = root
+      href = "#{RedmineMorePreviews::Converter.find(:vince).public_web_directory}/stylesheets/redmine_more_previews_vince.css"
+      out = helper.sanitize_inline_preview(stylesheet_link(href)).to_s
+      assert_includes out, href, "the stylesheet emitted for relative_url_root #{root.inspect} must survive"
+    end
   end
 
   # everything the allow-list rejected without a sub-URI must stay rejected

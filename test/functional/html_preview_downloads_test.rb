@@ -80,6 +80,27 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  # the cache directory is shared by all converters producing the same format:
+  # a preview produced by Pass must not be served under Zippy's policy once
+  # Zippy becomes the selected converter (here: Pass disabled afterwards)
+  def test_cached_preview_from_another_converter_is_not_served_with_downloads
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'archive.zip')
+      refresh = '<meta http-equiv="refresh" content="0;url=/attachments/download/1/x.bin">'
+      File.write(path, "<!DOCTYPE html><html><body>#{refresh}</body></html>")
+      a = attach(path, 'application/zip')
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_match(/\Asandbox; /, csp)
+      assert_includes response.body, refresh, 'Pass caches the uploaded HTML'
+
+      Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS # Pass disabled: the extension now selects Zippy
+      Setting.clear_cache
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_not_includes response.body.to_s, refresh, 'the Pass output must not be served as a Zippy preview'
+    end
+  end
+
   def test_other_html_previews_stay_fully_sandboxed
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'page.html')

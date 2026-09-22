@@ -236,9 +236,31 @@ module RedmineMorePreviews
     # cached_preview
     #-------------------------------------------------------------------------------------
     def cached_preview
-      begin; transient_preview{|*files| copy_over}; end if !valid || reload
+      begin; transient_preview{|*files| copy_over}; end if !valid || reload || !cached_by_this_converter?
       read_safe
     end #def
+    
+    #-------------------------------------------------------------------------------------
+    # which converter produced the cached preview
+    #-------------------------------------------------------------------------------------
+    # the cache directory is per attachment and format, not per converter: when
+    # the converter selection changes (settings, or a file whose content and
+    # extension point to different converters) a preview produced by another
+    # converter must not be served as this converter's output -- the response
+    # policy (f.i. the download sandbox flag) is chosen for this converter
+    def marker_path
+      dir && "#{dir}.converter"
+    end #def
+    private :marker_path
+    
+    def cached_by_this_converter?
+      marker_path && File.file?( marker_path ) && File.read( marker_path ).strip == id.to_s
+    end #def
+    
+    def write_marker
+      File.write( marker_path, id.to_s ) if marker_path
+    end #def
+    private :write_marker
     
     #-------------------------------------------------------------------------------------
     # copy over
@@ -254,11 +276,13 @@ module RedmineMorePreviews
             Dir.children(tmpdir).each do |f|
               FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
             end
+            write_marker
         else 
           semaphore.synchronize do
             Dir.children(tmpdir).each do |f|
               FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
             end
+            write_marker
           end
         end
       end

@@ -81,14 +81,24 @@ module RedmineMorePreviews
     end
     private :preview_etag
 
+    # Formats the browser renders with a viewer of its own: the sandbox puts the
+    # document in an opaque origin, which breaks the built-in pdf viewer, and the
+    # image formats gain nothing from it. Everything else - html, xml, text, and
+    # any format a converter adds later - is sandboxed, so a new preview format
+    # cannot ship unprotected by accident.
+    CSP_EXEMPT_FORMATS = %w(pdf png jpg jpeg gif).freeze
+
     # file / options: see ControllerHelper.preview_allows_downloads?; they decide
     # whether the CSP sandbox allows downloads (DOWNLOAD_PREVIEW_CONVERTERS)
     def apply_preview_security_headers(file = nil, options = {})
-      return unless params[:format].to_s.downcase == 'html'
-
-      response.headers['Content-Security-Policy'] = ControllerHelper.html_preview_csp(file, options)
+      # neither header changes how a response is rendered, so every preview gets
+      # them, the exempt formats included
       response.headers['X-Content-Type-Options'] = 'nosniff'
       response.headers['Referrer-Policy'] = 'no-referrer'
+
+      return if CSP_EXEMPT_FORMATS.include?(params[:format].to_s.downcase)
+
+      response.headers['Content-Security-Policy'] = ControllerHelper.html_preview_csp(file, options)
     end
     private :apply_preview_security_headers
 

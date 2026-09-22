@@ -1,3 +1,81 @@
+/* Minimal Redmine-compatible layout for standalone HTML previews.
+   Keep this scoped to Vince markup so inline previews do not restyle Redmine. */
+.business-card {
+    box-sizing: border-box;
+    padding: 8px;
+    margin-bottom: 12px;
+    color: #505050;
+    line-height: 1.5em;
+    border: 1px solid #d0d7de;
+    word-wrap: break-word;
+    border-radius: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.business-card .contextual {
+    float: right;
+    white-space: nowrap;
+    line-height: 1.4em;
+    margin: 5px 0;
+    padding-left: 10px;
+    font-size: 0.9em;
+}
+
+.business-card .splitcontent {
+    overflow: auto;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.business-card .splitcontentleft {
+    flex: 1;
+    margin-right: 5px;
+}
+
+.business-card .splitcontentright {
+    flex: 1;
+    margin-left: 5px;
+}
+
+.business-card .splitcontenttop {
+    flex: 2;
+    flex-basis: 100%;
+}
+
+.business-card h2,
+.business-card h4 {
+    font-family: Arial, Helvetica, sans-serif;
+    color: #555;
+}
+
+.business-card h2 {
+    font-size: 1.25rem;
+    margin: 0 0 10px;
+}
+
+.business-card h4 {
+    font-size: 0.875rem;
+    border-bottom: 1px solid #ccc;
+    font-weight: normal;
+    margin: 0 0 10px;
+}
+
+.business-card hr {
+    width: 100%;
+    border: 0;
+    border-top: 1px solid #ccc;
+}
+
+.business-card .tabular p {
+    margin: 0;
+    padding: 3px 0;
+    min-height: 2em;
+}
+
+.business-card .tabular label {
+    font-weight: bold;
+}
+
 /* ********************************************************* */
 /* general background color for highlighted boxes            */
 /* ********************************************************* */

@@ -121,10 +121,14 @@ module RedmineMorePreviews
                 :style  => "position:relative;padding-top:141%;",
               )
             else
+              preview_pane_style = html_preview ?
+                "position:relative;height:60vh;min-height:280px;max-height:600px;" :
+                "position:relative;padding-top:141%;"
+
               iframe_options = {
                 :style                => "position:absolute;top:0;bottom:0;left:0;width:95%;",
                 :seamless             => "seamless",
-                :scrolling            => "no",
+                :scrolling            => html_preview ? "auto" : "no",
                 :frameborder          => "0",
                 :allowtransparency    => "true",
                 :title                => filename,
@@ -150,7 +154,7 @@ module RedmineMorePreviews
                   iframe_options
                 ),
                 :id    => "preview_pane",
-                :style => "position:relative;padding-top:141%;"
+                :style => preview_pane_style
               )
             end #if
           end #def

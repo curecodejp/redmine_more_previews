@@ -109,6 +109,29 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  # the cache directory also holds extracted assets: an asset request must not
+  # leave another converter's index behind and then mark it as this converter's
+  def test_asset_request_discards_another_converters_cached_preview
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'a.zip'), 'file.txt' => 'x'), 'application/zip')
+      # what an earlier Pass rendering of the same attachment would have left
+      refresh = '<meta http-equiv="refresh" content="0;url=/attachments/download/1/x.bin">'
+      cache_dir = a.preview_dirname(format: 'html')
+      FileUtils.mkdir_p(cache_dir)
+      File.write(File.join(cache_dir, 'index.html'), "<html><body>#{refresh}</body></html>")
+      File.write("#{cache_dir}.converter", 'pass')
+
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'file.txt'}
+      assert_response :success
+      assert_equal 'x', response.body
+
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_not_includes response.body.to_s, refresh, 'the foreign index must not survive the asset conversion'
+      assert_includes response.body.to_s, 'file.txt', 'the listing is rendered by Zippy'
+    end
+  end
+
   def test_other_html_previews_stay_fully_sandboxed
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'page.html')

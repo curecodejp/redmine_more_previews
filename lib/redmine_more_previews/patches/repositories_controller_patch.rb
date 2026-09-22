@@ -187,9 +187,12 @@ module RedmineMorePreviews
                 format.any { send_more_asset }
               end #respond
             else
-              # decided on the entry's content, like the conversion (see ControllerHelper)
-              @preview_allows_downloads = RedmineMorePreviews::ControllerHelper.
-                preview_allows_downloads?(@entry.name, :content => @repository.cat(@path, @rev))
+              # only the html preview is sandboxed, so only that page needs the
+              # download decision (made on the entry's content, like the conversion)
+              if (RedmineMorePreviews::Converter.conversion_ext(@entry.name, :pathonly => true) rescue nil) == 'html'
+                @preview_allows_downloads = RedmineMorePreviews::ControllerHelper.
+                  preview_allows_downloads?(@entry.name, :content => @repository.cat(@path, @rev))
+              end
               render :action => 'more_preview'
             end
           else

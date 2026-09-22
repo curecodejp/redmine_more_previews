@@ -236,9 +236,22 @@ module RedmineMorePreviews
     # cached_preview
     #-------------------------------------------------------------------------------------
     def cached_preview
+      # the directory holds the preview and its assets: whatever another
+      # converter left there must go before this one writes into it (an asset
+      # conversion alone would otherwise mark the other converter's index as ours)
+      discard_cache unless cached_by_this_converter?
       begin; transient_preview{|*files| copy_over}; end if !valid || reload || !cached_by_this_converter?
       read_safe
     end #def
+    
+    def discard_cache
+      return unless dir && File.directory?( dir )
+      # only ever remove a preview directory inside the plugin's storage
+      raise ConverterBadArgument unless Lib::RmpFile.within_directory?( RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, dir )
+      FileUtils.rm_rf( dir )
+      FileUtils.rm_f( marker_path )
+    end #def
+    private :discard_cache
     
     #-------------------------------------------------------------------------------------
     # which converter produced the cached preview

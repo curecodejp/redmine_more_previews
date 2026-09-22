@@ -2,6 +2,7 @@
 
 require File.expand_path('../../test_helper', __FILE__)
 require 'erb'
+require 'mail'
 require 'nokogiri'
 
 class CliffHeadersTest < ActiveSupport::TestCase
@@ -21,6 +22,10 @@ class CliffHeadersTest < ActiveSupport::TestCase
       'Subject',
       {from: HeaderStub.new([])}
     )
+    render_current_mail
+  end
+
+  def render_current_mail
     template = File.expand_path('../../converters/cliff/app/views/cliff/headers.html.erb', __dir__)
     ERB.new(File.read(template)).result(binding)
   end
@@ -43,5 +48,17 @@ class CliffHeadersTest < ActiveSupport::TestCase
   def test_array_cc_is_joined
     assert_equal 'one@example.test, two@example.test',
                  cc_cell(render_headers(['one@example.test', 'two@example.test']))
+  end
+
+  def test_bundled_template_copy_is_in_sync
+    app = File.expand_path('../../converters/cliff/app/views/cliff/headers.html.erb', __dir__)
+    lib = File.expand_path('../../converters/cliff/lib/cliff/headers.html.erb', __dir__)
+    assert_equal File.read(app), File.read(lib)
+  end
+
+  # Mail#cc returns a String when the header cannot be parsed as an address list.
+  def test_unparseable_cc_of_a_real_message_is_shown_as_is
+    @mail = Mail.new("From: sender@example.test\nTo: to@example.test\nCc: not an address <<\nSubject: Subject\n\nbody\n")
+    assert_equal 'not an address <<', cc_cell(render_current_mail)
   end
 end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'cgi'
 require 'nokogiri'
 
 class InlinePreviewScrubberTest < ActiveSupport::TestCase
@@ -71,6 +72,94 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     end
 
     assert_equal %w[cite href src], uri_attributes
+  end
+
+  def test_heading_id_is_preserved_with_namespace_prefix
+    heading = Nokogiri::HTML.fragment(sanitize('<h1 id="t">T</h1>')).at_css('h1')
+
+    assert_equal 'rmp-t', heading['id']
+  end
+
+  def test_footnote_round_trip_link_is_preserved
+    fragment = Nokogiri::HTML.fragment(sanitize('<a href="#fn1">1</a><div id="fn1">note</div>'))
+
+    assert_equal fragment.at_css('a')['href'].delete_prefix('#'), fragment.at_css('div')['id']
+  end
+
+  def test_redmine_element_ids_cannot_be_clobbered
+    # Keep converter output from claiming ids looked up by Redmine's own JavaScript.
+    output = sanitize('<div id="preview_frame">x</div><div id="ajax-indicator">y</div>')
+
+    assert_not_includes output, 'id="preview_frame"'
+    assert_not_includes output, 'id="ajax-indicator"'
+  end
+
+  def test_already_prefixed_id_is_prefixed_again
+    # Otherwise converter input could preempt a name inside the namespace.
+    div = Nokogiri::HTML.fragment(sanitize('<div id="rmp-preview_frame">x</div>')).at_css('div')
+
+    assert_equal 'rmp-rmp-preview_frame', div['id']
+  end
+
+  def test_encoded_japanese_fragment_matches_raw_japanese_id
+    html = '<a href="#%E6%97%A5%E6%9C%AC%E8%AA%9E">x</a><h2 id="日本語">h</h2>'
+    fragment = Nokogiri::HTML.fragment(sanitize(html))
+    href_id = CGI.unescape(fragment.at_css('a')['href']).delete_prefix('#')
+
+    assert_equal href_id, fragment.at_css('h2')['id']
+  end
+
+  def test_empty_or_whitespace_containing_id_is_removed
+    ['', 'a b'].each do |id|
+      div = Nokogiri::HTML.fragment(sanitize(%Q{<div id="#{id}">x</div>})).at_css('div')
+
+      assert_nil div['id'], id.inspect
+    end
+  end
+
+  def test_bare_hash_href_is_not_rewritten
+    link = Nokogiri::HTML.fragment(sanitize('<a href="#">top</a>')).at_css('a')
+
+    assert_equal '#', link['href']
+  end
+
+  def test_path_with_fragment_href_is_not_rewritten
+    link = Nokogiri::HTML.fragment(sanitize('<a href="/a#b">link</a>')).at_css('a')
+
+    assert_equal '/a#b', link['href']
+  end
+
+  def test_id_cannot_escape_its_attribute
+    output = sanitize('<div id="a&quot;&lt;script&gt;">x</div>')
+    fragment = Nokogiri::HTML.fragment(output)
+
+    assert_equal ['div'], fragment.element_children.map(&:name)
+    assert_equal 'rmp-a"<script>', fragment.at_css('div')['id']
+    assert_nil fragment.at_css('script')
+  end
+
+  def test_checkbox_is_preserved_disabled_and_unnamed
+    input = Nokogiri::HTML.fragment(sanitize('<input type="checkbox" name="q" checked>')).at_css('input')
+
+    assert input
+    assert_equal 'disabled', input['disabled']
+    assert_nil input['name']
+    assert input.attribute('checked')
+  end
+
+  def test_non_checkbox_inputs_are_removed
+    ['text', 'IMAGE', ' checkbox '].each do |type|
+      # Browsers do not trim enumerated attributes, so the spaced value falls
+      # back to text and must not be treated as a checkbox here either.
+      assert_nil Nokogiri::HTML.fragment(sanitize(%Q{<input type="#{type}">})).at_css('input'), type.inspect
+    end
+  end
+
+  def test_link_type_does_not_make_stylesheet_get_removed
+    html = '<link rel="stylesheet" type="text/css" href="/plugin_assets/redmine_more_previews/converters/vince/stylesheets/vince.css">'
+    link = Nokogiri::HTML.fragment(sanitize(html)).at_css('link')
+
+    assert link
   end
 
   private

@@ -20,6 +20,7 @@ class VinceHtmlTemplateTest < ActiveSupport::TestCase
     assert_match(/\A<!DOCTYPE html>/, html)
     assert_includes html, "stylesheet"
     assert_includes html, 'font-family: Arial, Helvetica, sans-serif !important'
+    assert_operator html.index('font-family: Arial, Helvetica, sans-serif !important'), :<, html.index('stylesheet'), 'system-font override must be parsed before Redmine styles can trigger webfont loads'
     assert_includes html, 'font-family: Consolas, Menlo, "Liberation Mono", Courier, monospace !important'
     assert_not_includes source, 'jquery-ui-1.11.0'
     assert_not_includes source, 'tribute-3.7.3'

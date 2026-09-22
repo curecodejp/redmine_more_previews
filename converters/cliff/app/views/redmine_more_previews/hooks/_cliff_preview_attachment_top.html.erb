@@ -1,4 +1,11 @@
-<%-if RedmineMorePreviews::Converter.responsible( attachment.filename, :pathonly => true )&.id == :cliff %>
+<%- converter = RedmineMorePreviews::Converter.responsible( attachment.filename, :pathonly => true ) %>
+<%-if converter&.id == :cliff %>
+  <%# emitted here, once, rather than inside headers.html / fields.html:
+      those fragments pass the inline sanitiser (a <link> in them would live
+      only while its path matched PLUGIN_STYLESHEET_HREF), there are three of
+      them, and they are also served on their own as assets %>
+  <%= tag(:link, :rel => "stylesheet", :media => "all",
+          :href => "#{converter.public_web_directory}/stylesheets/redmine_more_previews_cliff.css") %>
   
   <% html_id = SecureRandom.uuid.to_s
     js = "$('##{html_id}-show, ##{html_id}-hide').toggle(); $('##{html_id}').fadeToggle(150);"

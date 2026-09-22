@@ -106,4 +106,23 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_not_includes html, '<b>bold</b>'
     assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
   end
+
+  def test_pre_contents_are_exactly_the_escaped_plain_text
+    text = "  indented\nline"
+    html = render_pre(text)
+    contents = html[/<pre class='project_email_pre'>(.*?)<\/pre>/m, 1]
+
+    assert_equal CGI.escapeHTML(text), contents
+  end
+
+  def test_pre_style_uses_a_selector_and_preserves_spaces
+    html = render_pre('body')
+    rule = html[/\.project_email_pre\s*\{[^}]*\}/m]
+
+    # Previously the declarations had no selector, so they applied to nothing.
+    # pre-line would collapse spaces that are significant in plain-text mail.
+    assert rule, 'the declarations must belong to the project_email_pre selector'
+    assert_includes rule, 'white-space: pre-wrap'
+    assert_not_includes rule, 'pre-line'
+  end
 end

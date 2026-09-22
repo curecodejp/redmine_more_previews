@@ -1,7 +1,7 @@
 <% if @preview_format == 'html' %>
 <!DOCTYPE html>
-<%= ApplicationController.helpers.stylesheet_link_tag 'application', 'responsive', :media => 'all' %>
 <style>html, body, body * { font-family: Arial, Helvetica, sans-serif !important; } pre, code, kbd, samp { font-family: Consolas, Menlo, "Liberation Mono", Courier, monospace !important; }</style>
+<%= ApplicationController.helpers.stylesheet_link_tag 'application', 'responsive', :media => 'all' %>
 <% end %>
 <link rel="stylesheet" media="all" href="<%= "#{@converter.public_web_directory}/stylesheets/redmine_more_previews_vince.css" %>">
 

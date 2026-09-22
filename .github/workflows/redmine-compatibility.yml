@@ -162,9 +162,31 @@ jobs:
           raise 'HTML preview iframe must be sandboxed with no allow-* flags' unless html.match?(/<iframe[^>]*\ssandbox=""/)
           listing = helper.more_previews_tag('/attachments/more_preview/1.html', 'preview.html', type: 'text/html', allow_downloads: true).to_s
           raise 'archive listing iframe must allow downloads and nothing else' unless listing.match?(/<iframe[^>]*\ssandbox="allow-downloads"/)
+          # the fresh DB has no converter enabled; the download decision needs Zippy
+          # (and Pass, to catch HTML uploaded under an archive name)
+          Setting.plugin_redmine_more_previews = Setting.plugin_redmine_more_previews.to_h.deep_merge(
+            'converter' => {
+              'zippy' => {'active' => '1', 'mime_types' => {'zip' => {'active' => '1', 'format' => 'html'}}},
+              'pass'  => {'active' => '1', 'mime_types' => {'html' => {'active' => '1', 'format' => 'html'}}}
+            }
+          )
+          require 'zip'
+          require 'tmpdir'
           csp = RedmineMorePreviews::ControllerHelper
-          raise 'CSP for archive listings must allow downloads' unless csp.html_preview_csp('a.zip').start_with?('sandbox allow-downloads; ')
-          raise 'CSP for other HTML previews must stay a bare sandbox' unless csp.html_preview_csp('a.html').start_with?('sandbox; ')
+          Dir.mktmpdir do |dir|
+            real = File.join(dir, 'a.zip')
+            Zip::File.open(real, Zip::File::CREATE) { |zip| zip.get_output_stream('file.txt') { |f| f.write('x') } }
+            raise 'CSP for archive listings must allow downloads' unless csp.html_preview_csp(real).start_with?('sandbox allow-downloads; ')
+            raise 'CSP for archive listings must allow nothing else' if csp.html_preview_csp(real).match?(/allow-(scripts|forms|same-origin|top-navigation|popups)/)
+            page = File.join(dir, 'a.html')
+            File.write(page, '<!DOCTYPE html><html><body>x</body></html>')
+            raise 'CSP for other HTML previews must stay a bare sandbox' unless csp.html_preview_csp(page).start_with?('sandbox; ')
+            spoof = File.join(dir, 'b.zip')
+            File.write(spoof, '<!DOCTYPE html><html><body><meta http-equiv="refresh" content="0;url=/x"></body></html>')
+            raise 'HTML uploaded as .zip must not get allow-downloads (Pass renders it)' unless csp.html_preview_csp(spoof).start_with?('sandbox; ')
+            raise 'the same decision must work on content (repository entries)' unless csp.html_preview_csp('b.zip', :content => File.binread(spoof)).start_with?('sandbox; ')
+            raise 'missing or unreadable input must fail closed' if csp.preview_allows_downloads?(File.join(dir, 'missing.zip')) || csp.preview_allows_downloads?('b.zip', :content => nil)
+          end
 
           # inline preview: converter output is sanitised before html_safe
           untrusted = '<h1 id="t">T</h1><p><img src="x" onerror="1"></p><script>SCRIPT_BODY</script>' \

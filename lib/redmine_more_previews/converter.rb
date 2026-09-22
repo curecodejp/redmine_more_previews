@@ -229,11 +229,14 @@ module RedmineMorePreviews
       ::Setting['plugin_redmine_more_previews']['debug'].to_i > 0
     end #def
     
+    # options[:pathonly] skips content detection; options[:content] detects on
+    # that string instead of reading filepath (repository entries are not on disk)
     def self.mime( filepath, options={} )
     
       unless options[:pathonly]
       # try by file content
-      mime_type = Marcel::MimeType.for Pathname.new(filepath), name: File.basename(filepath)
+      source    = options[:content] ? StringIO.new(options[:content]) : Pathname.new(filepath)
+      mime_type = Marcel::MimeType.for source, name: File.basename(filepath)
       mime      = active_mime_types.select{|m,opts| mime_type == opts["mime"] }.values.first if mime_type
       return mime if mime
       end

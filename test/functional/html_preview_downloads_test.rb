@@ -61,6 +61,23 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  # Converter.mime detects on content first, so this upload is rendered by Pass:
+  # the extension alone must not grant downloads (allow-downloads would let the
+  # meta refresh start one without a click)
+  def test_html_uploaded_as_zip_stays_fully_sandboxed
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'archive.zip')
+      File.write(path, '<!DOCTYPE html><html><body><meta http-equiv="refresh" content="0;url=/attachments/download/1/x.bin"></body></html>')
+      a = attach(path, 'application/zip')
+      assert_equal 'pass', RedmineMorePreviews::Converter.responsible(a.diskfile).id.to_s
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_match(/\Asandbox; /, csp)
+      get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+      assert_select 'iframe[sandbox=""]'
+    end
+  end
+
   def test_other_html_previews_stay_fully_sandboxed
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'page.html')

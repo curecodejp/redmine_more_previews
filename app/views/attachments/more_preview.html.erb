@@ -73,7 +73,7 @@
           ), 
           @attachment.filename,
          :type            => RedmineMorePreviews::Converter.conversion_mime(@attachment.diskfile),
-         :allow_downloads => RedmineMorePreviews::ControllerHelper.preview_allows_downloads?(@attachment.filename)
+         :allow_downloads => RedmineMorePreviews::ControllerHelper.preview_allows_downloads?(@attachment.diskfile)
         ) %>
     </div>
   <% end %>

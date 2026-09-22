@@ -41,13 +41,20 @@ module RedmineMorePreviews
     # ApplicationHelperPatch#more_previews_tag).
     DOWNLOAD_PREVIEW_CONVERTERS = %w(zippy).freeze
 
-    def self.preview_allows_downloads?(filename)
-      converter = RedmineMorePreviews::Converter.responsible(filename.to_s, :pathonly => true)
+    # +file+ and +options+ must select the converter the same way the conversion
+    # does (Converter.convert -> Converter.responsible(file), content detection
+    # first): a text/html upload named archive.zip is rendered by Pass, so the
+    # extension alone must not grant downloads. Pass the attachment's diskfile,
+    # or the entry name with :content => the entry's bytes. Anything unreadable
+    # or unknown gets the bare sandbox.
+    def self.preview_allows_downloads?(file, options = {})
+      return false if file.blank? || (options.key?(:content) && options[:content].nil?)
+      converter = RedmineMorePreviews::Converter.responsible(file.to_s, options)
       converter.present? && DOWNLOAD_PREVIEW_CONVERTERS.include?(converter.id.to_s)
     end
 
-    def self.html_preview_csp(filename)
-      return HTML_PREVIEW_CSP unless preview_allows_downloads?(filename)
+    def self.html_preview_csp(file, options = {})
+      return HTML_PREVIEW_CSP unless preview_allows_downloads?(file, options)
       HTML_PREVIEW_CSP.sub(/\Asandbox;/, 'sandbox allow-downloads;')
     end
 
@@ -64,12 +71,12 @@ module RedmineMorePreviews
     end #def
     private :preview_params
 
-    # filename: the previewed file (attachment filename / repository entry name);
-    # decides whether the sandbox allows downloads (see DOWNLOAD_PREVIEW_CONVERTERS)
-    def apply_preview_security_headers(filename = nil)
+    # file / options: see ControllerHelper.preview_allows_downloads?; they decide
+    # whether the CSP sandbox allows downloads (DOWNLOAD_PREVIEW_CONVERTERS)
+    def apply_preview_security_headers(file = nil, options = {})
       return unless params[:format].to_s.downcase == 'html'
 
-      response.headers['Content-Security-Policy'] = ControllerHelper.html_preview_csp(filename)
+      response.headers['Content-Security-Policy'] = ControllerHelper.html_preview_csp(file, options)
       response.headers['X-Content-Type-Options'] = 'nosniff'
       response.headers['Referrer-Policy'] = 'no-referrer'
     end

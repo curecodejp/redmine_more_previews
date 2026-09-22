@@ -87,7 +87,8 @@ module RedmineMorePreviews
           #
           ################################################################################
           def send_more_preview
-            apply_preview_security_headers(@entry&.name || @path)
+            # the entry is not on disk: detect on its content, as the conversion does
+            apply_preview_security_headers(@entry&.name || @path, :content => @repository.cat(@path, @rev))
 
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
               if params[:reload] || stale?(:etag => @repository.preview_mtime(@path, @rev, preview_params))
@@ -176,6 +177,9 @@ module RedmineMorePreviews
                 format.any { send_more_asset }
               end #respond
             else
+              # decided on the entry's content, like the conversion (see ControllerHelper)
+              @preview_allows_downloads = RedmineMorePreviews::ControllerHelper.
+                preview_allows_downloads?(@entry.name, :content => @repository.cat(@path, @rev))
               render :action => 'more_preview'
             end
           else

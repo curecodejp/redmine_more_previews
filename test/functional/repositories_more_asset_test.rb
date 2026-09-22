@@ -62,6 +62,31 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_equal 'hello', response.body
   end
 
+  # the entry is not on disk in the controller: the download decision (CSP and
+  # iframe) is made on its content, like the conversion
+  def test_download_sandbox_flag_follows_the_content_not_the_extension
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.deep_merge(
+      'converter' => {'pass' => {'active' => '1', 'mime_types' => {'html' => {'active' => '1', 'format' => 'html'}}}}
+    )
+    File.write(File.join(@repo_dir, 'spoof.zip'), '<!DOCTYPE html><html><body>not an archive</body></html>')
+    @repository.fetch_changesets
+
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :success
+    assert_match(/\Asandbox allow-downloads; /, response.headers['Content-Security-Policy'].to_s)
+    get :entry, params: entry_params
+    assert_response :success
+    assert_select 'iframe[sandbox="allow-downloads"]'
+
+    spoof = entry_params(path: repository_path_hash(['spoof.zip'])[:param])
+    get :more_preview, params: spoof.merge(format: 'html')
+    assert_response :success
+    assert_match(/\Asandbox; /, response.headers['Content-Security-Policy'].to_s)
+    get :entry, params: spoof
+    assert_response :success
+    assert_select 'iframe[sandbox=""]'
+  end
+
   def test_regular_entry_is_served
     get :entry, params: entry_params(asset: 'dir/file.txt')
     assert_response :success

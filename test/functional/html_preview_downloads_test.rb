@@ -23,6 +23,7 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     set_tmp_attachments_directory
     @old_settings = Setting.plugin_redmine_more_previews
     Setting.plugin_redmine_more_previews = SETTINGS
+    Setting.clear_cache
     EnabledModule.create!(project_id: 1, name: 'redmine_more_previews')
     @storage = Dir.mktmpdir('rmp-storage')
     @old_storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH

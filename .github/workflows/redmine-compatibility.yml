@@ -170,12 +170,18 @@ jobs:
               'pass'  => {'active' => '1', 'mime_types' => {'html' => {'active' => '1', 'format' => 'html'}}}
             }
           )
+          # Setting caches per key object: the generated writer uses :plugin_x, the
+          # plugin reads Setting['plugin_x'], and check_cache only runs per request
+          Setting.clear_cache
           require 'zip'
           require 'tmpdir'
           csp = RedmineMorePreviews::ControllerHelper
           Dir.mktmpdir do |dir|
             real = File.join(dir, 'a.zip')
             Zip::File.open(real, Zip::File::CREATE) { |zip| zip.get_output_stream('file.txt') { |f| f.write('x') } }
+            # what the decision is based on, so a failure here is diagnosable from the log
+            puts "active mime types: #{RedmineMorePreviews::Converter.active_mime_types.keys.inspect}"
+            puts "marcel: #{Marcel::MimeType.for(Pathname.new(real), name: File.basename(real))}"
             raise 'CSP for archive listings must allow downloads' unless csp.html_preview_csp(real).start_with?('sandbox allow-downloads; ')
             raise 'CSP for archive listings must allow nothing else' if csp.html_preview_csp(real).match?(/allow-(scripts|forms|same-origin|top-navigation|popups)/)
             page = File.join(dir, 'a.html')

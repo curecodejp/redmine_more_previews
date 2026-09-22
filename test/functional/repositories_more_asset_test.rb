@@ -68,6 +68,7 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.deep_merge(
       'converter' => {'pass' => {'active' => '1', 'mime_types' => {'html' => {'active' => '1', 'format' => 'html'}}}}
     )
+    Setting.clear_cache
     File.write(File.join(@repo_dir, 'spoof.zip'), '<!DOCTYPE html><html><body>not an archive</body></html>')
     @repository.fetch_changesets
 

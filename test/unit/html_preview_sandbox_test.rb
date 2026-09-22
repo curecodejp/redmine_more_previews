@@ -15,6 +15,7 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
   def setup
     @old_settings = Setting.plugin_redmine_more_previews
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS
+    Setting.clear_cache # the plugin reads the string key, the writer caches the symbol key
   end
 
   def teardown
@@ -72,6 +73,7 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.deep_merge(
       'converter' => {'pass' => {'active' => '1', 'mime_types' => {'html' => {'active' => '1', 'format' => 'html'}}}}
     )
+    Setting.clear_cache
     html = '<!DOCTYPE html><html><body><meta http-equiv="refresh" content="0;url=/x"></body></html>'
     Dir.mktmpdir do |dir|
       spoofed = File.join(dir, 'archive.zip')

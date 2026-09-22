@@ -9,7 +9,7 @@
   </head>
   <body>
     <pre class='project_email_pre'>
-    <%= @text.html_safe %>
+    <%= ERB::Util.html_escape(@text) %>
     </pre>
   </body>
 </html>

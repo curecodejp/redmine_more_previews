@@ -100,7 +100,8 @@ class Cliff < RedmineMorePreviews::Conversion
     File.open(tmptarget, "wb") {|f| f.write html }
     
   rescue Exception => e
-    File.open(tmptarget, "wb") {|f| f.write (([e.message] + e.backtrace).join("<br>\n")) }
+    # the message can quote the mail being parsed, so it is attacker controlled
+    File.open(tmptarget, "wb") {|f| f.write (([e.message] + e.backtrace).map{|line| ERB::Util.html_escape(line)}.join("<br>\n")) }
   end #def
   
   #---------------------------------------------------------------------------------------

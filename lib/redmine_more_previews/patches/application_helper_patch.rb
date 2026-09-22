@@ -125,8 +125,12 @@ module RedmineMorePreviews
                 "position:relative;height:60vh;min-height:280px;max-height:600px;" :
                 "position:relative;padding-top:141%;"
 
+              iframe_style = html_preview ?
+                "position:absolute;top:0;left:0;width:95%;height:100%;" :
+                "position:absolute;top:0;bottom:0;left:0;width:95%;"
+
               iframe_options = {
-                :style                => "position:absolute;top:0;bottom:0;left:0;width:95%;",
+                :style                => iframe_style,
                 :seamless             => "seamless",
                 :scrolling            => html_preview ? "auto" : "no",
                 :frameborder          => "0",

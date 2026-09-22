@@ -221,17 +221,47 @@ class Zippy < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   # ziplist
   #---------------------------------------------------------------------------------------
+  # the tree is built from every entry's path, not by globbing directory
+  # entries: archives written with zip -D, Python's zipfile and others carry no
+  # directory entries at all, and their nested files were missing from the list
   def ziplist( zip_file, path="", arr=[], level=0 )
-    zip_file.glob(path + '*').each do |entry|
-      case entry.ftype
-      when :file 
-        arr << ["&nbsp;" * 2 * level + ziplink( entry ), 
-                number_to_human_size(entry.size), 
+    zipnode( ziptree( zip_file ), arr, level )
+  end #def
+  
+  # {name => {:dir => true, :children => {...}} | {:dir => false, :entry => entry}}
+  # in the order the entries appear in the archive
+  def ziptree( zip_file )
+    tree = {}
+    zip_file.entries.each do |entry|
+      next unless [:file, :directory].include?( entry.ftype )
+      segments = RmpText.to_utf8( entry.name ).split('/').reject(&:empty?)
+      next if segments.empty?
+      node = tree
+      segments[0...-1].each do |segment|
+        child = node[segment]
+        child = node[segment] = {:dir => true, :children => {}} unless child && child[:dir]
+        node  = child[:children]
+      end
+      if entry.ftype == :directory
+        node[segments.last] ||= {:dir => true, :children => {}}
+      else
+        node[segments.last] = {:dir => false, :entry => entry}
+      end
+    end
+    tree
+  end #def
+  
+  def zipnode( node, arr, level )
+    node.each do |name, item|
+      if item[:dir]
+        arr << ["&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(name) + "</strong>", "", ""]
+        zipnode( item[:children], arr, level + 1 )
+      else
+        entry = item[:entry]
+        arr << ["&nbsp;" * 2 * level + ziplink( entry ),
+                number_to_human_size(entry.size),
                 number_to_human_size(entry.compressed_size)
                ]
-      when :directory
-        arr << ["&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(File.basename(RmpText.to_utf8(entry.name))) + "</strong>", "", ""]
-        ziplist( zip_file, RmpText.to_utf8(entry.name), arr, level + 1 )
       end
     end
   end #def

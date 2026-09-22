@@ -153,6 +153,20 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     assert_not_includes html, '%252F'
   end
 
+  # zip -D, Python's zipfile and others write no directory entries: the nested
+  # files must still be listed, exactly as for an archive that has them
+  def test_toc_lists_nested_entries_without_directory_entries
+    with_dirs    = toc(build_zip(archive('with-dirs.zip'), 'top.txt' => 'a', 'dir/' => '', 'dir/file.txt' => 'b', 'dir/sub/' => '', 'dir/sub/deep.txt' => 'c'))
+    without_dirs = toc(build_zip(archive('without-dirs.zip'), 'top.txt' => 'a', 'dir/file.txt' => 'b', 'dir/sub/deep.txt' => 'c'))
+    %w[top.txt dir%2Ffile.txt dir%2Fsub%2Fdeep.txt].each do |asset|
+      assert_includes without_dirs, "?asset=#{asset}\"", "#{asset} must be listed without directory entries"
+    end
+    assert_includes without_dirs, '<strong>dir</strong>'
+    assert_includes without_dirs, '<strong>sub</strong>'
+    rows = ->(html) { html.scan(/<tr[^>]*>.*?<\/tr>/m).map { |r| r.gsub(/\s+/, ' ') } }
+    assert_equal rows.call(with_dirs), rows.call(without_dirs), 'the listing must not depend on directory entries'
+  end
+
   # url helpers treat script_name / host etc. in the params hash as options, so
   # request parameters must not be forwarded wholesale into the listing links
   def test_toc_links_ignore_url_options_smuggled_in_request_params

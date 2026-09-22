@@ -236,13 +236,29 @@ module RedmineMorePreviews
     # cached_preview
     #-------------------------------------------------------------------------------------
     def cached_preview
-      # the directory holds the preview and its assets: whatever another
-      # converter left there must go before this one writes into it (an asset
-      # conversion alone would otherwise mark the other converter's index as ours)
-      discard_cache unless cached_by_this_converter?
-      begin; transient_preview{|*files| copy_over}; end if !valid || reload || !cached_by_this_converter?
-      read_safe
+      # the converter semaphore is per converter (and per process): requests of
+      # two converters for the same file, or two processes, must not interleave
+      # the marker check, the replacement and the read of one cache directory
+      with_cache_lock do
+        # the directory holds the preview and its assets: whatever another
+        # converter left there must go before this one writes into it (an asset
+        # conversion alone would otherwise mark the other converter's index as ours)
+        discard_cache unless cached_by_this_converter?
+        begin; transient_preview{|*files| copy_over}; end if !valid || reload || !cached_by_this_converter?
+        read_safe
+      end
     end #def
+    
+    # an exclusive advisory lock on <dir>.lock, held across processes
+    def with_cache_lock
+      return yield unless dir
+      FileUtils.mkdir_p( File.dirname( dir ) )
+      File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
+        lock.flock( File::LOCK_EX )
+        yield
+      end
+    end #def
+    private :with_cache_lock
     
     def discard_cache
       return unless dir && File.directory?( dir )

@@ -132,6 +132,30 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  # the cache directory is replaced under an advisory lock, so a conversion by
+  # another converter or process cannot interleave with this one
+  def test_cache_replacement_waits_for_the_directory_lock
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'a.zip'), 'file.txt' => 'x'), 'application/zip')
+      get :more_preview, params: {id: a.id, format: 'html'} # warms Setting and the converter registry
+      assert_response :success
+      lock_path = "#{a.preview_dirname(format: 'html')}.lock"
+      assert File.exist?(lock_path), 'the conversion creates the lock file'
+
+      holder = File.open(lock_path, File::RDWR)
+      holder.flock(File::LOCK_EX)
+      finished = false
+      worker = Thread.new { a.more_preview(format: 'html', reload: 1); finished = true }
+      worker.join(0.5)
+      assert_not finished, 'the conversion must wait while another holder owns the lock'
+      holder.flock(File::LOCK_UN)
+      assert worker.join(10), 'the conversion must finish once the lock is released'
+      assert finished
+    ensure
+      holder&.close
+    end
+  end
+
   def test_other_html_previews_stay_fully_sandboxed
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'page.html')

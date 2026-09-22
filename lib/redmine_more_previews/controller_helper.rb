@@ -24,8 +24,12 @@
 module RedmineMorePreviews
   module ControllerHelper
 
+    # Keep full HTML previews in an opaque-origin sandbox, while allowing the
+    # preview document to load Redmine/plugin CSS and images from the same
+    # response origin. CSP 'self' is matched against the protected response
+    # URL's origin; it does not require sandbox allow-same-origin.
     HTML_PREVIEW_CSP =
-      "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:".freeze
+      "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:".freeze
 
     # only these media types may be served inline as assets; everything else
     # (html, svg, xml and any */*+xml, unknown types, ...) is forced to download

@@ -142,7 +142,7 @@ class Cliff < RedmineMorePreviews::Conversion
         charset       = mail.text_part.charset
         
         if encoding =~ /quoted-printable/ # there is a bug in .decoded
-          text        = mail.text_part.body.to_s.unpack('M')[0].html_safe
+          text        = mail.text_part.body.to_s.unpack('M')[0]
           text        = RmpText.to_utf8(text, charset)
         else
           text        = mail.text_part.body.decoded
@@ -195,7 +195,7 @@ class Cliff < RedmineMorePreviews::Conversion
         charset       = mail.body.charset
         
         if encoding =~ /quoted-printable/ # there is a bug in .decoded
-          text        = mail.body.to_s.unpack('M')[0].html_safe
+          text        = mail.body.to_s.unpack('M')[0]
           text        = RmpText.to_utf8(text, charset)
         else
           text        = mail.body.decoded

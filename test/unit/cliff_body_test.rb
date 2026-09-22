@@ -37,6 +37,18 @@ class CliffBodyTest < ActiveSupport::TestCase
     "Content-Type: text/plain; charset=UTF-8\n\n#{body}\n"
   end
 
+  def quoted_printable_message(body)
+    "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
+    "Content-Type: text/plain; charset=UTF-8\n" \
+    "Content-Transfer-Encoding: quoted-printable\n\n#{[body].pack('M')}"
+  end
+
+  def render_pre(text)
+    @text = text
+    template = File.expand_path('../../converters/cliff/app/views/cliff/pre.html.erb', __dir__)
+    ERB.new(File.read(template)).result(binding)
+  end
+
   def test_plain_text_body_is_escaped
     html = convert(plain_message("plain #{MARKUP}"))
     assert_not_includes html, '<b>bold</b>', 'the body must not reach the page as markup'
@@ -48,6 +60,24 @@ class CliffBodyTest < ActiveSupport::TestCase
   def test_plain_text_body_keeps_its_text
     html = convert(plain_message("ordinary body & 日本語"))
     assert_includes html, 'ordinary body &amp; 日本語'
+  end
+
+  def test_quoted_printable_plain_text_body_is_escaped
+    html = convert(quoted_printable_message("plain #{MARKUP}"))
+    assert_not_includes html, '<b>bold</b>', 'the encoded body must not reach the page as markup'
+    assert_not_includes html, '<table><tr><td>injected',
+                         'an encoded body must not be able to add markup of its own'
+    assert_includes html, '&lt;b&gt;bold&lt;/b&gt;', 'the encoded body must still be readable'
+  end
+
+  def test_pre_template_escapes_html_safe_text
+    text = ActiveSupport::SafeBuffer.new(MARKUP)
+    assert text.html_safe?
+
+    html = render_pre(text)
+    assert_not_includes html, '<b>bold</b>', 'the sink must not trust the caller\'s safety flag'
+    assert_not_includes html, '<table><tr><td>injected'
+    assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
   end
 
   # an html message is html by definition: that part is rendered, not escaped,

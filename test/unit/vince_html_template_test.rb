@@ -20,7 +20,7 @@ class VinceHtmlTemplateTest < ActiveSupport::TestCase
     assert_match(/\A<!DOCTYPE html>/, html)
     assert_includes html, "stylesheet"
     assert_includes html, 'font-family: Arial, Helvetica, sans-serif !important'
-    assert_includes html, 'font-family: Consolas, Menlo, &quot;Liberation Mono&quot;, Courier, monospace !important'
+    assert_includes html, 'font-family: Consolas, Menlo, "Liberation Mono", Courier, monospace !important'
     assert_not_includes source, 'jquery-ui-1.11.0'
     assert_not_includes source, 'tribute-3.7.3'
     assert_not_includes source, 'heads_for_theme'

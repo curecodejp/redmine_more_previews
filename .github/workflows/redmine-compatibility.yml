@@ -200,19 +200,34 @@ jobs:
                       '<link rel="stylesheet" href="https://example.invalid/x.css">' \
                       '<link rel="stylesheet" href="/\\example.invalid/x.css"><link rel="stylesheet" href="/attachments/download/1/evil.css">' \
                       '<link rel="stylesheet" href="/plugin_assets/redmine_more_previews/../../x.css"><span style="position:fixed;background:url(x);font-weight:bold">c</span>' \
-                      '<img name="ajaxIndicator" src="y">'
+                      '<img name="ajaxIndicator" src="y">' \
+                      '<img src="https://example.invalid/t.png"><img src="//example.invalid/t.png">' \
+                      "<img src=\"/\t/example.invalid/t.png\"><img src=\"/\n\\example.invalid/t.png\">" \
+                      '<div id="preview_frame">d</div><input type="text" name="q">'
           out = helper.sanitize_inline_preview(untrusted).to_s
-          %w[onerror <script SCRIPT_BODY javascript: onclick <svg onload <iframe <link position url( name=].each do |needle|
+          # example.invalid: no off-site image is fetched, including one whose
+          # tab or newline the browser would strip into a protocol relative url;
+          # id="preview_frame": converter ids cannot clobber Redmine's elements
+          %w[onerror <script SCRIPT_BODY javascript: onclick <svg onload <iframe <link position url( name= example.invalid id="preview_frame" type="text"].each do |needle|
             raise "inline preview sanitiser leaked #{needle}: #{out}" if out.include?(needle)
           end
-          raise 'inline preview sanitiser must keep benign markup' unless out.include?('<h1>T</h1>') && out.include?('<img src="x">') && out.include?('font-weight')
+          raise 'inline preview sanitiser must keep benign markup' unless out.include?('<h1 id="rmp-t">T</h1>') && out.include?('<img>') && out.include?('font-weight')
           raise 'inline preview sanitiser must return html_safe' unless helper.sanitize_inline_preview('<p>x</p>').html_safe?
 
           kept = helper.sanitize_inline_preview(
             '<table class="list"><tbody><tr><td class="description"><a download="a.txt" href="/attachments/more_preview/1?asset=a.txt">a.txt</a></td></tr></tbody></table>' \
-            '<link rel="stylesheet" media="all" href="/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css">'
+            '<link rel="stylesheet" media="all" href="/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css">' \
+            '<a href="#fn1" id="fnref1">1</a><li id="fn1"><a href="#fnref1">back</a></li>' \
+            '<img src="/plugin_assets/redmine_more_previews/converters/vince/images/logo.png"><img src="data:image/png;base64,iVBORw0KGgo=">' \
+            '<input type="checkbox" checked>'
           ).to_s
-          %w[<table <tbody> <td download="a.txt" href="/attachments/more_preview/1?asset=a.txt" <link rel="stylesheet"].each do |needle|
+          # footnote links still reach their target, inside the rmp- namespace;
+          # same-origin and inline images load; a task list keeps its checkbox,
+          # which a preview shows but does not let the reader change
+          %w[<table <tbody> <td download="a.txt" href="/attachments/more_preview/1?asset=a.txt" <link rel="stylesheet"
+             href="#rmp-fn1" id="rmp-fn1" href="#rmp-fnref1" id="rmp-fnref1"
+             src="/plugin_assets/redmine_more_previews/converters/vince/images/logo.png" src="data:image/png;base64,
+             type="checkbox" disabled="disabled"].each do |needle|
             raise "inline preview sanitiser dropped converter markup #{needle}: #{kept}" unless kept.include?(needle)
           end
 
@@ -259,6 +274,24 @@ jobs:
           raise 'missing preview CSP' unless headers['Content-Security-Policy'] == RedmineMorePreviews::ControllerHelper::HTML_PREVIEW_CSP
           raise 'missing nosniff' unless headers['X-Content-Type-Options'] == 'nosniff'
           raise 'missing no-referrer' unless headers['Referrer-Policy'] == 'no-referrer'
+
+          # every format is sandboxed except those the browser renders with a
+          # viewer of its own; a format nobody has written yet is sandboxed too
+          %w[html HTML xml text wat].push('').each do |format|
+            c = controller.class.new(format)
+            c.apply_preview_security_headers
+            raise "missing preview CSP for format #{format.inspect}" if c.response.headers['Content-Security-Policy'].nil?
+          end
+          %w[pdf PDF png jpg jpeg gif].each do |format|
+            c = controller.class.new(format)
+            c.apply_preview_security_headers
+            raise "viewer format #{format.inspect} must not be sandboxed" unless c.response.headers['Content-Security-Policy'].nil?
+            raise "viewer format #{format.inspect} must still be nosniff" unless c.response.headers['X-Content-Type-Options'] == 'nosniff'
+          end
+
+          # Cliff's stylesheet is mirrored with the converter's other assets
+          cliff_css = Rails.root.join('public/plugin_assets/redmine_more_previews/converters/cliff/stylesheets/redmine_more_previews_cliff.css')
+          raise "Cliff stylesheet was not mirrored to #{cliff_css}" unless File.file?(cliff_css) && File.read(cliff_css).include?('.rmp-cliff-value')
 
           controller = controller.class.new('png')
           controller.apply_asset_security_headers

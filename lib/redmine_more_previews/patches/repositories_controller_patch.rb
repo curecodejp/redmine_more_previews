@@ -87,18 +87,17 @@ module RedmineMorePreviews
           #
           ################################################################################
           def send_more_preview
-            # the entry is not on disk: detect on its content, as the conversion does
-            apply_preview_security_headers(@entry&.name || @path, :content => @repository.cat(@path, @rev))
-
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
               if params[:reload] || stale?(:etag => @repository.preview_mtime(@path, @rev, preview_params))
-                send_data @repository.more_preview(@path, @rev, preview_params),
+                content = entry_content_for_preview
+                send_data @repository.more_preview(@path, @rev, preview_params, :entry_content => content),
                   :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
               end
             else #no cache
-              @repository.more_preview(@path, @rev, preview_params) do |preview_data|
+              content = entry_content_for_preview
+              @repository.more_preview(@path, @rev, preview_params, :entry_content => content) do |preview_data|
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
@@ -107,6 +106,16 @@ module RedmineMorePreviews
             end
           end #def
           private :send_more_preview
+
+          # reads the entry once: the CSP is decided on these bytes (the entry is not
+          # on disk, and the converter is chosen by content) and the same bytes are
+          # handed to the conversion, so the two cannot disagree
+          def entry_content_for_preview
+            content = @repository.cat(@path, @rev)
+            apply_preview_security_headers(@entry&.name || @path, :content => content)
+            content
+          end
+          private :entry_content_for_preview
           
           def send_more_asset
             apply_asset_security_headers

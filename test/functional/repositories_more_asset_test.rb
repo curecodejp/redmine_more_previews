@@ -37,6 +37,7 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     super
     Setting.enabled_scm = @old_enabled_scm
     Setting.plugin_redmine_more_previews = @old_settings
+    Setting.clear_cache # the writer caches the symbol key; the plugin reads the string key
     RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
     RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @old_storage)
     FileUtils.rm_rf(@storage)
@@ -86,6 +87,16 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     get :entry, params: spoof
     assert_response :success
     assert_select 'iframe[sandbox=""]'
+  end
+
+  # the bytes are read once and shared by the CSP decision and the conversion
+  def test_preview_reads_the_entry_once
+    bytes = File.binread(File.join(@repo_dir, 'a.zip'))
+    Repository::Filesystem.any_instance.expects(:cat).once.returns(bytes)
+    get :more_preview, params: entry_params(format: 'html', reload: 1)
+    assert_response :success
+    assert_match(/\Asandbox allow-downloads; /, response.headers['Content-Security-Policy'].to_s)
+    assert_includes response.body, 'file.txt'
   end
 
   def test_regular_entry_is_served

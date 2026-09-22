@@ -21,6 +21,7 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
   def teardown
     super
     Setting.plugin_redmine_more_previews = @old_settings
+    Setting.clear_cache # the writer caches the symbol key; the plugin reads the string key
   end
 
   def helper

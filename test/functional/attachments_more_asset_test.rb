@@ -26,6 +26,7 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
 
   def teardown
     Setting.plugin_redmine_more_previews = @old_settings
+    Setting.clear_cache # the writer caches the symbol key; the plugin reads the string key
     RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
     RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @old_storage)
     FileUtils.rm_rf(@storage)

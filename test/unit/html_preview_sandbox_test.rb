@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'nokogiri'
 
 # The full HTML preview is rendered in a sandboxed iframe (GHSA-j23w-wwfh-gwfp).
 # A bare sandbox also blocks downloads started inside the frame, which made the
@@ -39,15 +40,45 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert_equal '', sandbox_of(html)
   end
 
+
+  def test_iframe_is_confined_to_preview_pane_without_window_height_script
+    html = helper.more_previews_tag('/attachments/more_preview/1.html', 'preview.html', type: 'text/html').to_s
+    fragment = Nokogiri::HTML.fragment(html)
+    pane = fragment.at_css('#preview_pane')
+    frame = fragment.at_css('#preview_frame')
+
+    assert pane, 'preview pane must be present'
+    assert frame, 'preview iframe must be present'
+    assert_equal 'position:relative;height:60vh;min-height:280px;max-height:600px;', pane['style']
+    assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
+    assert_equal 'auto', frame['scrolling']
+    assert_nil frame['onload']
+    assert_not_includes html, '$(window).height()'
+  end
+
   def test_html_preview_iframe_allows_downloads_only_when_asked
     html = helper.more_previews_tag('/attachments/more_preview/1.html', 'preview.html', type: 'text/html', allow_downloads: true).to_s
     assert_equal ['allow-downloads'], sandbox_of(html).to_s.split, 'sandbox must contain allow-downloads and nothing else'
     assert_not_includes html, 'allow_downloads', 'the option must not leak into the markup'
   end
 
-  def test_non_html_preview_is_not_sandboxed
+  def test_non_html_iframe_preview_is_not_sandboxed
+    # ZIPPY_SETTINGS uses embedding=0, which selects <object> for non-HTML
+    # previews. Switch to iframe mode so this test covers the non-HTML branch
+    # whose pane ratio must remain unchanged.
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => '1')
+    Setting.clear_cache
+
     html = helper.more_previews_tag('/attachments/more_preview/1.pdf', 'preview.pdf', type: 'application/pdf').to_s
+    fragment = Nokogiri::HTML.fragment(html)
+    pane = fragment.at_css('#preview_pane')
+    frame = fragment.at_css('#preview_frame')
+
     assert_not_includes html, 'sandbox='
+    assert pane, 'preview pane must be present'
+    assert frame, 'preview iframe must be present'
+    assert_equal 'position:relative;padding-top:141%;', pane['style']
+    assert_equal 'no', frame['scrolling']
   end
 
   def test_only_listed_converters_allow_downloads

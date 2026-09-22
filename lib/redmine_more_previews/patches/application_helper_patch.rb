@@ -136,16 +136,23 @@ module RedmineMorePreviews
                 :style  => "position:relative;padding-top:141%;",
               )
             else
+              preview_pane_style = html_preview ?
+                "position:relative;height:60vh;min-height:280px;max-height:600px;" :
+                "position:relative;padding-top:141%;"
+
+              iframe_style = html_preview ?
+                "position:absolute;top:0;left:0;width:95%;height:100%;" :
+                "position:absolute;top:0;bottom:0;left:0;width:95%;"
+
               iframe_options = {
-                :style                => "position:absolute;top:0;left:0;width:95%;height:16px;",
+                :style                => iframe_style,
                 :seamless             => "seamless",
-                :scrolling            => "no",
+                :scrolling            => html_preview ? "auto" : "no",
                 :frameborder          => "0",
                 :allowtransparency    => "true",
                 :title                => filename,
                 :src                  => path,
-                :id                   => 'preview_frame',
-                :onload               => "$(document).ready(function() {$('#preview_frame').css('height', $(window).height())});".html_safe
+                :id                   => 'preview_frame'
               }.merge(options.except(:allow_downloads))
 
               # HTML previews are sandboxed (GHSA-j23w-wwfh-gwfp): no scripts, forms,
@@ -166,7 +173,7 @@ module RedmineMorePreviews
                   iframe_options
                 ),
                 :id    => "preview_pane",
-                :style => "position:relative;padding-top:141%;"
+                :style => preview_pane_style
               )
             end #if
           end #def

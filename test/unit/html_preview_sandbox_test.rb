@@ -49,8 +49,9 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
 
     assert pane, 'preview pane must be present'
     assert frame, 'preview iframe must be present'
-    assert_equal 'position:relative;padding-top:141%;', pane['style']
+    assert_equal 'position:relative;height:60vh;min-height:280px;max-height:600px;', pane['style']
     assert_equal 'position:absolute;top:0;bottom:0;left:0;width:95%;', frame['style']
+    assert_equal 'auto', frame['scrolling']
     assert_nil frame['onload']
     assert_not_includes html, '$(window).height()'
   end
@@ -63,7 +64,13 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
 
   def test_non_html_preview_is_not_sandboxed
     html = helper.more_previews_tag('/attachments/more_preview/1.pdf', 'preview.pdf', type: 'application/pdf').to_s
+    fragment = Nokogiri::HTML.fragment(html)
+    pane = fragment.at_css('#preview_pane')
+    frame = fragment.at_css('#preview_frame')
+
     assert_not_includes html, 'sandbox='
+    assert_equal 'position:relative;padding-top:141%;', pane['style']
+    assert_equal 'no', frame['scrolling']
   end
 
   def test_only_listed_converters_allow_downloads

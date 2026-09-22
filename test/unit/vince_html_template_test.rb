@@ -1,16 +1,34 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'erb'
 
 class VinceHtmlTemplateTest < ActiveSupport::TestCase
   TEMPLATE = File.expand_path('../../converters/vince/app/views/vince/vince.html.erb', __dir__)
 
-  def test_full_html_template_uses_current_stable_redmine_styles_only
-    source = File.read(TEMPLATE)
+  def render(format)
+    @preview_format = format
+    @vcfs = []
+    @converter = Struct.new(:public_web_directory).new('/plugin_assets/redmine_more_previews/converters/vince')
+    ERB.new(File.read(TEMPLATE)).result(binding).squish
+  end
 
-    assert_includes source, '<!DOCTYPE html>'
-    assert_includes source, "stylesheet_link_tag 'application', 'responsive'"
+  def test_full_html_output_uses_current_stable_redmine_styles_and_starts_with_doctype
+    source = File.read(TEMPLATE)
+    html = render('html')
+
+    assert_match(/\A<!DOCTYPE html>/, html)
+    assert_includes html, "stylesheet"
+    assert_includes html, '--fonts-main: sans-serif'
     assert_not_includes source, 'jquery-ui-1.11.0'
     assert_not_includes source, 'tribute-3.7.3'
+    assert_not_includes source, 'heads_for_theme'
+  end
+
+  def test_inline_output_has_no_document_only_markup
+    html = render('inline')
+
+    assert_not_includes html, '<!DOCTYPE'
+    assert_not_includes html, '--fonts-main: sans-serif'
   end
 end

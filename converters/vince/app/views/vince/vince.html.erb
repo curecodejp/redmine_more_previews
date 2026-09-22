@@ -1,7 +1,7 @@
 <% if @preview_format == 'html' %>
 <!DOCTYPE html>
 <%= ApplicationController.helpers.stylesheet_link_tag 'application', 'responsive', :media => 'all' %>
-<%= ApplicationController.helpers.heads_for_theme %>
+<style>:root { --fonts-main: sans-serif; }</style>
 <% end %>
 <link rel="stylesheet" media="all" href="<%= "#{@converter.public_web_directory}/stylesheets/redmine_more_previews_vince.css" %>">
 

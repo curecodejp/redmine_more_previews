@@ -122,15 +122,14 @@ module RedmineMorePreviews
               )
             else
               iframe_options = {
-                :style                => "position:absolute;top:0;left:0;width:95%;height:16px;",
+                :style                => "position:absolute;top:0;bottom:0;left:0;width:95%;",
                 :seamless             => "seamless",
                 :scrolling            => "no",
                 :frameborder          => "0",
                 :allowtransparency    => "true",
                 :title                => filename,
                 :src                  => path,
-                :id                   => 'preview_frame',
-                :onload               => "$(document).ready(function() {$('#preview_frame').css('height', $(window).height())});".html_safe
+                :id                   => 'preview_frame'
               }.merge(options.except(:allow_downloads))
 
               # HTML previews are sandboxed (GHSA-j23w-wwfh-gwfp): no scripts, forms,

@@ -103,6 +103,16 @@ class CliffHeadersTest < ActiveSupport::TestCase
     assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
   end
 
+  # an unparseable Date header is not a date at all: Mail hands back the raw
+  # string and I18n.localize raises, so the template's rescue puts the header's
+  # own bytes on the page
+  def test_an_unparseable_date_is_escaped
+    @mail = Mail.new("From: a@example.test\nTo: b@example.test\nDate: #{MARKUP}\n\nbody\n")
+    html = render_current_mail
+    assert_not_includes html, '<b>', 'the raw Date header must not reach the page as markup'
+    assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'
+  end
+
   # fields.html.erb lists every header of the message, names included
   def test_field_names_and_values_are_escaped
     @mail = MailWithFields.new([FieldStub.new("X-#{MARKUP}", "value#{MARKUP}")])

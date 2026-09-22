@@ -87,7 +87,7 @@ module RedmineMorePreviews
           #
           ################################################################################
           def send_more_preview
-            apply_preview_security_headers
+            apply_preview_security_headers(@entry&.name || @path)
 
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
               if params[:reload] || stale?(:etag => @repository.preview_mtime(@path, @rev, preview_params))

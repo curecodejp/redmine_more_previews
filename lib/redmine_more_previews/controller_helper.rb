@@ -31,6 +31,26 @@ module RedmineMorePreviews
     HTML_PREVIEW_CSP =
       "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:".freeze
 
+    # Converters whose HTML preview may start downloads: the plugin generates that
+    # HTML itself (Zippy's archive listing, entry names escaped). Converters that
+    # render uploaded content (Pass, Mark, ...) keep the bare sandbox, because
+    # allow-downloads removes the sandboxed-downloads flag altogether -- a
+    # <meta refresh> to an attachment response would then start a download
+    # without any click. The browser applies the union of the iframe attribute
+    # and the CSP sandbox directive, so both must carry the flag (see
+    # ApplicationHelperPatch#more_previews_tag).
+    DOWNLOAD_PREVIEW_CONVERTERS = %w(zippy).freeze
+
+    def self.preview_allows_downloads?(filename)
+      converter = RedmineMorePreviews::Converter.responsible(filename.to_s, :pathonly => true)
+      converter.present? && DOWNLOAD_PREVIEW_CONVERTERS.include?(converter.id.to_s)
+    end
+
+    def self.html_preview_csp(filename)
+      return HTML_PREVIEW_CSP unless preview_allows_downloads?(filename)
+      HTML_PREVIEW_CSP.sub(/\Asandbox;/, 'sandbox allow-downloads;')
+    end
+
     # only these media types may be served inline as assets; everything else
     # (html, svg, xml and any */*+xml, unknown types, ...) is forced to download
     INLINE_ASSET_MIME_TYPES =
@@ -44,10 +64,12 @@ module RedmineMorePreviews
     end #def
     private :preview_params
 
-    def apply_preview_security_headers
+    # filename: the previewed file (attachment filename / repository entry name);
+    # decides whether the sandbox allows downloads (see DOWNLOAD_PREVIEW_CONVERTERS)
+    def apply_preview_security_headers(filename = nil)
       return unless params[:format].to_s.downcase == 'html'
 
-      response.headers['Content-Security-Policy'] = HTML_PREVIEW_CSP
+      response.headers['Content-Security-Policy'] = ControllerHelper.html_preview_csp(filename)
       response.headers['X-Content-Type-Options'] = 'nosniff'
       response.headers['Referrer-Policy'] = 'no-referrer'
     end

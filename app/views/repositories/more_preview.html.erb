@@ -82,7 +82,8 @@
                  }.merge(preview_query_parameters)
            ),
            @entry.name,
-          :type => RedmineMorePreviews::Converter.conversion_mime(@entry.name, :pathonly => true)
+          :type            => RedmineMorePreviews::Converter.conversion_mime(@entry.name, :pathonly => true),
+          :allow_downloads => RedmineMorePreviews::ControllerHelper.preview_allows_downloads?(@entry.name)
         ) %>
     </div>
 <% end %>

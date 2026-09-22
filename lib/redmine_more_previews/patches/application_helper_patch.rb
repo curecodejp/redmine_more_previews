@@ -115,7 +115,7 @@ module RedmineMorePreviews
                     :type    => options[:type],
                     :data    => path,
                     :id      => 'preview_object',
-                   }.merge(options)
+                   }.merge(options.except(:allow_downloads))
                 ),
                 :id     => "preview_pane",
                 :style  => "position:relative;padding-top:141%;",
@@ -131,14 +131,17 @@ module RedmineMorePreviews
                 :src                  => path,
                 :id                   => 'preview_frame',
                 :onload               => "$(document).ready(function() {$('#preview_frame').css('height', $(window).height())});".html_safe
-              }.merge(options)
+              }.merge(options.except(:allow_downloads))
 
               # HTML previews are sandboxed (GHSA-j23w-wwfh-gwfp): no scripts, forms,
-              # top navigation or same-origin access. allow-downloads is the one
-              # capability granted, so that links in a preview (Zippy's archive
-              # listing) can still start a user-initiated download; the assets are
-              # served with Content-Disposition: attachment.
-              iframe_options[:sandbox] = "allow-downloads" if html_preview
+              # top navigation or same-origin access. Only previews whose HTML the
+              # plugin generates itself (Zippy's archive listing) get allow-downloads,
+              # so their links can start a download; see
+              # ControllerHelper::DOWNLOAD_PREVIEW_CONVERTERS, which also drives the
+              # response's CSP sandbox directive (the browser applies both).
+              if html_preview
+                iframe_options[:sandbox] = options[:allow_downloads] ? "allow-downloads" : ""
+              end
 
               content_tag(:div,
                 content_tag(:script, "$(document).ready(function() { $('#ajax-indicator').show()});".html_safe) +

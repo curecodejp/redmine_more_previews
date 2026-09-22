@@ -86,6 +86,14 @@ module RedmineMorePreviews
         
           #unloadable 
 
+          # query parameters the preview views may forward to the converters.
+          # asset / assets select an archive entry and are only meaningful for
+          # asset requests; forwarded from the preview page they made the inline
+          # preview ask for the entry instead of the listing (nil once cached).
+          def preview_query_parameters
+            request.query_parameters.except('asset', 'assets')
+          end
+
           def sanitize_inline_preview(html)
             html = html.to_s
             return ''.html_safe if html.blank?

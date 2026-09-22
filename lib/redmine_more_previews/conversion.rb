@@ -111,8 +111,12 @@ module RedmineMorePreviews
       self.target         = options[:target]
       
       # should preview asset be served instead of preview
-      self.assets         = options[:assets].presence
-      self.asset          = options[:asset].presence
+      # asset names come from request parameters and archive entries: they are
+      # joined to the cache and tmp directories, so they must not be able to
+      # leave them (absolute paths, "..", NUL). Invalid names are rejected here
+      # so no converter ever sees them.
+      self.assets         = safe_asset_names(options[:assets])
+      self.asset          = safe_asset_name(options[:asset])
       
       # should cache be renewed
        self.reload        = options[:reload].presence || false
@@ -125,6 +129,29 @@ module RedmineMorePreviews
       self.assetpath,  self.assetdir,   self.assetfile,  self.assetext = path_set( File.join(dir, asset), :nocreate => true ) if asset
       self.assetspaths = assets.to_a.map{ |ass| path_set( File.join(dir, ass), nil, :nocreate => true )}
     end #def
+    
+    #-------------------------------------------------------------------------------------
+    # asset name validation
+    #-------------------------------------------------------------------------------------
+    # returns the normalized asset name, nil if none was given, raises if it is unsafe
+    def safe_asset_name( name )
+      return nil if name.blank?
+      Lib::RmpFile.safe_relative_path( name ) || raise(ConverterBadArgument, "unsafe asset name")
+    end #def
+    private :safe_asset_name
+    
+    def safe_asset_names( names )
+      names = Array(names).map{|name| safe_asset_name(name) }.compact
+      names.presence
+    end #def
+    private :safe_asset_names
+    
+    # raises unless path lies below directory (after resolving ".." and symlinks)
+    def ensure_within!( directory, path )
+      return if path.nil?
+      raise ConverterBadArgument, "path outside of preview directory" unless Lib::RmpFile.within_directory?( directory, path )
+    end #def
+    private :ensure_within!
     
     #-------------------------------------------------------------------------------------
     # lock and unlock, if converter is not thread safe
@@ -190,11 +217,15 @@ module RedmineMorePreviews
         self.tmpassetspaths = assets.to_a.map do |ass|
           path_set( File.join(tmpdir, ass), nil, :nocreate => true )
         end 
+        # defense in depth: asset names are validated in initialize, make sure
+        # nothing is written outside the tmp directory anyway
+        ensure_within!( tmpdir, tmpasset ) if asset
+        tmpassetspaths.each{|ass| ensure_within!( tmpdir, ass.first ) }
         convert
         debug if RedmineMorePreviews::Converter.debug? # debug will overwrite the result of convert
         if block_given?
           result = [tmptarget, tmpasset, tmpassetspaths.map(&:first)].flatten.compact.map do |f|
-            File.open(f, "rb") {|io| io.read} if File.exist?( f ) && File.file?( f )
+            File.open(f, "rb") {|io| io.read} if regular_file_within?( tmpdir, f )
           end
           yield *result
         end
@@ -236,8 +267,17 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     # read safe
     #-------------------------------------------------------------------------------------
+    # only regular files strictly below the preview directory are served; a
+    # symlink (f.i. extracted from an archive) pointing elsewhere is not followed
+    def regular_file_within?( directory, path )
+      path.present? && File.file?( path ) && !File.symlink?( path ) && Lib::RmpFile.within_directory?( directory, path )
+    end #def
+    private :regular_file_within?
+    
     def read_safe
-      if asset && File.exist?(assetpath)
+      if asset
+        # a requested asset that is missing or not servable must not fall back to the preview
+        return nil unless regular_file_within?( dir, assetpath )
         semaphore.owned? ? File.open(assetpath,  "rb") {|io| io.read} : semaphore.synchronize { File.open(assetpath,  "rb") {|io| io.read} }
       elsif target && File.exist?(targetpath)
         semaphore.owned? ? File.open(targetpath, "rb") {|io| io.read} : semaphore.synchronize { File.open(targetpath, "rb") {|io| io.read} }

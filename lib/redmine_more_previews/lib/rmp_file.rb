@@ -70,6 +70,49 @@ module RedmineMorePreviews
         end #def
         
         # ------------------------------------------------------------------------------ #
+        # safe_relative_path( path(string) )
+        # returns a normalized relative path ("dir/file.txt") that cannot leave the
+        # directory it is joined to, or nil if the path is empty, absolute, contains
+        # a NUL byte or a ".." segment. Used for asset names coming from request
+        # parameters and from archive entries.
+        #
+        def safe_relative_path( path )
+          _path = RmpText.to_utf8(path.to_s.dup)
+          return nil if _path.include?("\0")
+          return nil if _path.start_with?("/", "\\")     # absolute or UNC path
+          return nil if _path =~ /\A[A-Za-z]:/            # windows drive letter
+          segments = _path.split(%r{[\\/]+}).reject{|seg| seg.empty? || seg == "." }
+          return nil if segments.empty?
+          # NTFS strips trailing dots and spaces of a component, so ".. " or "..."
+          # would resolve to ".." on a Windows host: judge each segment without them
+          return nil if segments.any?{|seg| ["", ".", ".."].include?(seg.sub(/[. ]+\z/, "")) }
+          segments.join("/")
+        end #def
+        
+        # ------------------------------------------------------------------------------ #
+        # within_directory?( base(string), path(string) )
+        # returns true if path (after resolving ".." and symlinks of existing parts)
+        # lies strictly below base. Non-existing parts of path are resolved lexically.
+        #
+        def within_directory?( base, path )
+          return false unless File.directory?(base)
+          _base = File.realpath(base)
+          _path = realpath_lexical(path)
+          _path.start_with?(_base + File::SEPARATOR)
+        end #def
+        
+        # resolves symlinks of the existing part of path, appends the rest lexically
+        def realpath_lexical( path )
+          existing, rest = File.expand_path(path), []
+          until File.exist?(existing) || existing == File.dirname(existing)
+            rest.unshift(File.basename(existing))
+            existing = File.dirname(existing)
+          end
+          File.join(File.realpath(existing), *rest)
+        end #def
+        private :realpath_lexical
+        
+        # ------------------------------------------------------------------------------ #
         # unique_filename( filenames(array), filename(string) )
         # returns filename, which is unique to filenames-array,
         # whereby extensions are kept

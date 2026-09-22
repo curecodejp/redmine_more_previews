@@ -119,23 +119,68 @@ class Zippy < RedmineMorePreviews::Conversion
   # tarlink
   #---------------------------------------------------------------------------------------
   def tarlink( entry, asset=nil )
-    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => URI.encode_www_form_component(entry.full_name)))
-    link_to File.basename(RmpText.to_utf8(entry.full_name)), path, :download => File.basename(RmpText.to_utf8(entry.full_name))
+    entry_link( entry.full_name )
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # entry_link
+  #
+  # entry names are attacker controlled. Only names that stay inside the archive root
+  # get a download link (the asset parameter is validated again server side); other
+  # entries are listed by name only.
+  # The link is the preview request itself plus ?asset=<name>: both the attachments and
+  # the repositories preview actions serve the asset when the parameter is present, so
+  # no named route is needed (more_preview_path is the attachments route and produced
+  # /attachments/... links inside repository previews). Using request.path rather than a
+  # url helper with request.params also keeps query parameters such as script_name /
+  # host / anchor, which url helpers interpret as options, out of the (cached) listing.
+  # The name is passed unencoded (to_query encodes it once); an extra
+  # URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
+  #---------------------------------------------------------------------------------------
+  def entry_link( name )
+    basename = File.basename(RmpText.to_utf8(name))
+    safe     = RmpFile.safe_relative_path( name )
+    return CGI.escapeHTML(basename) unless safe
+    path   = "#{request.path}?#{ {:asset => safe}.to_query }"
+    link_to basename, path, :download => basename
   end #def
   
   #---------------------------------------------------------------------------------------
   # tarcontent
   #---------------------------------------------------------------------------------------
   def tarcontent( tarball )
-    tarball.seek( asset ) do |entry|
-      FileUtils.rm_rf(tmpasset) if File.exist?(tmpasset)
-      FileUtils.mkdir_p(File.dirname(tmpasset)) 
-      File.open(tmpasset, "wb") do |f| 
-        while( chunk = entry.read(8192)) do
-          f.write chunk
-        end
+    # Only regular files are extracted: symlinks, devices etc. are never materialized
+    # in the tmp directory. The requested asset matches an entry by its raw name first
+    # and by its normalized name second, so "./dir/file" is still found for "dir/file"
+    # but an entry literally named "dir/file" wins. A tar can only be read forward, so
+    # the first normalized match is written right away and replaced if an exact match
+    # turns up later.
+    tarball.each do |entry|
+      next unless entry.file?
+      if entry.full_name == asset
+        write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+        break
+      elsif !File.exist?(tmpasset) && RmpFile.safe_relative_path( entry.full_name ) == asset
+        write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
       end
     end
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # asset_entry: the entry to serve for asset; exact name first, normalized name second
+  #---------------------------------------------------------------------------------------
+  def asset_entry( entries, &name )
+    entries.find{|e| name.call(e) == asset } ||
+    entries.find{|e| RmpFile.safe_relative_path( name.call(e) ) == asset }
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # write_asset
+  #---------------------------------------------------------------------------------------
+  def write_asset( &block )
+    FileUtils.rm_rf(tmpasset) if File.exist?(tmpasset) || File.symlink?(tmpasset)
+    FileUtils.mkdir_p(File.dirname(tmpasset))
+    File.open(tmpasset, "wb", &block)
   end #def
   
   ########################################################################################
@@ -195,19 +240,32 @@ class Zippy < RedmineMorePreviews::Conversion
   # ziplink
   #---------------------------------------------------------------------------------------
   def ziplink( entry, asset=nil )
-    path   = url_helpers.more_preview_path(request.params.symbolize_keys.merge(:asset => URI.encode_www_form_component(entry.name)))
-    link_to File.basename(RmpText.to_utf8(entry.name)), path, :download => File.basename(RmpText.to_utf8(entry.name))
+    entry_link( entry.name )
   end #def
   
   #---------------------------------------------------------------------------------------
   # zipasset
   #---------------------------------------------------------------------------------------
   def zipcontent( zip_file )
-    if entry = zip_file.find_entry(asset)
-      FileUtils.rm_rf(tmpasset) if File.exist?(tmpasset)
-      FileUtils.mkdir_p(File.dirname(tmpasset)) 
-      zip_file.extract( entry, tmpasset)
-    end #def
+    # see tarcontent. The entry is streamed into tmpasset instead of Zip::File#extract,
+    # which would recreate symlink entries. Zip::File#extract also refused entries whose
+    # data exceeds the declared size (Zip::EntrySizeError); the stream does not, so the
+    # check is repeated here.
+    entry = asset_entry( zip_file.entries.select{|e| e.ftype == :file } ){|e| e.name }
+    return unless entry
+    entry.get_input_stream do |io|
+      written = 0
+      write_asset do |f|
+        while( chunk = io.read(8192)) do
+          written += chunk.bytesize
+          raise Zip::EntrySizeError, "#{entry.name} exceeds its declared size #{entry.size}" if written > entry.size
+          f.write chunk
+        end
+      end
+    end
+  rescue Zip::EntrySizeError
+    FileUtils.rm_f(tmpasset)
+    raise
   end #def
   
 end #class

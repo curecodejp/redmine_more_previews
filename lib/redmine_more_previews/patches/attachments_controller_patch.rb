@@ -113,25 +113,36 @@ module RedmineMorePreviews
 
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
               if params[:reload] || stale?(:etag => @attachment.asset_mtime(preview_params))
-                send_data @attachment.more_asset(preview_params),
+                # nil: the archive has no such entry (read_safe no longer falls back to the preview)
+                data = @attachment.more_asset(preview_params)
+                return render_404 if data.nil?
+                send_data data,
                   :filename    => filename_for_content_disposition( File.basename(@asset) ),
                   :type        => Rack::Mime.mime_type( File.extname(@asset) ),
                   :disposition => secure_asset_disposition(@asset, @disposition)
               end
             else #no cache
               @attachment.more_asset(preview_params) do |preview_data, asset_data|
+                 return render_404 if asset_data.nil?
                  send_data asset_data,
                   :filename    => filename_for_content_disposition( File.basename(@asset) ),
                   :type        => Rack::Mime.mime_type( File.extname(@asset) ),
                   :disposition => secure_asset_disposition(@asset, @disposition)
               end
+              # the converter failed (f.i. Zip::EntrySizeError): nothing was yielded
+              render_404 unless performed?
             end
           end #def
           private :send_more_asset
           
+          # the asset name is joined to directories on disk by the converters; reject
+          # anything that could leave them (see RmpFile.safe_relative_path) with a 404
           def find_asset_param
             @asset = params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
+            return if @asset.nil?
+            @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
+            render_404 if @asset.nil?
           end #def
           private :find_asset_param
         end #base

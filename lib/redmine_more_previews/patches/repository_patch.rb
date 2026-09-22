@@ -61,9 +61,12 @@ module RedmineMorePreviews
               Dir.mktmpdir do |tmpdir|
                 filepath = File.join(tmpdir, entry(path, rev).name)
                 File.open( filepath, "wb") {|f| f.write(cat(path, rev))}
+                # the asset path, not the preview path (as in Attachment#more_asset):
+                # with the preview as target a cached listing counted as "valid" and
+                # the asset was never extracted
                 RedmineMorePreviews::Converter.convert(
                   filepath,
-                  preview_filepath(path, rev, options),
+                  preview_assetpath(path, rev, options),
                   options.merge(
                     :object => {:type => :repository, :object => self, :path => path, :rev => rev},
                     :preview_format => preview_format(path, rev)
@@ -179,9 +182,11 @@ module RedmineMorePreviews
           end #def
           
           # asset file name
+          # as Attachment#preview_assetname: the asset keeps its own name, the requested
+          # preview format is not appended to it
           def preview_assetname(path, rev, options={})
-            format = options[:format].presence || preview_format(path, rev).presence
-            [options[:asset], format].compact.join(".")
+            assetformat = options[:assetformat].presence
+            [options[:asset], assetformat].compact.join(".")
           end #def
           
           # full path to asset file on disk

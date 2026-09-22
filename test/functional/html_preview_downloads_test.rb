@@ -95,9 +95,16 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
       assert_match(/\Asandbox; /, csp)
       assert_includes response.body, refresh, 'Pass caches the uploaded HTML'
 
+      etag = response.headers['ETag']
+      assert etag.present?, 'cached previews are served with an ETag'
+
       Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS # Pass disabled: the extension now selects Zippy
       Setting.clear_cache
+      # a conditional request must not be answered 304 from the Pass cache: the
+      # browser would keep the Pass body and apply the new (allow-downloads) headers
+      @request.headers['If-None-Match'] = etag
       get :more_preview, params: {id: a.id, format: 'html'}
+      assert_not_equal 304, response.status, 'the old ETag must not validate once another converter is selected'
       assert_not_includes response.body.to_s, refresh, 'the Pass output must not be served as a Zippy preview'
     end
   end

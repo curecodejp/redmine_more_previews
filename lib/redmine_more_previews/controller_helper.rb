@@ -71,6 +71,16 @@ module RedmineMorePreviews
     end #def
     private :preview_params
 
+    # ETag for a cached preview: the file's mtime alone would answer a conditional
+    # request with 304 from a cache that another converter produced (the
+    # regeneration in Conversion#cached_preview never runs on that path), so the
+    # selected converter is part of the key. file / options as in
+    # ControllerHelper.preview_allows_downloads?
+    def preview_etag(mtime, file, options = {})
+      [mtime, RedmineMorePreviews::Converter.responsible(file.to_s, options)&.id]
+    end
+    private :preview_etag
+
     # file / options: see ControllerHelper.preview_allows_downloads?; they decide
     # whether the CSP sandbox allows downloads (DOWNLOAD_PREVIEW_CONVERTERS)
     def apply_preview_security_headers(file = nil, options = {})

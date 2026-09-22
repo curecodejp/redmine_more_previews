@@ -13,15 +13,14 @@ class VinceHtmlTemplateTest < ActiveSupport::TestCase
     ERB.new(File.read(TEMPLATE)).result(binding).squish
   end
 
-  def test_full_html_output_uses_current_stable_redmine_styles_and_starts_with_doctype
+  def test_full_html_output_is_self_contained_and_starts_with_doctype
     source = File.read(TEMPLATE)
     html = render('html')
 
     assert_match(/\A<!DOCTYPE html>/, html)
-    assert_includes html, "stylesheet"
-    assert_includes html, 'font-family: Arial, Helvetica, sans-serif !important'
-    assert_operator html.index('font-family: Arial, Helvetica, sans-serif !important'), :<, html.index('stylesheet'), 'system-font override must be parsed before Redmine styles can trigger webfont loads'
-    assert_includes html, 'font-family: Consolas, Menlo, "Liberation Mono", Courier, monospace !important'
+    assert_includes html, 'font-family: Arial, Helvetica, sans-serif'
+    assert_includes html, '/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css'
+    assert_not_includes source, 'stylesheet_link_tag'
     assert_not_includes source, 'jquery-ui-1.11.0'
     assert_not_includes source, 'tribute-3.7.3'
     assert_not_includes source, 'heads_for_theme'
@@ -31,6 +30,7 @@ class VinceHtmlTemplateTest < ActiveSupport::TestCase
     html = render('inline')
 
     assert_not_includes html, '<!DOCTYPE'
-    assert_not_includes html, 'font-family: Arial, Helvetica, sans-serif !important'
+    assert_not_includes html, 'html, body {'
+    assert_includes html, '/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css'
   end
 end

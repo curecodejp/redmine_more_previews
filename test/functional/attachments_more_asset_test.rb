@@ -38,6 +38,40 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     a
   end
 
+  # the attachment page forwards its query string to the preview; a stray asset
+  # parameter must not turn the inline listing into an asset request (it crashed
+  # with "undefined method to_utf8 for nil" once the listing was cached)
+  def test_show_page_ignores_an_asset_parameter
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'safe.txt' => 'safe'))
+      with_zippy_format('tar', 'inline') do
+        get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+        assert_response :success
+        assert_select 'a', text: 'safe.txt'
+        # listing is cached now; the same page with ?asset= must still render it
+        get :show, params: {id: a.id, filename: a.filename, format: 'html', asset: 'safe.txt'}
+        assert_response :success
+        assert_select 'a', text: 'safe.txt'
+        assert_not_includes response.body, 'safe</'
+      end
+      with_zippy_format('tar', 'html') do
+        get :show, params: {id: a.id, filename: a.filename, format: 'html', asset: 'safe.txt'}
+        assert_response :success
+        assert_select 'iframe[src*="more_preview"]'
+        assert_select 'iframe[src*="asset"]', 0
+      end
+    end
+  end
+
+  def with_zippy_format(ext, format)
+    settings = Setting.plugin_redmine_more_previews.to_h.deep_dup
+    settings['converter']['zippy']['mime_types'][ext]['format'] = format
+    Setting.plugin_redmine_more_previews = settings
+    yield
+  ensure
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS
+  end
+
   def test_regular_entry_is_served_as_attachment
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'ok.zip'), 'dir/file.txt' => 'hello'))

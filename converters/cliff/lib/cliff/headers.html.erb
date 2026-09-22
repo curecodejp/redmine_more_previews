@@ -31,7 +31,7 @@
             </tr>
             <tr >
               <td style="width:5%;font-weight:bold;"><%= I18n.translate(:label_mail_field_cc) %></td>
-              <td style="word-break: break-all;" ><%= @mail.cc && @mail.cc.is_a?(String) ? @mail.from : @mail.cc.join(", ") rescue @mail.cc %></td>
+              <td style="word-break: break-all;" ><%= @mail.cc && @mail.cc.is_a?(String) ? @mail.cc : @mail.cc.join(", ") rescue @mail.cc %></td>
             </tr>
             <tr >
               <td style="width:5%;font-weight:bold;"><%= I18n.translate(:label_mail_field_subject) %></td>

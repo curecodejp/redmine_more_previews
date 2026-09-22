@@ -359,8 +359,13 @@ module RedmineMorePreviews
       File.join(self.class.public_directory, id.to_s)
     end
     
+    # Redmine may be mounted below a sub-URI (RAILS_RELATIVE_URL_ROOT), and the
+    # plugin's assets are served from there as well; a converter emitting the
+    # bare path would ask for a url that does not exist. The inline sanitizer
+    # matches its stylesheet allow-list against the same root, see
+    # Patches::ApplicationHelperPatch::InlinePreviewScrubber.
     def public_web_directory
-      "/plugin_assets/redmine_more_previews/converters/#{id.to_s}"
+      "#{Redmine::Utils.relative_url_root}/plugin_assets/redmine_more_previews/converters/#{id.to_s}"
     end
     
     # Returns the absolute path to the plugin assets directory

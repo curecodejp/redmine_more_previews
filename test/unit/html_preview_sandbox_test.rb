@@ -62,13 +62,21 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert_not_includes html, 'allow_downloads', 'the option must not leak into the markup'
   end
 
-  def test_non_html_preview_is_not_sandboxed
+  def test_non_html_iframe_preview_is_not_sandboxed
+    # ZIPPY_SETTINGS uses embedding=0, which selects <object> for non-HTML
+    # previews. Switch to iframe mode so this test covers the non-HTML branch
+    # whose pane ratio must remain unchanged.
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => '1')
+    Setting.clear_cache
+
     html = helper.more_previews_tag('/attachments/more_preview/1.pdf', 'preview.pdf', type: 'application/pdf').to_s
     fragment = Nokogiri::HTML.fragment(html)
     pane = fragment.at_css('#preview_pane')
     frame = fragment.at_css('#preview_frame')
 
     assert_not_includes html, 'sandbox='
+    assert pane, 'preview pane must be present'
+    assert frame, 'preview iframe must be present'
     assert_equal 'position:relative;padding-top:141%;', pane['style']
     assert_equal 'no', frame['scrolling']
   end

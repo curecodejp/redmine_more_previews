@@ -52,11 +52,15 @@ module VObject
       # escapes a string value from ,;: and \n
       #
       def esc_str(str)
-        str.to_s.to_utf8.
-        gsub(/,/, '\,').
-        gsub(/;/, '\;').
-        gsub(/:/, '\:').
-        gsub(/\n/, '\n')
+        str.to_s.to_utf8.gsub(/\\|,|;|:|\n/) do |match|
+          case match
+          when '\\' then '\\\\'
+          when ','  then '\\,'
+          when ';'  then '\\;'
+          when ':'  then '\\:' # legacy output compatibility
+          else '\\n'
+          end
+        end
       end #def
       
       # ----------------------------------------------------------------------------------
@@ -93,26 +97,29 @@ module VObject
       # unescapes a string value from \,\;\: and \n
       #
       def unesc_str(str)
-        str.to_s.to_utf8.
-        gsub(/\\,/, ',').
-        gsub(/\\;/, ';').
-        gsub(/\\:/, ':').
-        gsub(/\\n/, "\n") # last double quote!
+        str.to_s.to_utf8.gsub(/\\([\\,;:nN])/) do
+          case Regexp.last_match(1)
+          when '\\' then '\\'
+          when ','  then ','
+          when ';'  then ';'
+          when ':'  then ':' # accept legacy Vince output
+          else "\n"
+          end
+        end
       end #def
       
       # ----------------------------------------------------------------------------------
       # unescapes a string value with comma separated values from ,;: and \n and returns array
       #
       def unesc_csv_to_arr(csv,n=nil)
-        csv.split(*[/(?<!\\),/, n].compact).map{|s| unesc(s)}
+        csv.split(*[/(?<!\\)(?:\\\\)*\K,/, n].compact).map{|s| unesc(s)}
       end #def
       
       # ----------------------------------------------------------------------------------
       # unescapes a string value with semicolon separated values from ,;: and \n and returns array
       #
       def unesc_ssv_to_arr(ssv,n=nil)
-Rails.logger.info ssv
-        ssv.split(*[/(?<!\\);/, n].compact).map{|s| unesc(s)}
+        ssv.split(*[/(?<!\\)(?:\\\\)*\K;/, n].compact).map{|s| unesc(s)}
       end #def
       
     end #module

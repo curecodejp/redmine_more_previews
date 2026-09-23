@@ -290,7 +290,7 @@ Native speakers: please help to improve localizations
 **2.0.11**
   - amended autoload paths
          
-**2.0.10 
+**2.0.10**
   - fixed broken api calls for attachment
          
 **2.0.9**

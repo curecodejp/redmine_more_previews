@@ -17,7 +17,7 @@ Pull requests run automated smoke tests against Redmine 6.0.5 and 6.1.4 with Rub
 
 ---
 
-## FORK NOTES
+## FORK NOTES (JVsup fork, 6.0.5)
 
 - Most pull requests from upstream and outside fixes have been integrated.
 - Bulk actions in libre to enable/disable all mime types and group conversion selector.

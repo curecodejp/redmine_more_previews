@@ -33,15 +33,15 @@ module RedmineMorePreviews
         ALLOWED_TAGS = %w[
           a abbr acronym address b big blockquote br caption cite code col colgroup
           dd del dfn div dl dt em figcaption figure h1 h2 h3 h4 h5 h6 hr i img ins
-          kbd li link mark ol p pre q s samp small span strike strong sub sup
+          input kbd li link mark ol p pre q s samp small span strike strong sub sup
           table tbody td tfoot th thead time tr tt u ul var
         ].freeze
 
         # style survives only after Loofah's css safe-list scrub (no url(),
         # position, expression() ...); Cliff's header tables rely on it
         ALLOWED_ATTRIBUTES = %w[
-          abbr align alt border cellpadding cellspacing cite class colspan datetime
-          download height href hreflang lang media rel rowspan scope span
+          abbr align alt border cellpadding cellspacing checked cite class colspan datetime
+          disabled download height href hreflang id lang media rel rowspan scope span
           src start style summary title type valign width xml:lang
         ].freeze
 
@@ -54,6 +54,29 @@ module RedmineMorePreviews
         # assets are served from (see Converter#public_web_directory).
         PLUGIN_STYLESHEET_HREF =
           %r{\A/plugin_assets/redmine_more_previews/(?:[A-Za-z0-9_\-]+/)*[A-Za-z0-9_\-]+\.css\z}.freeze
+
+        # <img> is fetched by the browser, so an external src turns viewing a
+        # preview into a request to whoever wrote the converter's input (ip,
+        # user agent, open tracking). Same rule as the html format's CSP
+        # img-src 'self' data: (ControllerHelper::HTML_PREVIEW_CSP). "//host"
+        # and "/\host" are protocol relative urls, not paths, so a leading
+        # slash alone is not enough.
+        LOCAL_IMAGE_SRC = %r{\A(?:data:image/|/(?![/\\]))}i.freeze
+
+        # the browser strips tab, lf and cr out of a url before resolving it,
+        # so "/<tab>/host/x.png" is fetched as "//host/x.png". Match on the
+        # stripped value, never on the bytes as written.
+        URL_IGNORED_CHARS = /[\t\n\r]/.freeze
+
+        # inline output is embedded into the redmine page itself, so a
+        # converter's id would land in redmine's own id namespace and could
+        # clobber the elements its javascript looks up ($('#preview_frame'),
+        # $('#ajax-indicator'), cliff's $('#<uuid>') toggler). ids are kept, but
+        # in a namespace of their own. The prefix is unreserved, so percent
+        # decoding leaves the relation intact: an id written raw ("日本語") is
+        # still what a reference written encoded ("#%E6%97%A5...") points at.
+        ID_PREFIX = 'rmp-'
+        ID_VALUE  = /\A\S+\z/.freeze
 
         # +href+ must be the plugin's own stylesheet as this Redmine serves it:
         # under a sub-URI the bare "/plugin_assets/..." path belongs to whatever
@@ -86,12 +109,49 @@ module RedmineMorePreviews
             self.class.plugin_stylesheet_href?(node['href'])
         end
 
+        def keep_node?(node)
+          return false unless super
+          return true  unless node.name == 'input'
+          # the only input a converter has a reason to emit is a markdown task
+          # list's checkbox; a text field or a submit button in someone else's
+          # form is not something a preview should be able to draw
+          node['type'].to_s.casecmp?('checkbox')
+        end
+
         def scrub_node(node)
           if PRUNED_TAGS.include?(node.name)
             node.remove
           else
             super
           end
+        end
+
+        def scrub_attribute(node, attr_node)
+          name = attr_node.name
+          super
+
+          value = node[name]
+          return if value.nil?   # super removed it (javascript:, data:text/html, ...)
+
+          case name
+          when 'src'
+            node.remove_attribute(name) unless value.gsub(URL_IGNORED_CHARS, '').match?(LOCAL_IMAGE_SRC)
+          when 'id'
+            # prefix unconditionally: skipping a value that already starts with
+            # the prefix would let the input claim a name inside the namespace
+            value.match?(ID_VALUE) ? node[name] = "#{ID_PREFIX}#{value}" : node.remove_attribute(name)
+          when 'href'
+            # "#" alone means the top of the document, so it is left as it is
+            fragment = value[/\A#(.+)\z/m, 1]
+            node[name] = "##{ID_PREFIX}#{fragment}" if fragment && fragment.match?(ID_VALUE)
+          end
+        end
+
+        def scrub_attributes(node)
+          super
+          # a preview is a document, not a form: the checkbox shows what the
+          # source said, and must not look like something the reader can change
+          node['disabled'] = 'disabled' if node.name == 'input'
         end
 
       end #class

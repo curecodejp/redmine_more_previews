@@ -1,0 +1,12 @@
+/*
+ * Loaded into the Redmine page itself by Cliff's hook partials, not into an
+ * iframe, so every rule is scoped to a class of this plugin's own: a generic
+ * selector here would restyle Redmine and every other plugin on the page.
+ *
+ * word-break lives here rather than in a style attribute because the inline
+ * preview sanitiser keeps only the declarations on Loofah's css safe-list,
+ * and word-break is not one of them.
+ */
+.rmp-cliff-value {
+  word-break: break-all;
+}

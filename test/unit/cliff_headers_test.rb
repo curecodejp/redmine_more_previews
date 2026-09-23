@@ -141,4 +141,47 @@ class CliffHeadersTest < ActiveSupport::TestCase
       assert_equal expected, I18n.translate(key, :locale => :ja), "#{key} is mistranslated"
     end
   end
+
+  def test_header_value_cells_use_the_bundled_wrapping_class
+    html = render_headers('cc@example.test')
+    value_cells = Nokogiri::HTML.fragment(html).css('td.rmp-cliff-value')
+
+    assert_not_includes html, 'word-break'
+    assert_equal 4, value_cells.size
+  end
+
+  def test_field_value_cells_keep_their_existing_class_and_use_the_wrapping_class
+    @mail = MailWithFields.new([FieldStub.new('X-Test', 'value')])
+    html = render_fields
+
+    assert_not_includes html, 'word-break'
+    assert Nokogiri::HTML.fragment(html).at_css('td.header_field_value.rmp-cliff-value')
+  end
+
+  def test_bundled_cliff_stylesheet_defines_header_value_wrapping
+    stylesheet = File.expand_path(
+      '../../converters/cliff/assets/stylesheets/redmine_more_previews_cliff.css', __dir__
+    )
+
+    assert File.exist?(stylesheet)
+    css = File.read(stylesheet)
+    assert_includes css, '.rmp-cliff-value'
+    assert_includes css, 'word-break: break-all'
+  end
+
+  def test_cliff_hooks_build_the_stylesheet_url_from_the_converter
+    hooks = %w[
+      _cliff_preview_attachment_top.html.erb
+      _cliff_preview_repository_entry_top.html.erb
+    ]
+
+    # Keep the URL correct below a sub-URI by routing it through public_web_directory.
+    hooks.each do |hook|
+      path = File.expand_path("../../converters/cliff/app/views/redmine_more_previews/hooks/#{hook}", __dir__)
+      source = File.read(path)
+      assert_includes source, 'redmine_more_previews_cliff.css'
+      assert_includes source, 'converter.public_web_directory'
+      assert_not_includes source, '/plugin_assets'
+    end
+  end
 end

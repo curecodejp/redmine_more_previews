@@ -11,7 +11,7 @@
               <%- tzone   = @mail.date.strftime("%:::z") rescue "" %>
               <tr >
                 <td style="width:5%;font-weight:bold;"><%= I18n.translate(:label_mail_field_date) %></td>
-                <td style="word-break: break-all;" ><%= ERB::Util.html_escape(datestr) %>(<%= ERB::Util.html_escape(tzone) %>)</td>
+                <td class="rmp-cliff-value"><%= ERB::Util.html_escape(datestr) %>(<%= ERB::Util.html_escape(tzone) %>)</td>
               </tr>
             <% end %>
             
@@ -21,21 +21,21 @@
                 <% display_names = Array(@mail.header[:from].display_names) rescue [" -?- "]
                    display_names.map!{|dn| Mail::Encodings.decode_encode( dn, :decode ) }
                  %>
-                <td style="word-break: break-all;" ><%= ERB::Util.html_escape((@mail.from.is_a?(String) ? @mail.from : @mail.from.join(", ") rescue @mail.from)) %> <%= ERB::Util.html_escape("(#{display_names.join(', ')})") if display_names.present?  %></td>
+                <td class="rmp-cliff-value"><%= ERB::Util.html_escape((@mail.from.is_a?(String) ? @mail.from : @mail.from.join(", ") rescue @mail.from)) %> <%= ERB::Util.html_escape("(#{display_names.join(', ')})") if display_names.present?  %></td>
               </tr>
             <% end %>
             
             <tr >
               <td style="width:5%;font-weight:bold;"><%= I18n.translate(:label_mail_field_to) %></td>
-              <td style="word-break: break-all;" ><%= ERB::Util.html_escape((@mail.to && @mail.to.is_a?(String) ? @mail.to : @mail.to.join(", ") rescue @mail.to)) %></td>
+              <td class="rmp-cliff-value"><%= ERB::Util.html_escape((@mail.to && @mail.to.is_a?(String) ? @mail.to : @mail.to.join(", ") rescue @mail.to)) %></td>
             </tr>
             <tr >
               <td style="width:5%;font-weight:bold;"><%= I18n.translate(:label_mail_field_cc) %></td>
-              <td style="word-break: break-all;" ><%= ERB::Util.html_escape((@mail.cc && @mail.cc.is_a?(String) ? @mail.cc : @mail.cc.join(", ") rescue @mail.cc)) %></td>
+              <td class="rmp-cliff-value"><%= ERB::Util.html_escape((@mail.cc && @mail.cc.is_a?(String) ? @mail.cc : @mail.cc.join(", ") rescue @mail.cc)) %></td>
             </tr>
             <tr >
               <td style="width:5%;font-weight:bold;"><%= I18n.translate(:label_mail_field_subject) %></td>
-              <td style="word-break: break-all;" ><%= ERB::Util.html_escape(@mail.subject) %></td>
+              <td class="rmp-cliff-value"><%= ERB::Util.html_escape(@mail.subject) %></td>
             </tr>
           </tbody>
         </table>

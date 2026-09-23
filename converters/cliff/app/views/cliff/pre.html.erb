@@ -3,14 +3,16 @@
   <head>
     <meta http-equiv="content-type" content="text/html; charset=utf-8">
     <style>
-      word-wrap: break-word; 
-      white-space: pre-line;
-    </style>  
+      /* pre-wrap, not pre-line: a plain-text mail relies on its spaces for
+         indentation, signatures and quoted blocks, which pre-line collapses */
+      .project_email_pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+    </style>
   </head>
   <body>
-    <pre class='project_email_pre'>
     <%# Escape at the sink even when a caller has marked plain text as html_safe. %>
-    <%= CGI.escapeHTML(@text.to_s) %>
-    </pre>
+    <pre class='project_email_pre'><%= CGI.escapeHTML(@text.to_s) %></pre>
   </body>
 </html>

@@ -8,7 +8,7 @@
             <% @mail.header_fields.each do |field| %>
             <tr >
               <td class="header_field_name"><%= ERB::Util.html_escape(field.name) %>:</td>
-              <td class="header_field_value" style="word-break: break-all;" ><%= ERB::Util.html_escape(field.decoded) %></td>
+              <td class="header_field_value rmp-cliff-value"><%= ERB::Util.html_escape(field.decoded) %></td>
             </tr>
             <% end %>
           </tbody>

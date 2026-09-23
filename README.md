@@ -9,7 +9,7 @@
 > - License: GNU GPL v2.0 or later, inherited from the upstream project
 > - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
-> The existing plugin version remains `6.0.5` until Redmine 6.1 compatibility has been verified. Generic fixes should be contributed back upstream when practical.
+> The plugin version is `6.1.0`: Redmine 6.1 compatibility has been verified, and Redmine 6.0 remains supported. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
@@ -188,6 +188,11 @@ You can enable to any **existing** project from /projects/[any-project]/settings
 Native speakers: please help to improve localizations
 
 ### Change-Log
+
+**6.1.0**
+ - Redmine 6.1 compatibility verified while retaining Redmine 6.0 support
+ - compatibility, security hardening, and preview regression fixes
+ - Plugin version set to 6.1.0 for the Cure Code maintained release
 
 **6.0.5**
  - Forked version

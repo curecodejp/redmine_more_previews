@@ -30,6 +30,9 @@
 #       - added internationalization for de, en, es, fr, pt, ru, jp, zh
 # 1.1.1
 #       - fixed japanese localization
+# 1.1.2
+#       - HTML-escape mail header values and the mail body; label the Cc row correctly
+#       - keep the bundled header template in sync
 #
 
 require_relative 'lib/cliff'
@@ -39,7 +42,7 @@ RedmineMorePreviews::Converter.register :cliff do
   name           'Cliff'
   author         'Stephan Wenzel'
   description    'Preview email files in preview pane'
-  version        '1.1.1'
+  version        '1.1.2'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
                  

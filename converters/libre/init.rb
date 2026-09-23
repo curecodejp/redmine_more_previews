@@ -28,6 +28,8 @@
 #       - added internationalization for de, en, es, fr, pt, ru, jp, zh
 # 1.1.1
 #       - fixed japanese localization
+# 1.1.2
+#       - fixed the image path rewrite for non-ASCII file names (regex range, File.exist?)
 ##
 
 require_relative 'lib/libre'
@@ -36,7 +38,7 @@ RedmineMorePreviews::Converter.register :libre do
   name           'Libre'
   author         'Stephan Wenzel'
   description    'Preview office files with LibreOffice'
-  version        '1.1.1'
+  version        '1.1.2'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_libre'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_libre'
                  

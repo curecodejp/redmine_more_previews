@@ -226,13 +226,9 @@ module VObject
     ######################################################################################
     PHOTO_WEBALIZE_PROC = Proc.new do |hash|
       url = case hash[:fields][:scheme]
-      when /data/i, /http/i, /https/i
+      when /\A(?:data|https?)\z/i
         # this is a reference to a remote image: reassemble uri
         hash[:fields][:full]
-      when /file/i
-        # this is a reference to a local file
-        mime = Marcel::MimeType.for(Pathname.new(filepath), name: File.basename(filepath))
-        "data:#{mime};base64,#{Base64.encode64(open(hash[:fields][:path]){|f|f.read})}"
       when nil
         # this is a vcard 3.0 notation
         mime = case hash[:attributes][:TYPE].to_a.first
@@ -243,7 +239,9 @@ module VObject
         end
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end
-      tag(:img, src: url, :class => "vcard photo box")
+      # file: and any other scheme are not rendered: the path comes from the uploaded
+      # vCard, so reading it would disclose files on the Redmine server
+      url.present? ? tag(:img, src: url, :class => "vcard photo box") : ""
     end #def
     
     PHOTO_HUMANIZE_PROC = Proc.new{|hash| ":-)"}
@@ -535,13 +533,9 @@ module VObject
     ######################################################################################
     LOGO_WEBALIZE_PROC = Proc.new do |hash|
       url = case hash[:fields][:scheme]
-      when /data/i, /http/i, /https/i
+      when /\A(?:data|https?)\z/i
         # this is a reference to a remote image: reassemble uri
         hash[:fields][:full]
-      when /file/i
-        # this is a reference to a local file
-        mime = Marcel::MimeType.for(Pathname.new(filepath), name: File.basename(filepath))
-        "data:#{mime};base64,#{Base64.encode64(open(hash[:fields][:path]){|f|f.read})}"
       when nil
         # this is a vcard 3.0 notation
         mime = case hash[:attributes][:TYPE].to_a.first
@@ -552,7 +546,9 @@ module VObject
         end
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end
-      tag(:img, src: url, :class => "vcard logo box")
+      # file: and any other scheme are not rendered: the path comes from the uploaded
+      # vCard, so reading it would disclose files on the Redmine server
+      url.present? ? tag(:img, src: url, :class => "vcard logo box") : ""
     end #def
     
     LOGO_HUMANIZE_PROC = Proc.new{|hash| "|/|"}

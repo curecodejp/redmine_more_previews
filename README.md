@@ -9,7 +9,7 @@
 > - License: GNU GPL v2.0 or later, inherited from the upstream project
 > - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
-> The existing plugin version remains `6.0.5` until Redmine 6.1 compatibility has been verified. Generic fixes should be contributed back upstream when practical.
+> The plugin version is `6.1.0`: Redmine 6.1 compatibility has been verified, and Redmine 6.0 remains supported. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
@@ -17,7 +17,7 @@ Pull requests run automated smoke tests against Redmine 6.0.5 and 6.1.4 with Rub
 
 ---
 
-## FORK NOTES
+## FORK NOTES (JVsup fork, 6.0.5)
 
 - Most pull requests from upstream and outside fixes have been integrated.
 - Bulk actions in libre to enable/disable all mime types and group conversion selector.
@@ -189,6 +189,11 @@ Native speakers: please help to improve localizations
 
 ### Change-Log
 
+**6.1.0**
+ - Redmine 6.1 compatibility verified while retaining Redmine 6.0 support
+ - compatibility, security hardening, and preview regression fixes
+ - Plugin version set to 6.1.0 for the Cure Code maintained release
+
 **6.0.5**
  - Forked version
  - added/fixed - most pull requests from upstream and outside fixes have been integrated.
@@ -285,7 +290,7 @@ Native speakers: please help to improve localizations
 **2.0.11**
   - amended autoload paths
          
-**2.0.10 
+**2.0.10**
   - fixed broken api calls for attachment
          
 **2.0.9**
@@ -333,6 +338,9 @@ This plugin replaces
 This plugin ideally works together with
  - redmine_preview_inline
  - redmine_all_thumbnails
+
+> [!NOTE]
+> These companion plugins are recommended by the original upstream. They have not been verified with this maintained fork on Redmine 6.0 / 6.1.
  
 # a note on caching
 This plugin caches conversions in the Rail tmp-directory. For large repositories (f.i. firm file servers) each conversion will store a copy of the conversion file in the Rails tmp directory and thus the tmp directory may become as large or even larger as the original repository. There are two ways to handle such a situation: 1. swipe Rails tmp/more_previews directory frequently, 2. change the storage path in the plugin's init.rb file to choose a mass storage, which can handle the amount of data.

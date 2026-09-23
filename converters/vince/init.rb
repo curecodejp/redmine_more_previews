@@ -22,6 +22,10 @@
 #       - initial version
 # 1.1.0
 #       - added internationalization for de, en, es, fr, pt, ru, ja, zh
+# 1.1.1
+#       - self-contained full preview layout (no Redmine stylesheets or webfonts)
+#       - round-trip safe vCard escaping
+#       - PHOTO / LOGO accept only data:, http: and https: URIs
 #
 
 require_relative 'lib/vince_lib/v_object'
@@ -31,7 +35,7 @@ RedmineMorePreviews::Converter.register :vince do
   name           'Vince'
   author         'Stephan Wenzel'
   description    'Preview VCF in preview pane'
-  version        '1.1.0'
+  version        '1.1.1'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_vince'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_vince'
                  

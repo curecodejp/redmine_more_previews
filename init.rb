@@ -126,6 +126,10 @@
 #       - added bulk actions in libre to enable/disable all mime types and group conversion selector.
 #       - The plugin is confirmed to work in Redmine 6.0.5 container (based on https://github.com/sameersbn/docker-redmine ). Probably will work elsewhere too. YMMV.
 #       - Plugin version set to 6.0.5 to match corresponding redmine release
+# 6.1.0
+#       - Redmine 6.1 compatibility verified while retaining Redmine 6.0 support
+#       - compatibility, security hardening, and preview regression fixes
+#       - Plugin version set to 6.1.0 for the Cure Code maintained release
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -133,7 +137,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.0.5'
+  version      '6.1.0'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

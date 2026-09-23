@@ -60,7 +60,7 @@ class Libre < RedmineMorePreviews::Conversion
     return if basefilename.ascii_only?
     if File.exists?(filepath)
       text = File.read(filepath)
-      new_contents = text.gsub(/(?<=img src=")([a-zA-z%\d]+)(?=_html)/, URI::encode_www_form_component(basefilename))
+      new_contents = text.gsub(/(?<=img src=")([A-Za-z%\d]+)(?=_html)/, URI::encode_www_form_component(basefilename))
       File.open(filepath, "w") {|file| file.puts new_contents }
     end
   end

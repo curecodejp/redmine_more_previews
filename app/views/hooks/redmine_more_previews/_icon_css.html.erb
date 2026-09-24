@@ -1,4 +1,5 @@
 <style>
+<% if Redmine::VERSION::MAJOR < 6 %>
 <% RedmineMorePreviews::Converter.active_mime_types.to_h.each do |ext, values| %>
 <% if s = values['icon'] %>
 <% converter = RedmineMorePreviews::Converter.find values['converter'] %>
@@ -7,6 +8,7 @@
 <% if values['synonyms'] %>
 <% values['synonyms'].each do |mime| %>
 <%= ".icon-file.#{mime.gsub(/[^a-z^A-Z^0-9]/,'-')} {background-image: url(#{converter.public_web_directory}/images/#{values['icon']});}" %>
+<% end %>
 <% end %>
 <% end %>
 <% end %>

@@ -91,14 +91,14 @@ module RedmineMorePreviews
               # read before the freshness check: the ETag needs the selected converter
               content = entry_content_for_preview
               if params[:reload] || stale?(:etag => preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content))
-                send_data @repository.more_preview(@path, @rev, preview_params, :entry_content => content),
+                send_data @repository.more_preview(@path, @rev, preview_params),
                   :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
               end
             else #no cache
-              content = entry_content_for_preview
-              @repository.more_preview(@path, @rev, preview_params, :entry_content => content) do |preview_data|
+              entry_content_for_preview
+              @repository.more_preview(@path, @rev, preview_params) do |preview_data|
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
@@ -109,10 +109,10 @@ module RedmineMorePreviews
           private :send_more_preview
 
           # reads the entry once: the CSP and the ETag are decided on these bytes (the
-          # entry is not on disk, and the converter is chosen by content) and the same
-          # bytes are handed to the conversion, so they cannot disagree
+          # entry is not on disk, and the converter is chosen by content) and the
+          # repository keeps them for the conversion, so they cannot disagree
           def entry_content_for_preview
-            content = @repository.cat(@path, @rev)
+            content = @repository.preview_content(@path, @rev)
             apply_preview_security_headers(@entry&.name || @path, :content => content)
             content
           end
@@ -191,7 +191,7 @@ module RedmineMorePreviews
               # download decision (made on the entry's content, like the conversion)
               if (RedmineMorePreviews::Converter.conversion_ext(@entry.name, :pathonly => true) rescue nil) == 'html'
                 @preview_allows_downloads = RedmineMorePreviews::ControllerHelper.
-                  preview_allows_downloads?(@entry.name, :content => @repository.cat(@path, @rev))
+                  preview_allows_downloads?(@entry.name, :content => @repository.preview_content(@path, @rev))
               end
               render :action => 'more_preview'
             end

@@ -205,3 +205,10 @@ Rails.application.config.after_initialize do
     RedmineMorePreviews::Lib::RmpPerm.push_permission(permission, action)
   end
 end
+
+#-----------------------------------------------------------------------------------------
+# Remove the repository previews cached by 6.1.0 and earlier (shared between projects)
+#-----------------------------------------------------------------------------------------
+Rails.application.config.after_initialize do
+  RedmineMorePreviews::Patches::RepositoryPatch.remove_legacy_cache
+end

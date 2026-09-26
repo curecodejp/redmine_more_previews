@@ -35,13 +35,11 @@ module RedmineMorePreviews
           #
           ################################################################################
           # class specific
-          # entry_content: the entry's bytes when the caller has already read them
-          # (the controller decides the CSP on the same bytes that get rendered)
-          def more_preview(path, rev, options={}, entry_content: nil, &block)
+          def more_preview(path, rev, options={}, &block)
             if entry(path, rev)
               Dir.mktmpdir do |tmpdir|
                 filepath = File.join(tmpdir, entry(path, rev).name)
-                File.open( filepath, "wb") {|f| f.write(entry_content || cat(path, rev))}
+                File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
                 RedmineMorePreviews::Converter.convert(
                   filepath,
                   preview_filepath(path, rev, options),
@@ -62,7 +60,7 @@ module RedmineMorePreviews
             if entry(path, rev)
               Dir.mktmpdir do |tmpdir|
                 filepath = File.join(tmpdir, entry(path, rev).name)
-                File.open( filepath, "wb") {|f| f.write(cat(path, rev))}
+                File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
                 # the asset path, not the preview path (as in Attachment#more_asset):
                 # with the preview as target a cached listing counted as "valid" and
                 # the asset was never extracted
@@ -79,6 +77,16 @@ module RedmineMorePreviews
             elsif block_given?
               yield nil
             end #if
+          end #def
+          
+          # the entry's bytes, read once per repository instance (i.e. per request):
+          # the controller decides the CSP, the cache directory is named and the
+          # conversion runs on the same bytes, so they cannot disagree
+          def preview_content(path, rev)
+            @preview_contents ||= {}
+            key = [path, rev]
+            return @preview_contents[key] if @preview_contents.key?(key)
+            @preview_contents[key] = cat(path, rev)
           end #def
           
           def preview_available?(path, rev, options={})
@@ -154,18 +162,26 @@ module RedmineMorePreviews
           
           # directory of all previews
           def previews_storagepath
-            File.join(RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, self.class.name.underscore.pluralize)
+            RedmineMorePreviews::Patches::RepositoryPatch.previews_storagepath
           end #def
           
-          # directory of this preview
+          # directory of the previews of this repository: the identifier is unique
+          # only within a project (and blank for the default repository)
           def preview_storagepath
-            File.join(previews_storagepath, identifier.to_s)
+            File.join(previews_storagepath, id.to_s)
           end #def
           
           # directory containing all preview files and assets
+          # the entry's digest stands for the revision: the same path holds other
+          # content at another revision (and a Filesystem repository has none)
           def preview_dirname(path, rev, options={})
             format = options[:format].presence || preview_format(path, rev).presence
-            File.join(preview_storagepath, path, ["preview", format ].compact.join("."))
+            File.join(preview_storagepath, path, preview_digest(path, rev), ["preview", format ].compact.join("."))
+          end #def
+          
+          def preview_digest(path, rev)
+            @preview_digests ||= {}
+            @preview_digests[[path, rev]] ||= Digest::SHA256.hexdigest(preview_content(path, rev).to_s)
           end #def
           
           #
@@ -199,6 +215,19 @@ module RedmineMorePreviews
           
         end #base
       end #self
+      
+      def self.previews_storagepath
+        File.join(RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, "repository_previews")
+      end #def
+      
+      # up to 6.1.0 the previews were kept per repository class and identifier
+      # (f.i. repository/gits/<identifier>/<path>), shared between projects
+      def self.remove_legacy_cache
+        storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH
+        legacy  = File.join(storage, "repository")
+        return unless File.directory?(legacy) && RedmineMorePreviews::Lib::RmpFile.within_directory?(storage, legacy)
+        FileUtils.rm_rf(legacy)
+      end #def
       
     end #module
   end #module

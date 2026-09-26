@@ -19,7 +19,7 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
     super
     User.current = nil
     @old_enabled_scm = Setting.enabled_scm.dup
-    Setting.enabled_scm = @old_enabled_scm + ['Filesystem'] unless @old_enabled_scm.include?('Filesystem')
+    Setting.enabled_scm = (@old_enabled_scm + ['Filesystem']).uniq
     @old_settings = Setting.plugin_redmine_more_previews
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS
 
@@ -91,7 +91,7 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
     )
   end
 
-  # the previous layout (per repository identifier only) is removed on start
+  # the previous layout (per repository class and identifier) is removed on start
   def test_legacy_cache_is_removed
     legacy = File.join(@storage, 'repository', 'filesystems', 'a.zip', 'preview.html')
     FileUtils.mkdir_p(legacy)
@@ -102,6 +102,29 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
     RedmineMorePreviews::Patches::RepositoryPatch.remove_legacy_cache
     assert_not File.exist?(File.join(@storage, 'repository'))
     assert File.directory?(current)
+  end
+
+  # only the directories of the former layout (repository/<scm>s) are removed
+  def test_legacy_cache_removal_keeps_other_directories
+    FileUtils.mkdir_p(File.join(@storage, 'repository', 'gits', 'a.zip'))
+    other = File.join(@storage, 'repository', 'other', 'keep.txt')
+    FileUtils.mkdir_p(File.dirname(other))
+    File.write(other, 'keep')
+
+    RedmineMorePreviews::Patches::RepositoryPatch.remove_legacy_cache
+    assert_not File.exist?(File.join(@storage, 'repository', 'gits'))
+    assert File.file?(other)
+  end
+
+  def test_legacy_cache_is_removed_after_initialize
+    legacy = File.join(@storage, 'repository', 'filesystems', 'a.zip')
+    FileUtils.mkdir_p(legacy)
+    init = File.expand_path('../../../init.rb', __FILE__)
+    hooks = ActiveSupport.instance_variable_get(:@load_hooks)[:after_initialize].
+      select {|block, _| block.source_location&.first == init}
+    assert_not_empty hooks
+    hooks.each {|block, _| block.call(Rails.application)}
+    assert_not File.exist?(legacy)
   end
 
   private

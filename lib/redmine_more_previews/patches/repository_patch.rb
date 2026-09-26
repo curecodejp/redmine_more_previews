@@ -172,8 +172,9 @@ module RedmineMorePreviews
           end #def
           
           # directory containing all preview files and assets
-          # the entry's digest stands for the revision: the same path holds other
-          # content at another revision (and a Filesystem repository has none)
+          # per revision and content: the same path holds other content at another
+          # revision (and a Filesystem repository has no revision), and a preview
+          # links to the revision it was generated for (f.i. Zippy's asset links)
           def preview_dirname(path, rev, options={})
             format = options[:format].presence || preview_format(path, rev).presence
             File.join(preview_storagepath, path, preview_digest(path, rev), ["preview", format ].compact.join("."))
@@ -181,7 +182,8 @@ module RedmineMorePreviews
           
           def preview_digest(path, rev)
             @preview_digests ||= {}
-            @preview_digests[[path, rev]] ||= Digest::SHA256.hexdigest(preview_content(path, rev).to_s)
+            @preview_digests[[path, rev]] ||=
+              Digest::SHA256.new.update(rev.to_s).update("\0").update(preview_content(path, rev).to_s).hexdigest
           end #def
           
           #
@@ -226,7 +228,17 @@ module RedmineMorePreviews
         storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH
         legacy  = File.join(storage, "repository")
         return unless File.directory?(legacy) && RedmineMorePreviews::Lib::RmpFile.within_directory?(storage, legacy)
-        FileUtils.rm_rf(legacy)
+        # only the former cache directories: the storage path may be a shared one
+        Redmine::Scm::Base.all.each do |scm|
+          dir = File.join(storage, "Repository::#{scm}".underscore.pluralize)
+          next unless File.directory?(dir) && RedmineMorePreviews::Lib::RmpFile.within_directory?(storage, dir)
+          FileUtils.rm_rf(dir)
+        end
+        begin
+          Dir.rmdir(legacy)
+        rescue Errno::ENOTEMPTY, Errno::ENOENT
+          # other content is kept; or another process (f.i. a Puma worker) removed it
+        end
       end #def
       
     end #module

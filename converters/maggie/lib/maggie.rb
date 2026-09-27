@@ -55,10 +55,8 @@ class Maggie < RedmineMorePreviews::Conversion
       "#{convert_command} -density 72x72 #{shell_quote "#{CODERS[mime_type]}:#{source}"} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
     
     when "application/pdf"
-      # Ghostscript decides on the content, not on the coder ImageMagick asks for,
-      # whether it runs a file as PDF or as PostScript. Marcel reports a file as PDF
-      # when %PDF- appears near its start, so check the start as Redmine's thumbnails do.
-      if !pdf_magic?
+      # see RedmineMorePreviews.valid_pdf_magic?
+      if !RedmineMorePreviews.valid_pdf_magic?(source)
         nil
       elsif Redmine::Thumbnail.gs_available?
         "#{convert_command} -density #{get_density} #{shell_quote "pdf:#{source}[0]"} #{shell_quote "#{preview_format}:#{output}"}"
@@ -67,12 +65,6 @@ class Maggie < RedmineMorePreviews::Conversion
       end
     end
     command( cd + join + cmd + join + move(output)) if cmd
-  end #def
-  
-  # as Redmine::Thumbnail.valid_pdf_magic?, which Redmine 6.0 before 6.0.8 lacks
-  def pdf_magic?
-    magic = File.binread(source, 8).to_s
-    magic.start_with?("%PDF-".b) || magic == "\xEF\xBB\xBF%PDF-".b
   end #def
   
   def convert_command

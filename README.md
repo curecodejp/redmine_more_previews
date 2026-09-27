@@ -98,10 +98,11 @@ Zippy lets you preview zip, tgz or tar-Files in the browser. Click on an entry t
 
 Maggie converts images from one format to another and downscales images.
 
-Maggie hands uploaded files and repository files to ImageMagick, and PDF files to Ghostscript through ImageMagick. It reads each file with the coder of its type, passes a PDF only when the file starts as a PDF, and limits ImageMagick's pixel cache (width and height 16K pixels, disk 1 GiB). The limits do not bound Ghostscript's rendering of a PDF page. Since both programs parse untrusted files:
+Maggie hands uploaded files and repository files to ImageMagick, and PDF files to Ghostscript through ImageMagick. It reads each file with the coder of its type, passes a PDF only when the file starts as a PDF, and limits ImageMagick's pixel cache (width and height 16K pixels, disk 1 GiB): an image wider or higher than 16K pixels, f.i. a large panorama, is not previewed. The limits do not bound Ghostscript's rendering of a PDF page. Peek, which converts PDFs through Redmine's thumbnails, makes the same check of the start of the file. Since both programs parse untrusted files:
 
  - use Ghostscript 10.03.1 or later: earlier versions have known -dSAFER bypasses
- - disable the coders that no preview needs in ImageMagick's `policy.xml`, f.i. `<policy domain="coder" rights="none" pattern="{PS,PS2,PS3,EPS,EPI,EPSI,EPSF,MVG,MSL,TEXT,URL,HTTP,HTTPS,FTP}" />`. Keep `PDF` enabled if PDF previews are wanted. This does not stop PostScript that reaches Ghostscript through the PDF coder; Maggie's check of the start of the file does.
+ - use Redmine 6.0.10 / 6.1.3 or later: the PDF thumbnails of earlier versions can pass PostScript to Ghostscript ([Redmine issue 44145](https://www.redmine.org/issues/44145))
+ - disable the coders that no preview needs in ImageMagick's `policy.xml`, f.i. `<policy domain="coder" rights="none" pattern="{PS,PS2,PS3,EPS,EPI,EPSI,EPSF,MVG,MSL,TEXT,URL,HTTP,HTTPS,FTP}" />`. Keep `PDF` enabled if PDF previews are wanted. This does not stop PostScript that reaches Ghostscript through the PDF coder; the check of the start of the file does.
 
 ---
 

@@ -26,7 +26,9 @@ class Peek < RedmineMorePreviews::Conversion
     when 'pdf'
       FileUtils.cp( source, tmptarget )
     when 'jpg', 'png', 'gif'
-      Redmine::Thumbnail.generate(source, tmptarget, 800, true)
+      # Redmine's thumbnails do not check this on every supported Redmine
+      # (see RedmineMorePreviews.valid_pdf_magic?)
+      Redmine::Thumbnail.generate(source, tmptarget, 800, true) if RedmineMorePreviews.valid_pdf_magic?(source)
     end
   end #def
   

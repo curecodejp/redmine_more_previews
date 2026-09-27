@@ -34,9 +34,14 @@ module RedmineMorePreviews
       def self.run( days )
         cutoff  = Time.now - days * 24 * 60 * 60
         removed = 0
-        Dir.glob( File.join( storage, "**", "*.converter" ) ).each do |marker|
-          next unless old?( marker, cutoff )
+        markers = Dir.glob( File.join( storage, "**", "*.converter" ) )
+        dirs    = markers.map{|marker| marker.delete_suffix( ".converter" ) }.to_set
+        markers.each do |marker|
           dir = marker.delete_suffix( ".converter" )
+          # a file of that name inside a preview is one of its assets (an archive
+          # entry, an attachment of an email), not a marker
+          next if inside_preview?( dir, dirs )
+          next unless old?( marker, cutoff )
           next unless RmpFile.within_directory?( storage, dir )
           File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
             next unless lock.flock( File::LOCK_EX | File::LOCK_NB )
@@ -50,6 +55,16 @@ module RedmineMorePreviews
         remove_failures
         removed
       end #def
+      
+      def self.inside_preview?( path, dirs )
+        parent = File.dirname( path )
+        until parent == storage || parent == File.dirname( parent )
+          return true if dirs.include?( parent )
+          parent = File.dirname( parent )
+        end
+        false
+      end #def
+      private_class_method :inside_preview?
       
       def self.old?( marker, cutoff )
         stat = File.lstat( marker )

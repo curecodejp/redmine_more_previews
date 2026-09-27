@@ -44,6 +44,19 @@ class CacheCleanTest < ActiveSupport::TestCase
     assert_equal 1, RmpCacheClean.run(30)
   end
 
+  # an archive entry or email attachment named *.converter is stored inside the
+  # preview: it is an asset, not the marker of a preview
+  def test_asset_named_like_a_marker_is_not_taken_for_one
+    recent = preview('attachments/1/preview.html', 1)
+    FileUtils.mkdir_p(File.join(recent, 'evil'))
+    File.write(File.join(recent, 'evil', 'b.txt'), 'entry')
+    File.write(File.join(recent, 'evil.converter'), 'entry')
+    age(File.join(recent, 'evil.converter'), 31 * DAY)
+    assert_equal 0, RmpCacheClean.run(30)
+    assert File.exist?(File.join(recent, 'evil', 'b.txt'))
+    assert_not File.exist?(File.join(recent, 'evil.lock'))
+  end
+
   def test_old_failures_are_removed
     failures = File.join(@storage, 'failures')
     FileUtils.mkdir_p(failures)

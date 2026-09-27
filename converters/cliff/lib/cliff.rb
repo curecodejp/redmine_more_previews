@@ -45,7 +45,7 @@ class Cliff < RedmineMorePreviews::Conversion
   # A converter setting overrides each default.
   LIMITS         = {'max_size' => 50, 'max_parts' => 1000, 'max_attachments' => 1000}.freeze
   
-  # each multipart part declares a boundary: bounds the nesting of parts as well
+  # each multipart part is declared by its content type: bounds the nesting of parts as well
   MAX_MULTIPARTS = 100
   
   ########################################################################################
@@ -270,18 +270,17 @@ class Cliff < RedmineMorePreviews::Conversion
     value > 0 ? value : LIMITS[key]
   end #def
   
-  # counts the declared multipart boundaries and the delimiter lines of the raw
-  # message, an upper bound of what Mail would parse
+  # counts the multipart parts and the delimiter lines of the raw message, an
+  # upper bound of what Mail would parse. Mail splits a part at a line of "--"
+  # and its boundary, which it reads in forms no simple pattern follows (quoted,
+  # with comments, RFC 2231, empty ...): every line starting with "--" is counted
   def check_parts( text )
-    boundaries = text.scan(/boundary\s*=\s*(?:"([^"]*)"|([^\s;"]+))/i).map{|quoted, bare| quoted || bare}.to_set
-    return if boundaries.empty?
-    if boundaries.size > MAX_MULTIPARTS
+    if text.scan(/content-type\s*:\s*multipart\//i).size > MAX_MULTIPARTS
       raise ConverterBadArgument, "the email has more than #{MAX_MULTIPARTS} multipart parts"
     end
     parts = 0
     text.each_line do |line|
       next unless line.start_with?("--")
-      next unless boundaries.include?( line[2..].rstrip.delete_suffix("--") )
       parts += 1
       raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts" if parts > limit('max_parts')
     end

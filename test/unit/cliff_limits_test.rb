@@ -82,6 +82,21 @@ class CliffLimitsTest < ActiveSupport::TestCase
     assert_includes convert("Subject: nested\n#{body}\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
   end
 
+  # Mail reads the boundary in forms a pattern for boundary= misses: the
+  # delimiter lines are counted whatever the boundary is declared as
+  def test_email_with_a_boundary_in_another_form_is_counted
+    ['boundary*="abc"', "boundary*0=\"ab\"; boundary*1=\"c\"", 'boundary=(comment)"abc"'].each do |param|
+      body = (1..20).map {|n| "--abc\r\nContent-Type: text/plain\r\n\r\npart #{n}\r\n"}.join + "--abc--\r\n"
+      source = "Subject: t\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; #{param}\r\n\r\n#{body}"
+      assert_equal 20, Mail.new(source).parts.size, "Mail splits the parts (#{param})"
+      with_cliff_settings('max_parts' => '10') do
+        Mail.expects(:new).never
+        assert_includes convert(source), 'more than 10 parts', param
+        Mail.unstub(:new)
+      end
+    end
+  end
+
   def test_email_within_the_limits_is_previewed
     html = convert(mail_with_attachments(2))
     assert_not_includes html, 'more than'

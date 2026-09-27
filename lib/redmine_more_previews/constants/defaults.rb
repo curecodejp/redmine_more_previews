@@ -42,6 +42,10 @@ module RedmineMorePreviews
       
       # minutes a failed conversion is remembered (see Lib::RmpFailures)
       FAILURE_TTL                = 10
+      
+      # days after which the redmine_more_previews:cache:clean task removes a
+      # cached preview
+      CACHE_DAYS                 = 30
     end
   end
 end

@@ -373,11 +373,13 @@ The external programs a converter runs (ImageMagick, Ghostscript, LibreOffice, P
 
 At most the configured number of conversions (default 2) run at the same time, counted over all Redmine processes (lock files in `tmp/more_previews/slots/`). A request that needs a conversion while all of them are taken, or that waits longer than the wait limit (default 5 seconds) for a preview another request is converting, is answered with `503 Service Unavailable` and `Retry-After`; reloading the page later shows the preview. A preview that is already cached is served without waiting for conversions of other files.
 
+The number of conversions is counted with `flock` on the lock files. With many users, 503 answers get more frequent: raise the number if the server has the CPU and memory for more conversions at the same time. When several Redmine servers share `tmp/more_previews` over a network file system such as NFS, `flock` may not hold across the servers, and the number then applies to each server rather than to all of them together.
+
 A reverse proxy in front of Redmine often gives up after 60 seconds. A first conversion that takes longer, f.i. a large office document converted by Libre, then shows an error in the browser while the conversion finishes and is cached; the next view shows it. Raise the proxy's timeout to the time limit to avoid this.
 
 A preview is served from memory: one larger than 100 MiB is answered with `413`. When the whole cache has grown beyond 10 GiB, new previews are converted for each request and not stored; the size of the cache is added up again at most every 10 minutes. Both limits are settings.
 
-A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown.
+A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown. A preview shown inline in the page of a file ignores the unsafe parameter for administrators as well.
 
 On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn.
  

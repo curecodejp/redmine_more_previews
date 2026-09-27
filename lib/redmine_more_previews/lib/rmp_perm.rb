@@ -29,9 +29,8 @@ module RedmineMorePreviews
         # push actions to permissions in a idempotent way
         ###################################################################################
         def push_permission(permission, action)
-          unless Redmine::AccessControl.permission(:view_changesets  ).actions.include?(action)
-            Redmine::AccessControl.permission(:view_changesets  ).actions.push(action)
-          end
+          actions = Redmine::AccessControl.permission(permission).actions
+          actions.push(action) unless actions.include?(action)
         end #def
       end #class
     end #module

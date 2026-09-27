@@ -35,6 +35,13 @@ ja:
   text_more_previews_cache:                                "生成されたプレビューのキャッシング"
   text_help_redmine_more_previews_cache:                   "キャッシュはプレビューの繰り返し表示を高速化しますが、Redmineのルートディレクトリの/tmpディレクトリを肥大化させる可能性があります。"
   
+  text_more_previews_limits:                               "変換の制限"
+  label_conversion_timeout:                                "時間の上限（秒）"
+  label_lock_timeout:                                      "待ち時間の上限（秒）"
+  label_max_conversions:                                   "同時に行う変換の数"
+  text_help_redmine_more_previews_limits:                  "時間の上限を超えた変換は、変換が起動したプログラムごと止めます（Libre は 120 秒以上）。すべての Redmine のプロセスで数える変換の枠が埋まっているとき、または変換中のプレビューを待ち時間の上限を超えて待ったときは、503（後で再試行）を返します。"
+  text_more_previews_busy:                                 "プレビューを生成中か、サーバーが混み合っています。しばらくしてから再度お試しください。"
+  
   label_redmine_more_previews_plugins_settings:            "プラグインの設定"
   
   button_unsafe_update:                                    "安全でないリロード"

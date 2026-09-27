@@ -36,6 +36,7 @@ module RedmineMorePreviews
           before_action :find_attachment_for_more_preview, :only => [:more_preview, :more_asset]
           before_action :read_authorize_for_more_preview,  :only => [:more_preview, :more_asset]
           before_action :find_asset_param,                 :only => [:more_preview, :more_asset]
+          rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
           
           ################################################################################
           #
@@ -92,7 +93,10 @@ module RedmineMorePreviews
 
             if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
               if params[:reload] || stale?(:etag => preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile))
-                send_data @attachment.more_preview(preview_params),
+                # nil: the conversion failed or timed out (see Conversion#preview)
+                data = @attachment.more_preview(preview_params)
+                return render_404 if data.nil?
+                send_data data,
                   :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
@@ -104,6 +108,8 @@ module RedmineMorePreviews
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                    :disposition => 'inline'
               end
+              # the conversion failed or timed out: nothing was yielded
+              render_404 unless performed?
             end
           end #def
           private :send_more_preview

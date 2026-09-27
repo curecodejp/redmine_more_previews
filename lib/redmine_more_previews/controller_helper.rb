@@ -71,6 +71,18 @@ module RedmineMorePreviews
     end #def
     private :preview_params
 
+    # seconds after which a client may ask again for a preview that was busy
+    BUSY_RETRY_AFTER = 10
+
+    # no conversion slot or lock became free in time (see Conversion#wait_for):
+    # the preview is being converted, or too many are. Nothing was converted, a
+    # later request can succeed.
+    def render_more_preview_busy(exception)
+      response.headers['Retry-After'] = BUSY_RETRY_AFTER.to_s
+      render :plain => l(:text_more_previews_busy), :status => 503, :content_type => 'text/plain'
+    end
+    private :render_more_preview_busy
+
     # ETag for a cached preview: the file's mtime alone would answer a conditional
     # request with 304 from a cache that another converter produced (the
     # regeneration in Conversion#cached_preview never runs on that path), so the

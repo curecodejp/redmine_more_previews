@@ -35,6 +35,13 @@ en:
   text_more_previews_cache:                                "Caching of created preview"
   text_help_redmine_more_previews_cache:                   "Caching makes repeated viewing of previews much faster, but may bloat the /tmp-directory in the root-directory of Redmine."
   
+  text_more_previews_limits:                               "Conversion limits"
+  label_conversion_timeout:                                "Time limit (seconds)"
+  label_lock_timeout:                                      "Wait limit (seconds)"
+  label_max_conversions:                                   "Conversions at the same time"
+  text_help_redmine_more_previews_limits:                  "A conversion running longer than the time limit is stopped with all the programs it started (Libre gets at least 120 seconds). A request is answered with 503 (try again later) when all the conversions, counted over all Redmine processes, are taken, or when it waits longer than the wait limit for a preview that is being converted."
+  text_more_previews_busy:                                 "The preview is being generated or the server is busy. Please try again later."
+  
   label_redmine_more_previews_plugins_settings:            "Plugins settings"
   
   button_unsafe_update:                                    "Unsafe reload"

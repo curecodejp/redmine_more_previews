@@ -161,7 +161,64 @@ module RedmineMorePreviews
     def try_lock; threadsafe ||               (semaphore && semaphore.try_lock);  end #def
     def locked?;  return false if threadsafe; (semaphore && semaphore.locked?);   end #def
     def owned?;   return true  if threadsafe; (semaphore && semaphore.owned?);    end #def
-    def sync(&b); threadsafe ? call.b : (semaphore && semaphore.synchronize(&b)); end #def
+    
+    # the converter's semaphore, waited for no longer than the wait limit
+    # (ConverterLockTimeOut): a conversion holds it until it ends or times out
+    def sync
+      return yield if threadsafe || semaphore.nil? || semaphore.owned?
+      wait_for( "converter #{name}" ) { semaphore.try_lock }
+      begin
+        yield
+      ensure
+        semaphore.unlock
+      end
+    end #def
+    
+    # calls the block until it returns true, raises ConverterLockTimeOut once the wait
+    # limit (Converter.lock_timeout) has passed
+    def wait_for( what )
+      deadline = Lib::RmpProcess.now + RedmineMorePreviews::Converter.lock_timeout
+      until yield
+        raise ConverterLockTimeOut, "#{what} is busy" if Lib::RmpProcess.now >= deadline
+        sleep 0.05
+      end
+    end #def
+    private :wait_for
+    
+    #-------------------------------------------------------------------------------------
+    # conversion slots
+    #-------------------------------------------------------------------------------------
+    # at most Converter.max_conversions conversions run at the same time, counted
+    # across processes with one lock file per slot: a Mutex per converter and per
+    # process lets every Redmine process run its own conversions, and a request
+    # for another file does not wait for it at all. A request does not wait for a
+    # free slot either (ConverterLockTimeOut at once): a conversion holds its slot
+    # for up to the time limit, so waiting would only keep the request's thread busy
+    def with_slot
+      # a conversion does not wait for a second slot
+      return yield if Thread.current[:redmine_more_previews_slot]
+      slot = nil
+      directory = File.join( RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, "slots" )
+      FileUtils.mkdir_p( directory )
+      slot = RedmineMorePreviews::Converter.max_conversions.times.lazy.map{ |n| try_slot( directory, n ) }.find(&:itself)
+      raise ConverterLockTimeOut, "no free conversion slot" unless slot
+      Thread.current[:redmine_more_previews_slot] = true
+      yield
+    ensure
+      if slot
+        Thread.current[:redmine_more_previews_slot] = nil
+        slot.close
+      end
+    end #def
+    private :with_slot
+    
+    def try_slot( directory, n )
+      file = File.open( File.join( directory, "#{n}.lock" ), File::RDWR | File::CREAT, 0644 )
+      return file if file.flock( File::LOCK_EX | File::LOCK_NB )
+      file.close
+      nil
+    end #def
+    private :try_slot
     
     #-------------------------------------------------------------------------------------
     # convertible?
@@ -190,14 +247,20 @@ module RedmineMorePreviews
       begin; self.source = file.path; rescue; raise ConverterBadArgument; end
       
       # do conversion
+      # locks are always taken in this order: cache lock, conversion slot, converter
+      # semaphore
       begin
         if unsafe || transient
           # transient (non-cached) conversion, yielded in block
-          sync { transient_preview( &block ) }
+          with_slot { sync { transient_preview( &block ) } }
         else
           # cached conversion, just read from file
-          sync { cached_preview }
+          cached_preview
         end
+      rescue ConverterLockTimeOut => e
+        # answered with 503 by the controller, nothing has been converted
+        Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        raise
       rescue Exception => e
         Rails.logger.error "An error occured while generating preview for #{file.path}"
         Rails.logger.error "Exception was: #{e.message}"
@@ -240,23 +303,28 @@ module RedmineMorePreviews
     def cached_preview
       # the converter semaphore is per converter (and per process): requests of
       # two converters for the same file, or two processes, must not interleave
-      # the marker check, the replacement and the read of one cache directory
+      # the marker check, the replacement and the read of one cache directory.
+      # A cached preview is served under this lock alone: a request for it does
+      # not wait for a conversion of another file.
       with_cache_lock do
         # the directory holds the preview and its assets: whatever another
         # converter left there must go before this one writes into it (an asset
         # conversion alone would otherwise mark the other converter's index as ours)
         discard_cache unless cached_by_this_converter?
-        begin; transient_preview{|*files| copy_over}; end if !valid || reload || !cached_by_this_converter?
+        if !valid || reload || !cached_by_this_converter?
+          with_slot { sync { transient_preview{|*files| copy_over} } }
+        end
         read_safe
       end
     end #def
     
-    # an exclusive advisory lock on <dir>.lock, held across processes
+    # an exclusive advisory lock on <dir>.lock, held across processes. A request
+    # for a preview that is being converted waits no longer than the wait limit
     def with_cache_lock
       return yield unless dir
       FileUtils.mkdir_p( File.dirname( dir ) )
       File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
-        lock.flock( File::LOCK_EX )
+        wait_for( "preview #{dir}" ) { lock.flock( File::LOCK_EX | File::LOCK_NB ) }
         yield
       end
     end #def
@@ -296,26 +364,18 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     # copy over
     #-------------------------------------------------------------------------------------
+    # called under the cache lock (see cached_preview), which guards the directory
     def copy_over
       if File.exist?(tmpdir)
         FileUtils.mkdir_p( dir )
-        if semaphore.owned?
-          # copy all files.
-          # Dir.glob() also produces "." ".."
-          # therefore get files and directories with 
-          # Dir.children() and reassemble paths
-            Dir.children(tmpdir).each do |f|
-              FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
-            end
-            write_marker
-        else 
-          semaphore.synchronize do
-            Dir.children(tmpdir).each do |f|
-              FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
-            end
-            write_marker
-          end
+        # copy all files.
+        # Dir.glob() also produces "." ".."
+        # therefore get files and directories with 
+        # Dir.children() and reassemble paths
+        Dir.children(tmpdir).each do |f|
+          FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
         end
+        write_marker
       end
     end #def
     
@@ -329,13 +389,14 @@ module RedmineMorePreviews
     end #def
     private :regular_file_within?
     
+    # called under the cache lock (see cached_preview), which guards the directory
     def read_safe
       if asset
         # a requested asset that is missing or not servable must not fall back to the preview
         return nil unless regular_file_within?( dir, assetpath )
-        semaphore.owned? ? File.open(assetpath,  "rb") {|io| io.read} : semaphore.synchronize { File.open(assetpath,  "rb") {|io| io.read} }
+        File.open(assetpath,  "rb") {|io| io.read}
       elsif target && File.exist?(targetpath)
-        semaphore.owned? ? File.open(targetpath, "rb") {|io| io.read} : semaphore.synchronize { File.open(targetpath, "rb") {|io| io.read} }
+        File.open(targetpath, "rb") {|io| io.read}
       else
         nil
       end
@@ -346,6 +407,8 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     def check
       sync{ @status = status }; @status
+    rescue ConverterLockTimeOut, ConverterTimeout
+      nil
     end #def
     
     #-------------------------------------------------------------------------------------

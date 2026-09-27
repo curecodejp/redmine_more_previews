@@ -45,6 +45,9 @@ RedmineMorePreviews::Converter.register :libre do
   settings       :logo   => "logo.png",
                  :partial => 'settings/redmine_more_previews/libre/settings'
   
+  # seconds at least, whatever the plugin setting: LibreOffice starts slowly
+  conversion_timeout 120
+  
   mime_types(
     :csv  => {:formats => [:html,       :pdf, :png, :jpg], :mime => "text/csv"},
     :doc  => {:formats => [:html, :txt, :pdf, :png, :jpg], :mime => "application/msword", :synonyms => ["application/vnd.ms-word"], :icon => "doc.png"},

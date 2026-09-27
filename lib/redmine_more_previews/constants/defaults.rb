@@ -23,6 +23,15 @@ module RedmineMorePreviews
   module Constants
     module Defaults
       MORE_PREVIEWS_STORAGE_PATH = File.join(Rails.root, "tmp", "more_previews")
+      
+      # seconds a conversion may run (a converter may ask for more, see
+      # Converter#conversion_timeout), seconds a request waits for a lock before
+      # it is answered with 503, and the number of conversions running at the
+      # same time across all Redmine processes (a request finding them all
+      # taken is answered with 503 at once)
+      CONVERSION_TIMEOUT         = 60
+      LOCK_TIMEOUT               = 5
+      MAX_CONVERSIONS            = 2
     end
   end
 end

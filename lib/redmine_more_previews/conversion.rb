@@ -221,6 +221,8 @@ module RedmineMorePreviews
         # nothing is written outside the tmp directory anyway
         ensure_within!( tmpdir, tmpasset ) if asset
         tmpassetspaths.each{|ass| ensure_within!( tmpdir, ass.first ) }
+        # one time limit for all the commands of this conversion
+        @deadline = Lib::RmpProcess.now + conversion_timeout
         convert
         debug if RedmineMorePreviews::Converter.debug? # debug will overwrite the result of convert
         if block_given?
@@ -426,14 +428,28 @@ module RedmineMorePreviews
       Dir.glob(File.join(dir, "*"))
     end #def
     
-    # execute command
+    # execute command, within the time limit of the conversion: a command that
+    # runs out of it is stopped with all the processes it started, and the
+    # conversion fails (ConverterTimeout) even with options[:dontfail]
     def command( cmd, options={})
-      unless system(cmd)
-        Rails.logger.error("Creating preview with #{name} failed (#{$?}):\nCommand: #{cmd}")
+      remaining = @deadline ? @deadline - Lib::RmpProcess.now : conversion_timeout
+      raise ConverterTimeout, "no time left" unless remaining > 0
+      status = Lib::RmpProcess.run( cmd, :timeout => remaining )
+      unless status.success?
+        Rails.logger.error("Creating preview with #{name} failed (#{status}):\nCommand: #{cmd}")
         raise ConverterShellError unless options[:dontfail]
         return false
       end
       true
+    rescue ConverterTimeout
+      Rails.logger.error("Creating preview with #{name} timed out after #{conversion_timeout}s:\nCommand: #{cmd}")
+      raise
+    end #def
+    
+    # seconds all the commands of one conversion may run together: the plugin
+    # setting, or more if the converter needs it (Libre starts slowly)
+    def conversion_timeout
+      [RedmineMorePreviews::Converter.conversion_timeout, converter&.conversion_timeout.to_i].max
     end #def
     
     # create outfile name for programs that create conversions having the same basename

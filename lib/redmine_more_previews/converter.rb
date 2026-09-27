@@ -91,7 +91,8 @@ module RedmineMorePreviews
       end #def
     end #class
     def_field(:name, :class_name, :threadsafe, :description, :directory, 
-              :timeout, :shell_api, :url, :author, :author_url, :version)
+              :timeout, :shell_api, :url, :author, :author_url, :version,
+              :conversion_timeout)
     attr_reader :id
     attr_accessor :mime_types, :converter_class, :semaphore, :path
     
@@ -228,6 +229,26 @@ module RedmineMorePreviews
     def self.debug?
       ::Setting['plugin_redmine_more_previews']['debug'].to_i > 0
     end #def
+    
+    # limits of the conversions, see Constants::Defaults. A missing or non-positive
+    # setting falls back to the default: the limits cannot be switched off
+    def self.conversion_timeout
+      positive_setting('conversion_timeout', Constants::Defaults::CONVERSION_TIMEOUT)
+    end #def
+    
+    def self.lock_timeout
+      positive_setting('lock_timeout', Constants::Defaults::LOCK_TIMEOUT)
+    end #def
+    
+    def self.max_conversions
+      positive_setting('max_conversions', Constants::Defaults::MAX_CONVERSIONS)
+    end #def
+    
+    def self.positive_setting(key, default)
+      value = ::Setting['plugin_redmine_more_previews'].to_h[key].to_i
+      value > 0 ? value : default
+    end #def
+    private_class_method :positive_setting
     
     # options[:pathonly] skips content detection; options[:content] detects on
     # that string instead of reading filepath (repository entries are not on disk)

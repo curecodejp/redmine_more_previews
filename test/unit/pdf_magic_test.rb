@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'shellwords'
 
 # Ghostscript runs a file as PostScript unless it starts as a PDF, while Marcel
 # reports application/pdf when %PDF- appears near the start. Only a file that
@@ -48,19 +49,55 @@ class PdfMagicTest < ActiveSupport::TestCase
     assert_not RedmineMorePreviews.valid_pdf_magic?(File.join(@dir, 'missing.pdf'))
   end
 
-  def test_peek_does_not_hand_postscript_to_redmine_thumbnails
+  def test_peek_does_not_hand_postscript_to_imagemagick
     Redmine::Thumbnail.expects(:generate).never
     POSTSCRIPT.each do |name, bytes|
       %w(png jpg gif).each do |format|
-        peek(file('doc.pdf', bytes), format).convert
+        worker = peek(file('doc.pdf', bytes), format)
+        worker.expects(:command).never
+        worker.convert
       end
     end
   end
 
-  def test_peek_hands_a_pdf_to_redmine_thumbnails
+  # not through Redmine::Thumbnail.generate, whose timeout leaves Ghostscript
+  # running: with the plugin's time limit, ImageMagick's limits and the pdf coder
+  def test_peek_converts_a_pdf_with_limits
+    Redmine::Thumbnail.expects(:generate).never
     source = file('doc.pdf', PDF)
+    %w(png jpg gif).each do |format|
+      worker = peek(source, format)
+      cmd = nil
+      worker.expects(:command).with {|c| cmd = c}.returns(true)
+      worker.convert
+      convert = cmd.split('; ').map {|part| Shellwords.split(part)}.find {|p| p.first.end_with?('convert', 'magick')}
+      input = convert.index("pdf:#{source}[0]")
+      assert input, format
+      %w(width height area memory map disk).each do |resource|
+        limit = convert.each_cons(2).find_index {|a, b| a == '-limit' && b == resource}
+        assert limit && limit < input, "#{format}: -limit #{resource} before the input"
+      end
+      assert_equal "#{format}:./out.#{format}", convert.last
+    end
+  end
+
+  # the limits, the coder prefixes and -thumbnail must be accepted by the
+  # installed ImageMagick and Ghostscript
+  def test_peek_converts_a_real_pdf
+    Redmine::Thumbnail.unstub(:gs_available?)
+    skip 'ImageMagick or Ghostscript is not available' unless Redmine::Thumbnail.convert_available? && Redmine::Thumbnail.gs_available?
+    source = File.join(Dir.mktmpdir('src', @dir), 'real.pdf')
+    skip 'ImageMagick cannot write a PDF' unless system(RedmineMorePreviews::CONVERT_BIN, '-size', '8x8', 'xc:red', "pdf:#{source}")
     worker = peek(source, 'png')
-    Redmine::Thumbnail.expects(:generate).with(source, worker.tmptarget, 800, true).once
+    worker.convert
+    assert File.file?(worker.tmptarget)
+    assert_equal "\x89PNG".b, File.binread(worker.tmptarget, 4)
+  end
+
+  def test_peek_needs_ghostscript
+    Redmine::Thumbnail.stubs(:gs_available?).returns(false)
+    worker = peek(file('doc.pdf', PDF), 'png')
+    worker.expects(:command).never
     worker.convert
   end
 

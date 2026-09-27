@@ -104,6 +104,8 @@ module RedmineMorePreviews
               end
             else #no cache
               @attachment.more_preview(preview_params) do |preview_data|
+                 # no output: answered with 404 below, not with an empty 200
+                 next if preview_data.nil?
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
@@ -149,7 +151,10 @@ module RedmineMorePreviews
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
             return if @asset.nil?
             @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
-            render_404 if @asset.nil?
+            # the preview itself is stored as index.<format> in the same directory:
+            # an asset of that name would be read, and remembered as failed, as the
+            # preview (see ControllerHelper#preview_asset?)
+            render_404 unless preview_asset?(@asset, @attachment.preview_format)
           end #def
           private :find_asset_param
         end #base

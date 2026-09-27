@@ -76,7 +76,61 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     assert_select 'a.icon-reload', 1
   end
 
+  # an inline preview is converted while the attachment page is rendered, from
+  # the page's query parameters
+  def test_inline_reload_by_a_member_is_served_from_the_cache
+    inline_tar
+    as_user(2)
+    get_page
+    Zippy.any_instance.expects(:convert).never
+    get_page(reload: '1')
+    assert_response :success
+    assert_select 'a', text: 'safe.txt'
+  end
+
+  def test_inline_reload_by_an_administrator_converts_again
+    inline_tar
+    as_user(1)
+    get_page
+    Zippy.any_instance.expects(:convert).once
+    get_page(reload: '1')
+  end
+
+  # unsafe converts without the cache, which the inline view cannot serve: it
+  # is ignored there, for administrators as well
+  def test_inline_unsafe_is_ignored
+    inline_tar
+    [2, 1].each do |user|
+      as_user(user)
+      get_page(unsafe: '1')
+      assert_response :success
+      assert_select 'a', text: 'safe.txt'
+      assert_empty Dir.glob(File.join(@storage, 'failures', '*')), "user #{user}"
+    end
+  end
+
+  # --- assets -------------------------------------------------------------------------------
+
+  # the preview is stored as index.<format> next to its assets: an asset of that
+  # name would be the preview, and its failure the preview's
+  def test_asset_named_as_the_preview_is_not_found
+    as_user(2)
+    get :more_asset, params: {id: @attachment.id, asset: 'index', assetformat: 'html'}
+    assert_response 404
+    assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
+    get_preview
+    assert_response :success
+    assert_select 'a', text: 'safe.txt'
+  end
+
   # --- failures ---------------------------------------------------------------------------
+
+  def test_preview_without_output_is_not_found_without_the_cache
+    as_user(1)
+    Zippy.any_instance.stubs(:convert)
+    get_preview(unsafe: '1')
+    assert_response 404
+  end
 
   def test_failed_conversion_is_not_tried_again
     as_user(2)
@@ -155,6 +209,16 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
 
   def get_preview(extra = {})
     get :more_preview, params: {id: @attachment.id, format: 'html'}.merge(extra)
+  end
+
+  def get_page(extra = {})
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}.merge(extra)
+  end
+
+  def inline_tar
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['tar']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
   end
 
   def cached_listing

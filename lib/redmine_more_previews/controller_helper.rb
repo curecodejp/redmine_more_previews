@@ -77,6 +77,13 @@ module RedmineMorePreviews
     end
     private :preview_unsafe?
 
+    # a valid asset name (see RmpFile.safe_relative_path) other than the name the
+    # preview is stored under next to its assets (Attachment#preview_filename)
+    def preview_asset?(asset, preview_format)
+      asset.present? && asset != ["index", preview_format.presence].compact.join(".")
+    end
+    private :preview_asset?
+
     def preview_params
       params.permit(:format, :asset).
       merge({:request => request, 

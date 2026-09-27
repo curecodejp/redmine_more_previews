@@ -169,6 +169,18 @@ module RedmineMorePreviews
             request.query_parameters.except('asset', 'assets')
           end
 
+          # options of an inline preview, converted while the page is rendered.
+          # reload takes effect for administrators only, as for a preview request
+          # (see ControllerHelper#preview_reload?); unsafe never does: it converts
+          # without the cache and so needs a block, which the cached view has not
+          def inline_preview_options
+            preview_query_parameters.except('reload', 'unsafe').symbolize_keys.merge(
+              :format  => "inline",
+              :request => request,
+              :reload  => params[:reload].present? && User.current.admin?
+            )
+          end
+
           def sanitize_inline_preview(html)
             html = html.to_s
             return ''.html_safe if html.blank?

@@ -104,6 +104,8 @@ module RedmineMorePreviews
             else #no cache
               entry_content_for_preview
               @repository.more_preview(@path, @rev, preview_params) do |preview_data|
+                 # no output: answered with 404 below, not with an empty 200
+                 next if preview_data.nil?
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
@@ -158,7 +160,10 @@ module RedmineMorePreviews
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
             return if @asset.nil?
             @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
-            render_404 if @asset.nil?
+            # the format of the preview as Repository#preview_format finds it, from
+            # the entry's name, without asking the SCM for the entry
+            extension = File.extname(@path.to_s)[1..].to_s.downcase
+            render_404 unless preview_asset?(@asset, RedmineMorePreviews::Converter.conversion_extension(extension))
           end #def
           private :find_path_param
           

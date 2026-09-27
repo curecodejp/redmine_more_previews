@@ -197,6 +197,16 @@ class RepositoriesPreviewBusyTest < Redmine::ControllerTest
     assert_not_includes response.body, '/preview/'
   end
 
+  # see PreviewReloadFailuresTest#test_asset_named_as_the_preview_is_not_found
+  def test_repository_asset_named_as_the_preview_is_not_found
+    params = {id: PRJ_ID, repository_id: @repository.identifier_param, path: 'a', baseformat: 'zip'}
+    get :more_asset, params: params.merge(asset: 'index', assetformat: 'html')
+    assert_response 404
+    assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
+    get :more_asset, params: params.merge(asset: 'file', assetformat: 'txt')
+    assert_response :success
+  end
+
   def test_timed_out_repository_preview_is_not_found
     Zippy.any_instance.stubs(:convert).raises(RedmineMorePreviews::Exceptions::ConverterTimeout)
     params = {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param], format: 'html'}

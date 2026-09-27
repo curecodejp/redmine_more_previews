@@ -98,7 +98,7 @@ Zippy lets you preview zip, tgz or tar-Files in the browser. Click on an entry t
 
 Maggie converts images from one format to another and downscales images.
 
-Maggie hands uploaded files and repository files to ImageMagick, and PDF files to Ghostscript through ImageMagick. It reads each file with the coder of its type, passes a PDF only when the file starts as a PDF, and limits ImageMagick's pixel cache (width and height 16K pixels, disk 1 GiB): an image wider or higher than 16K pixels, f.i. a large panorama, is not previewed. The limits do not bound Ghostscript's rendering of a PDF page. Peek, which converts PDFs through Redmine's thumbnails, makes the same check of the start of the file. Since both programs parse untrusted files:
+Maggie hands uploaded files and repository files to ImageMagick, and PDF files to Ghostscript through ImageMagick. It reads each file with the coder of its type, passes a PDF only when the file starts as a PDF, and limits ImageMagick's pixel cache (width and height 16K pixels, disk 1 GiB): an image wider or higher than 16K pixels, f.i. a large panorama, is not previewed. The limits do not bound Ghostscript's rendering of a PDF page: the time limit of the conversion stops it (see [a note on conversion limits](#a-note-on-conversion-limits)). Peek converts the first page of a PDF to an image with the same limits, after the same check of the start of the file. Since both programs parse untrusted files:
 
  - use Ghostscript 10.03.1 or later: earlier versions have known -dSAFER bypasses
  - use Redmine 6.0.10 / 6.1.3 or later: the PDF thumbnails of earlier versions can pass PostScript to Ghostscript ([Redmine issue 44145](https://www.redmine.org/issues/44145))
@@ -156,6 +156,7 @@ Choose the following options
 
  - use embed-tag or iframe-tag
  - cache previews (speeds views, may bloat your rails root's tmp folder a bit)
+ - conversion limits: time limit, wait limit and number of conversions at the same time (see [a note on conversion limits](#a-note-on-conversion-limits))
  - activate sub plugins above
  - for each sub plugin activate the file extension for files you want to preview (if you choose two sub plugins converting the same file type, then a warning will be issued and the last activated sub plugin will do the conversion).
 
@@ -354,4 +355,13 @@ This plugin caches conversions in the Rail tmp-directory. For large repositories
 Repository previews are cached per repository, revision and file content (`tmp/more_previews/repository_previews/<repository id>/<path>/<digest>/`), so that a preview is never served for another project or another version of the file. A new directory is added for each revision and content that is previewed, and older ones are not removed: include this directory in the regular clean-up. To find its cache directory, a preview or asset request reads the whole file from the repository and computes its SHA-256 digest, also when the preview is already cached. The previews cached by 6.1.0 and earlier (`tmp/more_previews/repository/`) are removed on start.
 
 If two users choose to reload (do a new conversion) concurrently, then thread safety is honored.
+
+# a note on conversion limits
+The external programs a converter runs (ImageMagick, Ghostscript, LibreOffice, Pandoc, ...) are stopped when a conversion runs longer than the time limit (default 60 seconds, at least 120 seconds for Libre, which starts slowly). The programs run in a process group of their own, and the whole group is stopped, including the programs they started in turn (f.i. Ghostscript started by ImageMagick). The preview is not shown then (404).
+
+At most the configured number of conversions (default 2) run at the same time, counted over all Redmine processes (lock files in `tmp/more_previews/slots/`). A request that needs a conversion while all of them are taken, or that waits longer than the wait limit (default 5 seconds) for a preview another request is converting, is answered with `503 Service Unavailable` and `Retry-After`; reloading the page later shows the preview. A preview that is already cached is served without waiting for conversions of other files.
+
+A reverse proxy in front of Redmine often gives up after 60 seconds. A first conversion that takes longer, f.i. a large office document converted by Libre, then shows an error in the browser while the conversion finishes and is cached; the next view shows it. Raise the proxy's timeout to the time limit to avoid this.
+
+On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn.
  

@@ -147,6 +147,9 @@ Redmine::Plugin.register :redmine_more_previews do
                         'cache_previews' => '1',  # yes, cache previews
                         'debug'          => '0',  # no, do not debug
                         'absolute'       => '0',  # no, use relative paths for iFrame- and embed-tags
+                        'conversion_timeout' => '60', # seconds a conversion may run
+                        'lock_timeout'       => '5',  # seconds a request waits for a lock
+                        'max_conversions'    => '2',  # conversions at the same time, all processes
                        },
            :partial => 'settings/redmine_more_previews/settings'
            

@@ -63,11 +63,27 @@ module RedmineMorePreviews
     INLINE_ASSET_MIME_TYPES =
       %r{\A(?:image/(?!svg)|audio/|video/|application/pdf\z|text/plain\z)}.freeze
   
+    # reload converts again and skips a remembered failure, unsafe converts
+    # without the cache (and without Cliff's sweep): both take effect for
+    # administrators only, for anyone else the request is served as without
+    # them. Decided here once, for the cache branch, the ETag and the converter.
+    def preview_reload?
+      params[:reload].present? && User.current.admin?
+    end
+    private :preview_reload?
+
+    def preview_unsafe?
+      params[:unsafe].present? && User.current.admin?
+    end
+    private :preview_unsafe?
+
     def preview_params
-      params.permit(:format, :asset, :reload, :convert, :unsafe).
+      params.permit(:format, :asset).
       merge({:request => request, 
              :asset   => @asset, 
-             :format  => params[:format]&.downcase}.compact )
+             :format  => params[:format]&.downcase,
+             :reload  => preview_reload?,
+             :unsafe  => preview_unsafe?}.compact )
     end #def
     private :preview_params
 

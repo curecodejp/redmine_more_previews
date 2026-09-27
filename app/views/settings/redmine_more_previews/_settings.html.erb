@@ -68,6 +68,10 @@
   </p>
   <% end %>
   <p>
+    <label><%= l(:label_failure_ttl) %></label>
+      <%= number_field_tag 'settings[failure_ttl]', RedmineMorePreviews::Converter.failure_ttl / 60, :min => 1, :size => 6 %>
+  </p>
+  <p>
     <a class='icon icon-help' href='#' title='<%= "#{l(:label_help)}" %>' onclick='$("#help_redmine_more_previews_limits").toggle(); return false;'><%= l(:label_help) %></a>
     <br>
     <span id="help_redmine_more_previews_limits" class="info" style="display: none;">

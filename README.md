@@ -369,5 +369,7 @@ A reverse proxy in front of Redmine often gives up after 60 seconds. A first con
 
 A preview is served from memory: one larger than 100 MiB is answered with `413`. When the whole cache has grown beyond 10 GiB, new previews are converted for each request and not stored; the size of the cache is added up again at most every 10 minutes. Both limits are settings.
 
+A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown.
+
 On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn.
  

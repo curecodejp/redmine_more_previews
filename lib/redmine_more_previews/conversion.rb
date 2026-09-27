@@ -246,25 +246,47 @@ module RedmineMorePreviews
       # sourcefile, either direct or copied in a tmp dir from elsewhere 
       begin; self.source = file.path; rescue; raise ConverterBadArgument; end
       
+      # a failure is remembered for a while (see Lib::RmpFailures): the same
+      # request fails at once instead of converting again, until a reload
+      if reload
+        Lib::RmpFailures.forget( targetpath )
+      elsif (reason = Lib::RmpFailures.recorded( targetpath ))
+        Rails.logger.info "Preview for #{file.path} failed before (#{reason}), not converted again"
+        raise ConverterTooLarge, "#{File.basename(file.path)} failed before" if reason == "too_large"
+        return nil
+      end
+      
       # do conversion
       # locks are always taken in this order: cache lock, conversion slot, converter
       # semaphore
       begin
         if unsafe || transient
-          # transient (non-cached) conversion, yielded in block
-          with_slot { sync { transient_preview( &block ) } }
+          # transient (non-cached) conversion, yielded in block. What the block is
+          # given is checked first: it may return from the caller
+          with_slot { sync { transient_preview do |*files|
+            Lib::RmpFailures.record( targetpath, "empty" ) if (asset ? files[1] : files[0]).nil?
+            block.call( *files )
+          end } }
         else
           # cached conversion, just read from file
-          cached_preview
+          data = cached_preview
+          data.nil? ? Lib::RmpFailures.record( targetpath, "empty" ) : Lib::RmpFailures.forget( targetpath )
+          data
         end
-      rescue ConverterLockTimeOut, ConverterTooLarge => e
-        # answered with 503 / 413 by the controller
+      rescue ConverterLockTimeOut => e
+        # answered with 503 by the controller; nothing failed, it may succeed later
         Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        raise
+      rescue ConverterTooLarge => e
+        # answered with 413 by the controller
+        Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        Lib::RmpFailures.record( targetpath, "too_large" )
         raise
       rescue Exception => e
         Rails.logger.error "An error occured while generating preview for #{file.path}"
         Rails.logger.error "Exception was: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
+        Lib::RmpFailures.record( targetpath, "error" )
         return nil
       end
     end #def

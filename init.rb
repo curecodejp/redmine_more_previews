@@ -153,6 +153,7 @@ Redmine::Plugin.register :redmine_more_previews do
                         'max_repository_file' => '50',    # MiB, largest repository file previewed
                         'max_output'          => '100',   # MiB, largest converted file served
                         'max_cache'           => '10240', # MiB, cache size above which nothing new is stored
+                        'failure_ttl'         => '10',    # minutes a failed conversion is remembered
                        },
            :partial => 'settings/redmine_more_previews/settings'
            

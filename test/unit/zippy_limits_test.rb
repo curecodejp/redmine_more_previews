@@ -191,15 +191,20 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     File.join(FileUtils.mkdir_p(File.join(@tmp, 'archives')).first, name)
   end
 
+  # each archive has a preview directory of its own, as each attachment has
+  def target_of(archive_path)
+    File.join(@tmp, 'cache', File.basename(archive_path), 'preview.html', 'index.html')
+  end
+
   def listing(archive_path)
-    worker = zippy_worker(target: @target, request: fake_request)
+    worker = zippy_worker(target: target_of(archive_path), request: fake_request)
     html = nil
     worker.preview(File.new(archive_path)) { |preview| html = preview }
     html.to_s.dup.force_encoding(Encoding::UTF_8)
   end
 
   def extract(archive_path, asset)
-    worker = zippy_worker(target: @target, asset: asset)
+    worker = zippy_worker(target: File.join(File.dirname(target_of(archive_path)), asset), asset: asset)
     result = nil
     worker.preview(File.new(archive_path)) { |_preview, asset_data| result = asset_data }
     result

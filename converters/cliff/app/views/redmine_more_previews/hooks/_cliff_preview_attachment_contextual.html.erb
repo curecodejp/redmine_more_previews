@@ -1,4 +1,4 @@
-<%-if RedmineMorePreviews::Converter.responsible( @attachment.filename, :pathonly => true )&.id == :cliff %>
+<%-if User.current.admin? && RedmineMorePreviews::Converter.responsible( @attachment.filename, :pathonly => true )&.id == :cliff %>
 <%- unsafereloadpath = url_for(
       :controller    => "attachments",
       :action        => 'show',

@@ -92,8 +92,8 @@ module RedmineMorePreviews
           def send_more_preview
             apply_preview_security_headers(@attachment.diskfile)
 
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile))
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+              if preview_reload? || stale?(:etag => preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile))
                 # nil: the conversion failed or timed out (see Conversion#preview)
                 data = @attachment.more_preview(preview_params)
                 return render_404 if data.nil?
@@ -118,8 +118,8 @@ module RedmineMorePreviews
           def send_more_asset
             apply_asset_security_headers
 
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => @attachment.asset_mtime(preview_params))
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+              if preview_reload? || stale?(:etag => @attachment.asset_mtime(preview_params))
                 # nil: the archive has no such entry (read_safe no longer falls back to the preview)
                 data = @attachment.more_asset(preview_params)
                 return render_404 if data.nil?

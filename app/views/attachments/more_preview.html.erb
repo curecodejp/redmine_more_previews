@@ -8,7 +8,8 @@
 <%= render :layout => 'layouts/file' do %>
   <div>
     <p class="contextual">
-      <%= link_to l(:button_update), reloadpath, :class => "icon icon-reload" %>
+      <%# a reload converts again: only administrators may ask for it (see ControllerHelper#preview_reload?) %>
+      <%= link_to l(:button_update), reloadpath, :class => "icon icon-reload" if User.current.admin? %>
       <%= call_hook(:preview_attachment_contextual, :attachment => @attachment, :project => @project ) %>
     </p>
   </div><div style="clear:both;"></div>

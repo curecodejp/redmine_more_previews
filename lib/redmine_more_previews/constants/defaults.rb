@@ -39,6 +39,9 @@ module RedmineMorePreviews
       MAX_REPOSITORY_FILE        = 50
       MAX_OUTPUT                 = 100
       MAX_CACHE                  = 10 * 1024
+      
+      # minutes a failed conversion is remembered (see Lib::RmpFailures)
+      FAILURE_TTL                = 10
     end
   end
 end

@@ -257,6 +257,11 @@ module RedmineMorePreviews
       positive_setting('max_cache', Constants::Defaults::MAX_CACHE) * 1024 * 1024
     end #def
     
+    # seconds, see Lib::RmpFailures
+    def self.failure_ttl
+      positive_setting('failure_ttl', Constants::Defaults::FAILURE_TTL) * 60
+    end #def
+    
     def self.positive_setting(key, default)
       value = ::Setting['plugin_redmine_more_previews'].to_h[key].to_i
       value > 0 ? value : default

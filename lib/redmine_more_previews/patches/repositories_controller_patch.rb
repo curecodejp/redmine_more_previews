@@ -89,10 +89,10 @@ module RedmineMorePreviews
           #
           ################################################################################
           def send_more_preview
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
               # read before the freshness check: the ETag needs the selected converter
               content = entry_content_for_preview
-              if params[:reload] || stale?(:etag => preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content))
+              if preview_reload? || stale?(:etag => preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content))
                 # nil: the conversion failed or timed out (see Conversion#preview)
                 data = @repository.more_preview(@path, @rev, preview_params)
                 return render_404 if data.nil?
@@ -128,8 +128,8 @@ module RedmineMorePreviews
           def send_more_asset
             apply_asset_security_headers
 
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+              if preview_reload? || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
                 data = @repository.more_asset(@path, @rev, preview_params)
                 return render_404 if data.nil?
                 send_data data,

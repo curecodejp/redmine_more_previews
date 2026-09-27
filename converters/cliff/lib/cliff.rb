@@ -35,6 +35,19 @@ class Cliff < RedmineMorePreviews::Conversion
   delegate :number_to_human_size, :link_to, :to => "ApplicationController.helpers"
   delegate :url_for, :to => "Rails.application.routes.url_helpers"
   
+  #---------------------------------------------------------------------------------------
+  # limits
+  #---------------------------------------------------------------------------------------
+  # Mail parses the whole message into objects, part by part, and every attachment
+  # is written out: an email of many small parts takes memory and time far beyond
+  # its size. The size (MiB) and the number of MIME parts are checked on the raw
+  # text before it is parsed, the attachments beyond the limit are listed only.
+  # A converter setting overrides each default.
+  LIMITS         = {'max_size' => 50, 'max_parts' => 1000, 'max_attachments' => 1000}.freeze
+  
+  # each multipart part declares a boundary: bounds the nesting of parts as well
+  MAX_MULTIPARTS = 100
+  
   ########################################################################################
   #
   # convert
@@ -59,7 +72,12 @@ class Cliff < RedmineMorePreviews::Conversion
   def eml
   
     # read eml file
-    mail  = Mail.new(RmpText.to_utf8(File.read(source)))
+    if File.size(source) > limit('max_size') * 1024 * 1024
+      raise ConverterBadArgument, "the email is larger than #{limit('max_size')} MiB"
+    end
+    text  = RmpText.to_utf8(File.read(source))
+    check_parts( text )
+    mail  = Mail.new(text)
     
     # get html
     html, charset = html( mail )
@@ -85,12 +103,13 @@ class Cliff < RedmineMorePreviews::Conversion
     
       # save attachments( which will not collide with index.html and attachments.html)
       attachments = save_attachments( mail ) 
+      omitted     = mail.attachments.size - attachments.size
       
       # modify cid:links in html and save 
       html = link( Nokogiri::HTML( html ), Array(attachments) ).to_html
       
       # create list of attachments and save
-      att_html = list( attachments )
+      att_html = list( attachments, omitted )
       attachments_path = File.join( File.dirname(tmptarget), "attachments.html")
       File.open(attachments_path, "wb") {|f| f.write att_html }
       
@@ -224,9 +243,13 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   def save_attachments( message )
     attachments      = {}
+    # the names in use and the next index of each name, kept across attachments
+    names, counters  = Set.new( Dir.children(tmpdir) ), {}
     message.attachments.each_with_index do | attachment, i |
+      break if i >= limit('max_attachments')
       filename       = RmpFile.sanitize(attachment.filename)
-      filename       = RmpFile.unique_filename( Dir.children(tmpdir), filename)
+      filename       = RmpFile.unique_filename( names, filename, :counters => counters )
+      names         << filename
       content_id     = attachment.content_id.to_s.match(/^\<(.*?)\>$/)
       content_id   ||= [0, attachment.content_id.to_s]
       content_id     = content_id && content_id[1]
@@ -237,6 +260,31 @@ class Cliff < RedmineMorePreviews::Conversion
       File.open(File.join(tmpdir, filename), "w+b", 0644) {|f| f.write attachment.decoded}
     end 
     attachments 
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # limits
+  #---------------------------------------------------------------------------------------
+  def limit( key )
+    value = converter_settings[key].to_i
+    value > 0 ? value : LIMITS[key]
+  end #def
+  
+  # counts the declared multipart boundaries and the delimiter lines of the raw
+  # message, an upper bound of what Mail would parse
+  def check_parts( text )
+    boundaries = text.scan(/boundary\s*=\s*(?:"([^"]*)"|([^\s;"]+))/i).map{|quoted, bare| quoted || bare}.to_set
+    return if boundaries.empty?
+    if boundaries.size > MAX_MULTIPARTS
+      raise ConverterBadArgument, "the email has more than #{MAX_MULTIPARTS} multipart parts"
+    end
+    parts = 0
+    text.each_line do |line|
+      next unless line.start_with?("--")
+      next unless boundaries.include?( line[2..].rstrip.delete_suffix("--") )
+      parts += 1
+      raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts" if parts > limit('max_parts')
+    end
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -371,9 +419,10 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   # list 
   #---------------------------------------------------------------------------------------
-  def list( attachments )
+  def list( attachments, omitted = 0 )
     b = binding
     b.local_variable_set(:attachments, attachments)
+    b.local_variable_set(:omitted, omitted)
     b.local_variable_set(:object, object)
     erb = ERB.new(File.read(File.join(views, 'cliff', 'attachments.html.erb')))
     erb.result(b).squish.html_safe

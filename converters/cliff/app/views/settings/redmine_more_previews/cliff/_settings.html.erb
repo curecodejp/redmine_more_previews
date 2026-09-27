@@ -1,1 +1,8 @@
 <p><%= l(:"redmine_more_previews.cliff.text_explanation") %></p>
+<% Cliff::LIMITS.each_key do |key| %>
+<p>
+  <label><%= l(:"redmine_more_previews.cliff.label_#{key}") %></label>
+  <%= number_field_tag "settings[converter][cliff][#{key}]", settings[key], :min => 1, :size => 8 %>
+</p>
+<% end %>
+<p><em class="info"><%= l(:"redmine_more_previews.cliff.text_help_limits") %></em></p>

@@ -26,6 +26,14 @@ class PluginSettingsLimitsTest < Redmine::ControllerTest
     assert_select 'input[name=?][value=?]', 'settings[max_conversions]', '2'
   end
 
+  def test_cliff_limits_are_shown_with_their_defaults
+    get :plugin, params: {id: 'redmine_more_previews'}
+    assert_response :success
+    Cliff::LIMITS.each do |key, value|
+      assert_select 'input[name=?][value=?]', "settings[converter][cliff][#{key}]", value.to_s
+    end
+  end
+
   def test_limits_are_saved
     post :plugin, params: {id: 'redmine_more_previews',
                            settings: @old_settings.to_h.merge('conversion_timeout' => '30', 'lock_timeout' => '3', 'max_conversions' => '4')}

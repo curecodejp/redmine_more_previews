@@ -47,7 +47,8 @@ RedmineMorePreviews::Converter.register :cliff do
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
                  
   settings       :logo    => 'logo.png',
-                 :partial => 'settings/redmine_more_previews/cliff/settings'
+                 :partial => 'settings/redmine_more_previews/cliff/settings',
+                 :default => Cliff::LIMITS.transform_values(&:to_s)
                  
   mime_types     :eml  =>    {:formats => [:html], :mime => 'message/rfc822', :icon => 'eml.png' },
                  :mime  =>   {:formats => [:html], :mime => 'message/rfc822', :icon => 'eml.png' }

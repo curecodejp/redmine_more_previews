@@ -5,8 +5,8 @@ require File.expand_path('../../test_helper', __FILE__)
 # Ghostscript runs a file as PostScript unless it starts as a PDF, while Marcel
 # reports application/pdf when %PDF- appears near the start. Only a file that
 # starts with the PDF header may reach Ghostscript, through any converter and on
-# any supported Redmine: Redmine::Thumbnail.valid_pdf_magic? is missing before
-# 6.0.8 and could be bypassed before 6.0.10 / 6.1.3.
+# any supported Redmine: Redmine::Thumbnail.valid_pdf_magic? is missing in
+# 6.0.0 - 6.0.7 and 6.1.0, and could be bypassed before 6.0.10 / 6.1.3.
 class PdfMagicTest < ActiveSupport::TestCase
   PDF = "%PDF-1.4\n%%EOF\n"
   BODY = "newpath 10 10 moveto 100 100 lineto stroke showpage\n"

@@ -97,6 +97,23 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # Mail makes a lone CR in the body a line break as well
+  def test_email_with_lone_carriage_returns_is_counted
+    body = (1..20).map {|n| "--abc\rContent-Type: text/plain\r\rpart #{n}\r"}.join + "--abc--\r"
+    source = "Subject: t\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"abc\"\n\n#{body}"
+    assert_operator Mail.new(source).parts.size, :>, 10, 'Mail splits the parts'
+    with_cliff_settings('max_parts' => '10') do
+      Mail.expects(:new).never
+      assert_includes convert(source), 'more than 10 parts'
+    end
+  end
+
+  def test_multipart_with_a_comment_is_counted
+    Mail.expects(:new).never
+    body = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "Content-Type: (c) multipart/mixed; boundary=\"b#{n}\"\n"}.join
+    assert_includes convert("Subject: nested\n#{body}\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
+  end
+
   def test_email_within_the_limits_is_previewed
     html = convert(mail_with_attachments(2))
     assert_not_includes html, 'more than'

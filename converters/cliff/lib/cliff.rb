@@ -273,16 +273,15 @@ class Cliff < RedmineMorePreviews::Conversion
   # counts the multipart parts and the delimiter lines of the raw message, an
   # upper bound of what Mail would parse. Mail splits a part at a line of "--"
   # and its boundary, which it reads in forms no simple pattern follows (quoted,
-  # with comments, RFC 2231, empty ...): every line starting with "--" is counted
+  # with comments, RFC 2231, empty ...), after making every CR, LF or CRLF a
+  # line break: every "--" at the start of such a line is counted, and every
+  # "multipart" for the content types (which may carry comments as well)
   def check_parts( text )
-    if text.scan(/content-type\s*:\s*multipart\//i).size > MAX_MULTIPARTS
+    if text.scan(/multipart/i).size > MAX_MULTIPARTS
       raise ConverterBadArgument, "the email has more than #{MAX_MULTIPARTS} multipart parts"
     end
-    parts = 0
-    text.each_line do |line|
-      next unless line.start_with?("--")
-      parts += 1
-      raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts" if parts > limit('max_parts')
+    if text.scan(/(?:\A|[\r\n])--/).size > limit('max_parts')
+      raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts"
     end
   end #def
   

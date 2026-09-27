@@ -197,6 +197,40 @@ class RepositoriesPreviewBusyTest < Redmine::ControllerTest
     assert_not_includes response.body, '/preview/'
   end
 
+  # see PreviewReloadFailuresTest#test_inline_reload_by_a_member_is_served_from_the_cache
+  def test_inline_reload_by_a_member_is_served_from_the_cache
+    inline_zip
+    @request.session[:user_id] = 2 # jsmith, not an administrator
+    get :entry, params: entry_params
+    assert_response :success
+    Zippy.any_instance.expects(:convert).never
+    get :entry, params: entry_params.merge(reload: '1')
+    assert_response :success
+    assert_select 'a', text: 'file.txt'
+  end
+
+  def test_inline_reload_by_an_administrator_converts_again
+    inline_zip
+    get :entry, params: entry_params
+    Zippy.any_instance.expects(:convert).once
+    get :entry, params: entry_params.merge(reload: '1')
+  end
+
+  def test_inline_unsafe_is_ignored
+    inline_zip
+    get :entry, params: entry_params.merge(unsafe: '1')
+    assert_response :success
+    assert_select 'a', text: 'file.txt'
+    assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
+  end
+
+  # see PreviewReloadFailuresTest#test_preview_without_output_is_not_found_without_the_cache
+  def test_repository_preview_without_output_is_not_found_without_the_cache
+    Zippy.any_instance.stubs(:convert)
+    get :more_preview, params: entry_params.merge(unsafe: '1')
+    assert_response 404
+  end
+
   # see PreviewReloadFailuresTest#test_asset_named_as_the_preview_is_not_found
   def test_repository_asset_named_as_the_preview_is_not_found
     params = {id: PRJ_ID, repository_id: @repository.identifier_param, path: 'a', baseformat: 'zip'}
@@ -205,6 +239,16 @@ class RepositoriesPreviewBusyTest < Redmine::ControllerTest
     assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
     get :more_asset, params: params.merge(asset: 'file', assetformat: 'txt')
     assert_response :success
+  end
+
+  def entry_params
+    {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param], format: 'html'}
+  end
+
+  def inline_zip
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
   end
 
   def test_timed_out_repository_preview_is_not_found

@@ -83,6 +83,13 @@ module RedmineMorePreviews
     end
     private :render_more_preview_busy
 
+    # a file, an archive entry or a preview is larger than its limit (see
+    # Converter.max_repository_file, Converter.max_output, Zippy::LIMITS)
+    def render_more_preview_too_large(exception)
+      render :plain => l(:text_more_previews_too_large), :status => 413, :content_type => 'text/plain'
+    end
+    private :render_more_preview_too_large
+
     # ETag for a cached preview: the file's mtime alone would answer a conditional
     # request with 304 from a cache that another converter produced (the
     # regeneration in Conversion#cached_preview never runs on that path), so the

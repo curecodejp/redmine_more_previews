@@ -28,3 +28,9 @@ ja:
   redmine_more_previews:
     zippy:
       text_explanation:          "pdfファイルのプレビュー"
+      text_list_truncated:       "一覧はここまでです（上限を超えるエントリがあります）。"
+      label_max_entries:         "エントリの数の上限"
+      label_max_inflated:        "tar / tgz から展開する大きさの上限（MiB）"
+      label_max_asset:           "取り出すファイルの大きさの上限（MiB）"
+      label_max_stored:          "アーカイブごとに保存する大きさの上限（MiB）"
+      text_help_limits:          "エントリが上限より多いアーカイブや、上限より大きいファイルには 413（大きすぎる）を返します。tar / tgz の一覧は上限のところで打ち切ります。"

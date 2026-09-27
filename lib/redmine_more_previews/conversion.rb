@@ -257,8 +257,8 @@ module RedmineMorePreviews
           # cached conversion, just read from file
           cached_preview
         end
-      rescue ConverterLockTimeOut => e
-        # answered with 503 by the controller, nothing has been converted
+      rescue ConverterLockTimeOut, ConverterTooLarge => e
+        # answered with 503 / 413 by the controller
         Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
         raise
       rescue Exception => e
@@ -272,7 +272,9 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     # transient_preview
     #-------------------------------------------------------------------------------------
-    def transient_preview( &block )
+    # read: false leaves the converted files in the tmp directory unread, for a
+    # block that only copies them (see cached_preview)
+    def transient_preview( read: true, &block )
       Dir.mktmpdir do |tdir|
         files = []
         self.tmptarget, self.tmpdir,     self.tmpfile,     self.tmpext      = path_set(tdir, ["index", preview_format].join("."))
@@ -288,9 +290,11 @@ module RedmineMorePreviews
         @deadline = Lib::RmpProcess.now + conversion_timeout
         convert
         debug if RedmineMorePreviews::Converter.debug? # debug will overwrite the result of convert
-        if block_given?
+        if block_given? && !read
+          yield
+        elsif block_given?
           result = [tmptarget, tmpasset, tmpassetspaths.map(&:first)].flatten.compact.map do |f|
-            File.open(f, "rb") {|io| io.read} if regular_file_within?( tmpdir, f )
+            read_limited( f ) if regular_file_within?( tmpdir, f )
           end
           yield *result
         end
@@ -312,7 +316,15 @@ module RedmineMorePreviews
         # conversion alone would otherwise mark the other converter's index as ours)
         discard_cache unless cached_by_this_converter?
         if !valid || reload || !cached_by_this_converter?
-          with_slot { sync { transient_preview{|*files| copy_over} } }
+          # a full cache takes no new previews: convert, serve and forget
+          if Lib::RmpCacheSize.full?
+            Rails.logger.warn "Preview cache is full, #{dir} is not stored"
+            # nothing is stored: a converter's limits on what it stores do not apply
+            self.transient = true
+            return with_slot { sync { transient_preview{|target_data, asset_data, *| asset ? asset_data : target_data } } }
+          end
+          # a preview that could not be served is not stored either
+          with_slot { sync { transient_preview( read: false ) { check_output_size; copy_over } } }
         end
         read_safe
       end
@@ -389,14 +401,33 @@ module RedmineMorePreviews
     end #def
     private :regular_file_within?
     
+    # the files to serve of a conversion in the tmp directory, see read_limited
+    def check_output_size
+      [tmptarget, tmpasset].compact.each do |path|
+        next unless File.file?( path ) && File.size( path ) > RedmineMorePreviews::Converter.max_output
+        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
+      end
+    end #def
+    private :check_output_size
+    
+    # a converted file is served from memory: one larger than the limit is not
+    # read (ConverterTooLarge)
+    def read_limited( path )
+      if File.size( path ) > RedmineMorePreviews::Converter.max_output
+        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
+      end
+      File.open( path, "rb" ) {|io| io.read}
+    end #def
+    private :read_limited
+    
     # called under the cache lock (see cached_preview), which guards the directory
     def read_safe
       if asset
         # a requested asset that is missing or not servable must not fall back to the preview
         return nil unless regular_file_within?( dir, assetpath )
-        File.open(assetpath,  "rb") {|io| io.read}
+        read_limited( assetpath )
       elsif target && File.exist?(targetpath)
-        File.open(targetpath, "rb") {|io| io.read}
+        read_limited( targetpath )
       else
         nil
       end

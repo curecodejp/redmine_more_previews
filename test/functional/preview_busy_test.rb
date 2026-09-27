@@ -166,6 +166,37 @@ class RepositoriesPreviewBusyTest < Redmine::ControllerTest
     assert_equal RedmineMorePreviews::ControllerHelper::BUSY_RETRY_AFTER.to_s, response.headers['Retry-After']
   end
 
+  def test_repository_file_larger_than_the_limit_is_refused
+    RedmineMorePreviews::Converter.stubs(:max_repository_file).returns(10)
+    @repository.expects(:cat).never
+    Repository.any_instance.expects(:cat).never
+    params = {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param], format: 'html'}
+    get :more_preview, params: params
+    assert_response 413
+    assert_equal 'text/plain', response.media_type
+  end
+
+  # an SCM that reports no size (Bazaar, CVS): the file is not read at all
+  def test_repository_file_without_a_size_is_refused
+    Redmine::Scm::Adapters::Entry.any_instance.stubs(:size).returns(nil)
+    Repository.any_instance.expects(:cat).never
+    get :more_preview, params: {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param], format: 'html'}
+    assert_response 413
+    # Redmine's own view of the file reads it
+    Repository.any_instance.unstub(:cat)
+    get :entry, params: {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param], format: 'html'}
+    assert_response :success
+    assert_not_includes response.body, '/preview/'
+  end
+
+  # the repository page itself falls back to Redmine's own view of the file
+  def test_repository_page_of_a_file_larger_than_the_limit_is_redmines
+    RedmineMorePreviews::Converter.stubs(:max_repository_file).returns(10)
+    get :entry, params: {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param], format: 'html'}
+    assert_response :success
+    assert_not_includes response.body, '/preview/'
+  end
+
   def test_timed_out_repository_preview_is_not_found
     Zippy.any_instance.stubs(:convert).raises(RedmineMorePreviews::Exceptions::ConverterTimeout)
     params = {id: PRJ_ID, repository_id: @repository.id, path: repository_path_hash(['a.zip'])[:param], format: 'html'}

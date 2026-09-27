@@ -32,6 +32,13 @@ module RedmineMorePreviews
       CONVERSION_TIMEOUT         = 60
       LOCK_TIMEOUT               = 5
       MAX_CONVERSIONS            = 2
+      
+      # MiB: the largest repository file previewed (repository files are not
+      # bound by the attachment size limit), the largest converted file served,
+      # and the size of the whole cache above which new previews are not stored
+      MAX_REPOSITORY_FILE        = 50
+      MAX_OUTPUT                 = 100
+      MAX_CACHE                  = 10 * 1024
     end
   end
 end

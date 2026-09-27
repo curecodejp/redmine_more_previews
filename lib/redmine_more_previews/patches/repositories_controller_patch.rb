@@ -34,6 +34,7 @@ module RedmineMorePreviews
           before_action :find_project_repository_for_more_preview, :only => [:more_asset, :more_preview ]
           before_action :find_path_param,                          :only => [:more_asset, :more_preview ]
           rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
+          rescue_from   RedmineMorePreviews::Exceptions::ConverterTooLarge,    :with => :render_more_preview_too_large
           
           ################################################################################
           #
@@ -174,8 +175,9 @@ module RedmineMorePreviews
           # If the entry is a dir, show the browser
           (show; return) if @entry.is_dir?
           
+          # a file too large to preview is shown as Redmine shows it
           if @repository.project.module_enabled?('redmine_more_previews') &&
-             @entry.convertible?
+             @entry.convertible? && !@repository.preview_too_large?(@path, @rev)
               
             parent_path = @path.split('/')[0...-1].join('/')
             @entries = @repository.entries(parent_path, @rev).reject(&:is_dir?)

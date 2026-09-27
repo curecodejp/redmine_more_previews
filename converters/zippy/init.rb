@@ -48,7 +48,8 @@ RedmineMorePreviews::Converter.register :zippy do
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_zippy'
                    
   settings       :logo   => "logo.png",
-                 :partial => 'settings/redmine_more_previews/zippy/settings'
+                 :partial => 'settings/redmine_more_previews/zippy/settings',
+                 :default => Zippy::LIMITS.transform_values(&:to_s)
                  
   mime_types     :zip    => {:formats => [:html, :inline], :mime => "application/zip" },
                  :tar    => {:formats => [:html, :inline], :mime => "application/tar",  :synonyms => ["application/x-tar" ], :icon => "tar.png" },

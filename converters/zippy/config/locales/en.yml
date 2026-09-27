@@ -28,3 +28,9 @@ en:
   redmine_more_previews:
     zippy:
       text_explanation:          "preview zip-files"
+      text_list_truncated:       "The list ends here: the archive has more entries, or larger ones, than are listed."
+      label_max_entries:         "Most entries"
+      label_max_inflated:        "Most bytes unpacked from a tar or tgz (MiB)"
+      label_max_asset:           "Largest file extracted (MiB)"
+      label_max_stored:          "Most files stored per archive (MiB)"
+      text_help_limits:          "An archive with more entries, or a file larger than the limit, is answered with 413 (too large). The list of a tar or tgz ends at the limits."

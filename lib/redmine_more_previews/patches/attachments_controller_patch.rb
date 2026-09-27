@@ -37,6 +37,7 @@ module RedmineMorePreviews
           before_action :read_authorize_for_more_preview,  :only => [:more_preview, :more_asset]
           before_action :find_asset_param,                 :only => [:more_preview, :more_asset]
           rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
+          rescue_from   RedmineMorePreviews::Exceptions::ConverterTooLarge,    :with => :render_more_preview_too_large
           
           ################################################################################
           #

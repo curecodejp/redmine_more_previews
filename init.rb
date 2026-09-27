@@ -150,6 +150,9 @@ Redmine::Plugin.register :redmine_more_previews do
                         'conversion_timeout' => '60', # seconds a conversion may run
                         'lock_timeout'       => '5',  # seconds a request waits for a lock
                         'max_conversions'    => '2',  # conversions at the same time, all processes
+                        'max_repository_file' => '50',    # MiB, largest repository file previewed
+                        'max_output'          => '100',   # MiB, largest converted file served
+                        'max_cache'           => '10240', # MiB, cache size above which nothing new is stored
                        },
            :partial => 'settings/redmine_more_previews/settings'
            

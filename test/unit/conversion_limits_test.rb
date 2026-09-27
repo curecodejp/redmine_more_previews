@@ -124,6 +124,47 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_raises(ConverterLockTimeOut) { pass_worker.preview(File.new(@source)) }
   end
 
+  def test_preview_larger_than_the_output_limit_is_not_served
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(5)
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { pass_worker.preview(File.new(@source)) }
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { pass_worker.preview(File.new(@source)) {|*| flunk} }
+  end
+
+  def test_preview_larger_than_the_output_limit_is_not_stored
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(5)
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { pass_worker.preview(File.new(@source)) }
+    assert_not File.exist?(@target)
+  end
+
+  def test_full_cache_converts_without_storing
+    RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
+    assert_equal 'plain text', pass_worker.preview(File.new(@source))
+    assert_not File.exist?(@target)
+  end
+
+  def test_full_cache_still_serves_what_is_stored
+    assert_equal 'plain text', pass_worker.preview(File.new(@source))
+    RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
+    Pass.any_instance.expects(:convert).never
+    assert_equal 'plain text', pass_worker.preview(File.new(@source))
+  end
+
+  def test_cache_size_is_added_up_at_intervals
+    storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH
+    FileUtils.mkdir_p(File.join(storage, 'a'))
+    File.binwrite(File.join(storage, 'a', 'one'), 'x' * 100)
+    size = RedmineMorePreviews::Lib::RmpCacheSize.size
+    assert_operator size, :>=, 100
+    File.binwrite(File.join(storage, 'a', 'two'), 'x' * 1000)
+    assert_equal size, RedmineMorePreviews::Lib::RmpCacheSize.size
+    File.utime(Time.now - 3600, Time.now - 3600, File.join(storage, 'cache_size'))
+    assert_operator RedmineMorePreviews::Lib::RmpCacheSize.size, :>=, size + 1000
+    RedmineMorePreviews::Converter.stubs(:max_cache).returns(size + 1000)
+    assert RedmineMorePreviews::Lib::RmpCacheSize.full?
+    RedmineMorePreviews::Converter.stubs(:max_cache).returns(10 * 1024 * 1024)
+    assert_not RedmineMorePreviews::Lib::RmpCacheSize.full?
+  end
+
   private
 
   def now

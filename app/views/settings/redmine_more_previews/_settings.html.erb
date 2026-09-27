@@ -61,6 +61,12 @@
     <label><%= l(:label_max_conversions) %></label>
       <%= number_field_tag 'settings[max_conversions]', RedmineMorePreviews::Converter.max_conversions, :min => 1, :size => 6 %>
   </p>
+  <% %w(max_repository_file max_output max_cache).each do |key| %>
+  <p>
+    <label><%= l(:"label_#{key}") %></label>
+      <%= number_field_tag "settings[#{key}]", RedmineMorePreviews::Converter.send(key) / (1024 * 1024), :min => 1, :size => 6 %>
+  </p>
+  <% end %>
   <p>
     <a class='icon icon-help' href='#' title='<%= "#{l(:label_help)}" %>' onclick='$("#help_redmine_more_previews_limits").toggle(); return false;'><%= l(:label_help) %></a>
     <br>

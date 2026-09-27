@@ -94,6 +94,8 @@ Peek lets you preview pdf-Files in the browser. Peek uses imagemagick to do the 
 
 Zippy lets you preview zip, tgz or tar-Files in the browser. Click on an entry to download one individual file from within the compressed file.
 
+A zip with more than 10,000 entries is not opened, and the list of a tar or tgz ends after 10,000 entries or 1 GiB unpacked. A file larger than 100 MiB is not extracted, and at most 1 GiB of files is stored per archive; larger requests are answered with `413`. The limits can be changed in Zippy's settings.
+
 ---
 
 ![Maggie](doc/maggie/logo.png "Maggie")
@@ -354,7 +356,7 @@ This plugin ideally works together with
 # a note on caching
 This plugin caches conversions in the Rail tmp-directory. For large repositories (f.i. firm file servers) each conversion will store a copy of the conversion file in the Rails tmp directory and thus the tmp directory may become as large or even larger as the original repository. There are two ways to handle such a situation: 1. swipe Rails tmp/more_previews directory frequently, 2. change the storage path in the plugin's init.rb file to choose a mass storage, which can handle the amount of data.
 
-Repository previews are cached per repository, revision and file content (`tmp/more_previews/repository_previews/<repository id>/<path>/<digest>/`), so that a preview is never served for another project or another version of the file. A new directory is added for each revision and content that is previewed, and older ones are not removed: include this directory in the regular clean-up. To find its cache directory, a preview or asset request reads the whole file from the repository and computes its SHA-256 digest, also when the preview is already cached. The previews cached by 6.1.0 and earlier (`tmp/more_previews/repository/`) are removed on start.
+Repository previews are cached per repository, revision and file content (`tmp/more_previews/repository_previews/<repository id>/<path>/<digest>/`), so that a preview is never served for another project or another version of the file. A new directory is added for each revision and content that is previewed, and older ones are not removed: include this directory in the regular clean-up. To find its cache directory, a preview or asset request reads the whole file from the repository and computes its SHA-256 digest, also when the preview is already cached. A repository file larger than 50 MiB (a setting) is not read: its preview is answered with `413`, and its page is shown as Redmine shows it. So is a file whose size the repository does not report (Bazaar, CVS): it could only be checked after it has been read whole. The previews cached by 6.1.0 and earlier (`tmp/more_previews/repository/`) are removed on start.
 
 If two users choose to reload (do a new conversion) concurrently, then thread safety is honored.
 
@@ -364,6 +366,8 @@ The external programs a converter runs (ImageMagick, Ghostscript, LibreOffice, P
 At most the configured number of conversions (default 2) run at the same time, counted over all Redmine processes (lock files in `tmp/more_previews/slots/`). A request that needs a conversion while all of them are taken, or that waits longer than the wait limit (default 5 seconds) for a preview another request is converting, is answered with `503 Service Unavailable` and `Retry-After`; reloading the page later shows the preview. A preview that is already cached is served without waiting for conversions of other files.
 
 A reverse proxy in front of Redmine often gives up after 60 seconds. A first conversion that takes longer, f.i. a large office document converted by Libre, then shows an error in the browser while the conversion finishes and is cached; the next view shows it. Raise the proxy's timeout to the time limit to avoid this.
+
+A preview is served from memory: one larger than 100 MiB is answered with `413`. When the whole cache has grown beyond 10 GiB, new previews are converted for each request and not stored; the size of the cache is added up again at most every 10 minutes. Both limits are settings.
 
 On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn.
  

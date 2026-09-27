@@ -86,7 +86,19 @@ module RedmineMorePreviews
             @preview_contents ||= {}
             key = [path, rev]
             return @preview_contents[key] if @preview_contents.key?(key)
+            # repository files are not bound by the attachment size limit: the size
+            # the SCM reports is checked before the file is read (cat reads it whole)
+            if preview_too_large?(path, rev)
+              raise RedmineMorePreviews::Exceptions::ConverterTooLarge, "#{path} is larger than #{RedmineMorePreviews::Converter.max_repository_file} bytes, or of unknown size"
+            end
             @preview_contents[key] = cat(path, rev)
+          end #def
+          
+          # a file whose size the SCM does not report (Bazaar, CVS) counts as too
+          # large: it could only be checked after it has been read whole
+          def preview_too_large?(path, rev)
+            size = entry(path, rev)&.size
+            size.nil? || size.to_i > RedmineMorePreviews::Converter.max_repository_file
           end #def
           
           def preview_available?(path, rev, options={})

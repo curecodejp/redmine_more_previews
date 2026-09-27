@@ -244,6 +244,19 @@ module RedmineMorePreviews
       positive_setting('max_conversions', Constants::Defaults::MAX_CONVERSIONS)
     end #def
     
+    # bytes, see Constants::Defaults
+    def self.max_repository_file
+      positive_setting('max_repository_file', Constants::Defaults::MAX_REPOSITORY_FILE) * 1024 * 1024
+    end #def
+    
+    def self.max_output
+      positive_setting('max_output', Constants::Defaults::MAX_OUTPUT) * 1024 * 1024
+    end #def
+    
+    def self.max_cache
+      positive_setting('max_cache', Constants::Defaults::MAX_CACHE) * 1024 * 1024
+    end #def
+    
     def self.positive_setting(key, default)
       value = ::Setting['plugin_redmine_more_previews'].to_h[key].to_i
       value > 0 ? value : default

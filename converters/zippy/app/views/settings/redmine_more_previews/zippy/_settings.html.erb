@@ -1,1 +1,8 @@
 <p><%= l(:"redmine_more_previews.zippy.text_explanation") %></p>
+<% Zippy::LIMITS.each_key do |key| %>
+<p>
+  <label><%= l(:"redmine_more_previews.zippy.label_#{key}") %></label>
+  <%= number_field_tag "settings[converter][zippy][#{key}]", settings[key], :min => 1, :size => 8 %>
+</p>
+<% end %>
+<p><em class="info"><%= l(:"redmine_more_previews.zippy.text_help_limits") %></em></p>

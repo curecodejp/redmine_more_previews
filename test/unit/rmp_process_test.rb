@@ -116,6 +116,18 @@ class RmpProcessTest < ActiveSupport::TestCase
     assert_operator elapsed, :<, 10
   end
 
+  # memory of the parent, in use or freed, is resident and shared with the
+  # child: a child writing to it copies the pages, which grows its private
+  # memory, not its resident memory or address space
+  def test_child_copying_the_parents_memory_is_stopped
+    skip 'the private memory cannot be read' unless File.readable?('/proc/self/smaps_rollup')
+    buffer = +('x' * (100 * 1024 * 1024))
+    assert_not RmpProcess.fork(timeout: 30, memory: 64 * 1024 * 1024) {
+      (0...buffer.bytesize).step(4096) {|i| buffer.setbyte(i, 121) }
+      sleep 20
+    }
+  end
+
   # the child leaves with exit!: no at_exit hook of the parent runs in it
   def test_child_runs_no_at_exit_hooks
     ran = File.join(@dir, 'at_exit')

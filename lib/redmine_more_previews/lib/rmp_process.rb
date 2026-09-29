@@ -64,11 +64,12 @@ module RedmineMorePreviews
       # files. The child leaves with exit!, running no at_exit hooks and no ensure
       # of the caller (a test runner, a database connection, a tmp directory).
       #
-      # The memory is watched from here, on the child's resident memory: a limit
+      # The memory is watched from here, on the child's private memory: a limit
       # of the address space alone lets the child reuse the free memory it
-      # inherits, and a thread in the child does not run while the child is in a
-      # regular expression. The address space is limited as well, to twice the
-      # memory, for growth between two looks.
+      # inherits, whose pages the resident memory counts from the start as
+      # shared with the parent, and a thread in the child does not run while the
+      # child is in a regular expression. The address space is limited as well,
+      # to twice the memory, for growth between two looks.
       #
       # Returns whether the block ran to its end (false when it raised, or the
       # child was killed or stopped for its memory); raises ConverterTimeout when
@@ -99,28 +100,35 @@ module RedmineMorePreviews
         stop( pid, status.is_a?( Process::Status ) ? status : nil ) if pid
       end #def
       
-      # waits for the child until deadline: its status, :memory once its resident
+      # waits for the child until deadline: its status, :memory once its private
       # memory grew by more than memory bytes, or nil if it is still running
       def self.watch( pid, deadline, memory )
-        base = resident( pid ) if memory
+        base = private_memory( pid ) if memory
         loop do
           status = reap( pid )
           return status if status
           return nil if now >= deadline
-          return :memory if base && ( resident( pid ) || base ) - base > memory
+          return :memory if base && ( private_memory( pid ) || base ) - base > memory
           sleep POLL
         end
       end #def
       private_class_method :watch
       
-      # bytes of the process's resident memory, nil if it cannot be read
-      def self.resident( pid )
-        kb = File.read( "/proc/#{pid}/status" )[/^VmRSS:\s+(\d+)\s+kB/, 1]
-        kb && kb.to_i * 1024
+      # bytes of the pages only the process has, those it allocated and those it
+      # copied from the parent on writing them (Linux 4.14); the resident memory
+      # where that is not available; nil if neither can be read
+      def self.private_memory( pid )
+        rollup = File.read( "/proc/#{pid}/smaps_rollup" ) rescue nil
+        kb = if rollup
+          rollup.scan( /^Private_(?:Clean|Dirty):\s+(\d+)\s+kB/ ).sum {|(value)| value.to_i }
+        else
+          File.read( "/proc/#{pid}/status" )[/^VmRSS:\s+(\d+)\s+kB/, 1]&.to_i
+        end
+        kb && kb * 1024
       rescue SystemCallError
         nil
       end #def
-      private_class_method :resident
+      private_class_method :private_memory
       
       def self.limit_address_space( bytes )
         size = File.read( "/proc/self/status" )[/^VmSize:\s+(\d+)\s+kB/, 1]

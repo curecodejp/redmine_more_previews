@@ -282,9 +282,20 @@ class Cliff < RedmineMorePreviews::Conversion
   # break. Every such line is counted
   DELIMITER = /(?:\A|[\r\n])--/
   
+  # the text Mail's pattern for an mbox "From " line runs over: "From", white
+  # space (line breaks included) and the ASCII text after it. The pattern keeps
+  # state for every byte it runs over, some 50 times the text in memory, so the
+  # run is bounded by the longest line of a message (RFC 5322) first, on no
+  # more of the text than that
+  ENVELOPE      = /\AFrom\s*[\x01-\x09\x0b\x0c\x0e-\x7f]*/n
+  MAX_LINE      = 998
+  
   # counts the delimiter lines of the raw message, an upper bound of the parts
   # Mail would parse, and stops at the first one beyond the limit
   def check_parts( text )
+    if text.start_with?( "From" ) && text.byteslice( 0, MAX_LINE + 1 ).b[ENVELOPE].bytesize > MAX_LINE
+      raise ConverterBadArgument, "the email starts with a \"From\" line longer than #{MAX_LINE} characters"
+    end
     count = 0
     text.scan( DELIMITER ) do
       count += 1

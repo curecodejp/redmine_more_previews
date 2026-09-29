@@ -141,6 +141,23 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # Mail's pattern for an mbox "From " line keeps state for every byte it runs
+  # over: a long run is refused before Mail.new, a usual envelope line is not
+  def test_long_envelope_line_is_not_parsed
+    n = 1024 * 1024
+    ["From " + ('a' * n), "From" + ("\n" * n) + ":", "From" + (' ' * n)].each do |start|
+      Mail.expects(:new).never
+      assert_includes convert(start + "\r\nSubject: x\r\n\r\nbody"), "line longer than #{Cliff::MAX_LINE} characters"
+      Mail.unstub(:new)
+    end
+  end
+
+  def test_usual_envelope_line_is_previewed
+    html = convert("From a@example.test Mon Sep 28 10:00:00 2026\r\nFrom: a@example.test\r\nSubject: mbox\r\nContent-Type: text/plain\r\n\r\nhello")
+    assert_not_includes html, 'longer than'
+    assert_includes html, 'hello'
+  end
+
   # a long line takes no memory beyond itself to count
   def test_long_line_takes_no_memory_to_count
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))

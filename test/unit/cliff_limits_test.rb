@@ -76,12 +76,6 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
-  def test_email_with_too_many_multipart_parts_is_not_parsed
-    Mail.expects(:new).never
-    body = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "Content-Type: multipart/mixed; boundary=\"b#{n}\"\n"}.join
-    assert_includes convert("Subject: nested\n#{body}\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
-  end
-
   # Mail reads the boundary in forms a pattern for boundary= misses: the
   # delimiter lines are counted whatever the boundary is declared as
   def test_email_with_a_boundary_in_another_form_is_counted
@@ -108,41 +102,47 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
-  def test_multipart_with_a_comment_is_counted
-    Mail.expects(:new).never
-    body = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "Content-Type: (c) multipart/mixed; boundary=\"b#{n}\"\n"}.join
-    assert_includes convert("Subject: nested\n#{body}\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
-  end
+  # the forms of a Content-Type field that Mail reads as multipart: the depth
+  # is checked on the parts as Mail reads them, whatever the form
+  NESTED_FORMS = {
+    'plain'              => "Content-Type: multipart/mixed; boundary=\"%s\"",
+    'comment'            => "Content-Type: (c) multipart/mixed; boundary=\"%s\"",
+    'folded'             => "Content-Type:\r\n (c)\r\n\tmultipart/mixed; boundary=\"%s\"",
+    'folded before :'    => "Content-Type\r\n : multipart/mixed; boundary=\"%s\"",
+    'space before name'  => " Content-Type: multipart/mixed; boundary=\"%s\"",
+    'NUL before :'       => "Content-Type\0: multipart/mixed; boundary=\"%s\"",
+  }.freeze
 
-  def test_folded_multipart_content_type_is_counted
-    Mail.expects(:new).never
-    body = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "Content-Type:\r\n (c)\r\n\tmultipart/mixed; boundary=\"b#{n}\"\r\n"}.join
-    assert_includes convert("Subject: nested\r\n#{body}\r\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
-  end
-
-  # Mail drops the white space between a field's name and its colon, folded
-  # or not; a part needs another header field to be read as one
-  def test_multipart_folded_before_the_colon_is_counted
-    source = +"Subject: nested\r\n"
-    (1..(Cliff::MAX_MULTIPARTS + 1)).each do |n|
-      source << "X: y\r\nContent-Type\r\n : multipart/mixed; boundary=\"b#{n}\"\r\n\r\n--b#{n}\r\n"
-    end
-    source << "Content-Type: text/plain\r\n\r\nleaf\r\n"
-    Mail.expects(:new).never
-    assert_includes convert(source), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
-  end
-
-  # Mail strips white space at the start of the message
-  def test_multipart_after_white_space_at_the_start_is_counted
-    worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))
-    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) do
-      worker.send(:count_multiparts, "  Content-Type: multipart/mixed; boundary=\"b\"\r\n", 0)
+  def test_nesting_deeper_than_the_limit_is_not_walked
+    NESTED_FORMS.each do |form, field|
+      source = nested(field, Cliff::MAX_DEPTH + 1)
+      assert_operator depth_of(Mail.new(source)), :>, Cliff::MAX_DEPTH, "Mail nests the parts (#{form})"
+      Mail::Message.any_instance.expects(:attachments).never
+      Mail::Message.any_instance.expects(:html_part).never
+      assert_includes convert(source), "more than #{Cliff::MAX_DEPTH} nested multipart parts", form
+      Mail::Message.any_instance.unstub(:attachments)
+      Mail::Message.any_instance.unstub(:html_part)
     end
   end
 
-  # a long line took a pattern matching up to the value backtracking state for
-  # every byte, outside of Ruby's heap
-  def test_long_field_takes_no_memory_to_count
+  def test_nesting_within_the_limit_is_previewed
+    html = convert(nested(NESTED_FORMS['plain'], 5))
+    assert_not_includes html, 'more than'
+    assert_includes html, 'leaf'
+  end
+
+  # Mail keeps the body of every level: the bodies add up to the size of the
+  # email times the depth
+  def test_nested_bodies_beyond_their_limit_are_not_walked
+    source = nested(NESTED_FORMS['plain'], 10, 'x' * (700 * 1024))
+    with_cliff_settings('max_size' => '1') do
+      Mail::Message.any_instance.expects(:attachments).never
+      assert_includes convert(source), "add up to more than #{Cliff::MAX_PARSED} MiB"
+    end
+  end
+
+  # a long line takes no memory beyond itself to count
+  def test_long_line_takes_no_memory_to_count
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))
     text = "Content-Type: " + ('a' * (8 * 1024 * 1024))
     reset_peak_memory
@@ -153,7 +153,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
 
   # the word alone, f.i. in a log of HTTP requests, is not a content type
   def test_multipart_in_the_text_is_not_counted
-    log = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "#{n} POST /upload (multipart/form-data) 200\r\n"}.join
+    log = (1..(Cliff::MAX_DEPTH + 1)).map {|n| "#{n} POST /upload (multipart/form-data) 200\r\n"}.join
     source = "Subject: log\r\nContent-Type: text/plain\r\n\r\n#{log}"
     assert_not Mail.new(source).multipart?
     assert_not_includes convert(source), 'more than'
@@ -178,6 +178,25 @@ class CliffLimitsTest < ActiveSupport::TestCase
   end
 
   private
+
+  # an email of multipart parts nested depth levels deep, each declared by
+  # field; a part needs another header field to be read as one
+  def nested(field, depth, leaf = 'leaf')
+    source = +"Subject: nested\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b1\"\r\n\r\n"
+    (2..depth).each {|n| source << "--b#{n - 1}\r\n#{format(field, "b#{n}")}\r\nX: y\r\n\r\n" }
+    source << "--b#{depth}\r\nContent-Type: text/plain\r\n\r\n#{leaf}\r\n"
+    depth.downto(1) {|n| source << "--b#{n}--\r\n" }
+    source
+  end
+
+  def depth_of(mail)
+    depth, part = 0, mail
+    while part.multipart?
+      depth += 1
+      part = part.parts.first
+    end
+    depth
+  end
 
   # an earlier test's peak would hide this one's
   def reset_peak_memory

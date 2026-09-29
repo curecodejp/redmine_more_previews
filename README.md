@@ -72,7 +72,7 @@ to html.
 
 You can view the .eml file almost like in a professional email viewer, see mail headers and download attachments. Cliff will sweep the .eml files from scripts, event attributes beginning with "on…", url() in css styles and external images. To do an unsafe preview, you can press a button do so and if you trust the .eml or .mime file
 
-An email larger than 50 MiB or with more than 1,000 MIME parts is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The limits can be changed in Cliff's settings.
+An email larger than 50 MiB, with more than 1,000 MIME parts, or with multipart parts nested more than 100 levels deep or adding up to more than five times the size limit is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The size, parts and attachments limits can be changed in Cliff's settings.
 
 ---
 

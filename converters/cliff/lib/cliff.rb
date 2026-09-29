@@ -22,8 +22,6 @@
 require "nokogiri"
 require 'active_support/core_ext/hash/conversions'
 
-require "strscan"
-
 class Cliff < RedmineMorePreviews::Conversion
 
   #---------------------------------------------------------------------------------------
@@ -47,8 +45,13 @@ class Cliff < RedmineMorePreviews::Conversion
   # A converter setting overrides each default.
   LIMITS         = {'max_size' => 50, 'max_parts' => 1000, 'max_attachments' => 1000}.freeze
   
-  # each multipart part is declared by its content type: bounds the nesting of parts as well
-  MAX_MULTIPARTS = 100
+  # nested multipart parts: Mail's helpers (attachments, html_part, ...) walk
+  # the whole tree again and again, in more than linear time in its depth,
+  # and Mail keeps the body of every level, so the bodies parsed add up to
+  # the size of the email times the depth. Both are bounded, the bodies by a
+  # multiple of the size limit
+  MAX_DEPTH      = 100
+  MAX_PARSED     = 5
   
   ########################################################################################
   #
@@ -80,6 +83,7 @@ class Cliff < RedmineMorePreviews::Conversion
     text  = RmpText.to_utf8(File.read(source))
     check_parts( text )
     mail  = Mail.new(text)
+    check_depth( mail )
     
     # get html
     html, charset = html( mail )
@@ -278,21 +282,9 @@ class Cliff < RedmineMorePreviews::Conversion
   # break. Every such line is counted
   DELIMITER = /(?:\A|[\r\n])--/
   
-  # a Content-Type field: its name at the start of a line (or of the message,
-  # which Mail strips), then after any white space, which Mail drops even when
-  # folded, a colon; the value runs to the first line break not followed by
-  # white space (a folded line, or a blank line: an upper bound either way)
-  FIELD_NAME = /(?:\A[ \t\r\n]*|[\r\n])content-type/i
-  NOT_SPACE  = /[^ \t\r\n]/
-  FIELD_END  = /[\r\n](?![\r\n \t])/
-  MULTIPART  = /multipart/i
-  
-  # counts the delimiter lines and the multipart content types of the raw
-  # message, an upper bound of what Mail would parse. Nested multipart parts
-  # cost Mail more than linear time in their depth, so they have a limit of
-  # their own. Each count stops at the first one beyond the limit
+  # counts the delimiter lines of the raw message, an upper bound of the parts
+  # Mail would parse, and stops at the first one beyond the limit
   def check_parts( text )
-    count_multiparts( text, MAX_MULTIPARTS )
     count = 0
     text.scan( DELIMITER ) do
       count += 1
@@ -300,18 +292,23 @@ class Cliff < RedmineMorePreviews::Conversion
     end
   end #def
   
-  # searches step by step with a scanner: a single pattern matching up to the
-  # value kept backtracking state for every byte of a long line
-  def count_multiparts( text, limit )
-    count   = 0
-    scanner = StringScanner.new( text )
-    while scanner.skip_until( FIELD_NAME )
-      next unless scanner.skip_until( NOT_SPACE ) && scanner.matched == ":"
-      start = scanner.pos
-      scanner.skip_until( FIELD_END ) || scanner.terminate
-      next unless text.byteslice( start, scanner.pos - start ).match?( MULTIPART )
-      count += 1
-      raise ConverterBadArgument, "the email has more than #{limit} multipart parts" if count > limit
+  # walks the parts as Mail reads them, before anything walks the whole tree:
+  # Mail splits the body of a part only when its parts are asked for, so
+  # nothing beyond the limits is parsed. Whether a part is multipart is Mail's
+  # decision, not a guess from the raw text
+  def check_depth( mail )
+    budget = MAX_PARSED * limit('max_size') * 1024 * 1024
+    parsed = 0
+    stack  = [[mail, 1]]
+    until stack.empty?
+      part, depth = stack.pop
+      next unless part.multipart?
+      raise ConverterBadArgument, "the email has more than #{MAX_DEPTH} nested multipart parts" if depth > MAX_DEPTH
+      parsed += part.body.raw_source.to_s.bytesize
+      if parsed > budget
+        raise ConverterBadArgument, "the nested multipart parts of the email add up to more than #{MAX_PARSED * limit('max_size')} MiB"
+      end
+      part.parts.each {|child| stack.push( [child, depth + 1] ) }
     end
   end #def
   

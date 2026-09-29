@@ -114,6 +114,32 @@ class CliffLimitsTest < ActiveSupport::TestCase
     assert_includes convert("Subject: nested\n#{body}\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
   end
 
+  def test_folded_multipart_content_type_is_counted
+    Mail.expects(:new).never
+    body = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "Content-Type:\r\n (c)\r\n\tmultipart/mixed; boundary=\"b#{n}\"\r\n"}.join
+    assert_includes convert("Subject: nested\r\n#{body}\r\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
+  end
+
+  # the word alone, f.i. in a log of HTTP requests, is not a content type
+  def test_multipart_in_the_text_is_not_counted
+    log = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "#{n} POST /upload (multipart/form-data) 200\r\n"}.join
+    source = "Subject: log\r\nContent-Type: text/plain\r\n\r\n#{log}"
+    assert_not Mail.new(source).multipart?
+    assert_not_includes convert(source), 'more than'
+  end
+
+  # the count stops at the first line beyond the limit, without keeping the matches
+  def test_counting_stops_at_the_limit
+    text = "Subject: many\n\n" + ("--b\n" * 1_000_000)
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))
+    GC.disable
+    before = GC.stat(:total_allocated_objects)
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) { worker.send(:check_parts, text) }
+    assert_operator GC.stat(:total_allocated_objects) - before, :<, 20_000
+  ensure
+    GC.enable
+  end
+
   def test_email_within_the_limits_is_previewed
     html = convert(mail_with_attachments(2))
     assert_not_includes html, 'more than'

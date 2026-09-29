@@ -270,18 +270,29 @@ class Cliff < RedmineMorePreviews::Conversion
     value > 0 ? value : LIMITS[key]
   end #def
   
-  # counts the multipart parts and the delimiter lines of the raw message, an
-  # upper bound of what Mail would parse. Mail splits a part at a line of "--"
-  # and its boundary, which it reads in forms no simple pattern follows (quoted,
-  # with comments, RFC 2231, empty ...), after making every CR, LF or CRLF a
-  # line break: every "--" at the start of such a line is counted, and every
-  # "multipart" for the content types (which may carry comments as well)
+  # a line starting with "--": Mail splits a part at a line of "--" and its
+  # boundary, which it reads in forms no simple pattern follows (quoted, with
+  # comments, RFC 2231, empty ...), after making every CR, LF or CRLF a line
+  # break. Every such line is counted
+  DELIMITER = /(?:\A|[\r\n])--/
+  
+  # a multipart content type: a Content-Type field at the start of a line,
+  # which may be folded and carry comments before the type
+  MULTIPART = /(?:\A|[\r\n])content-type[ \t]*:(?:[^\r\n]|[\r\n]+[ \t])*?multipart/i
+  
+  # counts the delimiter lines and multipart content types of the raw message,
+  # an upper bound of what Mail would parse, and stops at the first one beyond
+  # the limit without keeping the matches
   def check_parts( text )
-    if text.scan(/multipart/i).size > MAX_MULTIPARTS
-      raise ConverterBadArgument, "the email has more than #{MAX_MULTIPARTS} multipart parts"
-    end
-    if text.scan(/(?:\A|[\r\n])--/).size > limit('max_parts')
-      raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts"
+    count_up_to( text, MULTIPART, MAX_MULTIPARTS, "multipart parts" )
+    count_up_to( text, DELIMITER, limit('max_parts'), "parts" )
+  end #def
+  
+  def count_up_to( text, pattern, limit, what )
+    count = 0
+    text.scan( pattern ) do
+      count += 1
+      raise ConverterBadArgument, "the email has more than #{limit} #{what}" if count > limit
     end
   end #def
   

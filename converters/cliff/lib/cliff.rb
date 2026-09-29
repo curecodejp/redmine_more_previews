@@ -22,6 +22,8 @@
 require "nokogiri"
 require 'active_support/core_ext/hash/conversions'
 
+require "strscan"
+
 class Cliff < RedmineMorePreviews::Conversion
 
   #---------------------------------------------------------------------------------------
@@ -276,23 +278,40 @@ class Cliff < RedmineMorePreviews::Conversion
   # break. Every such line is counted
   DELIMITER = /(?:\A|[\r\n])--/
   
-  # a multipart content type: a Content-Type field at the start of a line,
-  # which may be folded and carry comments before the type
-  MULTIPART = /(?:\A|[\r\n])content-type[ \t]*:(?:[^\r\n]|[\r\n]+[ \t])*?multipart/i
+  # a Content-Type field: its name at the start of a line (or of the message,
+  # which Mail strips), then after any white space, which Mail drops even when
+  # folded, a colon; the value runs to the first line break not followed by
+  # white space (a folded line, or a blank line: an upper bound either way)
+  FIELD_NAME = /(?:\A[ \t\r\n]*|[\r\n])content-type/i
+  NOT_SPACE  = /[^ \t\r\n]/
+  FIELD_END  = /[\r\n](?![\r\n \t])/
+  MULTIPART  = /multipart/i
   
-  # counts the delimiter lines and multipart content types of the raw message,
-  # an upper bound of what Mail would parse, and stops at the first one beyond
-  # the limit without keeping the matches
+  # counts the delimiter lines and the multipart content types of the raw
+  # message, an upper bound of what Mail would parse. Nested multipart parts
+  # cost Mail more than linear time in their depth, so they have a limit of
+  # their own. Each count stops at the first one beyond the limit
   def check_parts( text )
-    count_up_to( text, MULTIPART, MAX_MULTIPARTS, "multipart parts" )
-    count_up_to( text, DELIMITER, limit('max_parts'), "parts" )
+    count_multiparts( text, MAX_MULTIPARTS )
+    count = 0
+    text.scan( DELIMITER ) do
+      count += 1
+      raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts" if count > limit('max_parts')
+    end
   end #def
   
-  def count_up_to( text, pattern, limit, what )
-    count = 0
-    text.scan( pattern ) do
+  # searches step by step with a scanner: a single pattern matching up to the
+  # value kept backtracking state for every byte of a long line
+  def count_multiparts( text, limit )
+    count   = 0
+    scanner = StringScanner.new( text )
+    while scanner.skip_until( FIELD_NAME )
+      next unless scanner.skip_until( NOT_SPACE ) && scanner.matched == ":"
+      start = scanner.pos
+      scanner.skip_until( FIELD_END ) || scanner.terminate
+      next unless text.byteslice( start, scanner.pos - start ).match?( MULTIPART )
       count += 1
-      raise ConverterBadArgument, "the email has more than #{limit} #{what}" if count > limit
+      raise ConverterBadArgument, "the email has more than #{limit} multipart parts" if count > limit
     end
   end #def
   

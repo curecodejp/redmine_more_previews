@@ -120,6 +120,37 @@ class CliffLimitsTest < ActiveSupport::TestCase
     assert_includes convert("Subject: nested\r\n#{body}\r\n"), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
   end
 
+  # Mail drops the white space between a field's name and its colon, folded
+  # or not; a part needs another header field to be read as one
+  def test_multipart_folded_before_the_colon_is_counted
+    source = +"Subject: nested\r\n"
+    (1..(Cliff::MAX_MULTIPARTS + 1)).each do |n|
+      source << "X: y\r\nContent-Type\r\n : multipart/mixed; boundary=\"b#{n}\"\r\n\r\n--b#{n}\r\n"
+    end
+    source << "Content-Type: text/plain\r\n\r\nleaf\r\n"
+    Mail.expects(:new).never
+    assert_includes convert(source), "more than #{Cliff::MAX_MULTIPARTS} multipart parts"
+  end
+
+  # Mail strips white space at the start of the message
+  def test_multipart_after_white_space_at_the_start_is_counted
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) do
+      worker.send(:count_multiparts, "  Content-Type: multipart/mixed; boundary=\"b\"\r\n", 0)
+    end
+  end
+
+  # a long line took a pattern matching up to the value backtracking state for
+  # every byte, outside of Ruby's heap
+  def test_long_field_takes_no_memory_to_count
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))
+    text = "Content-Type: " + ('a' * (8 * 1024 * 1024))
+    reset_peak_memory
+    before = peak_memory
+    worker.send(:check_parts, text)
+    assert_operator peak_memory - before, :<, 64 * 1024 * 1024
+  end
+
   # the word alone, f.i. in a log of HTTP requests, is not a content type
   def test_multipart_in_the_text_is_not_counted
     log = (1..(Cliff::MAX_MULTIPARTS + 1)).map {|n| "#{n} POST /upload (multipart/form-data) 200\r\n"}.join
@@ -147,6 +178,19 @@ class CliffLimitsTest < ActiveSupport::TestCase
   end
 
   private
+
+  # an earlier test's peak would hide this one's
+  def reset_peak_memory
+    File.write('/proc/self/clear_refs', '5')
+  rescue SystemCallError
+    skip 'the peak memory cannot be reset'
+  end
+
+  # the peak resident memory of the process in bytes (Linux)
+  def peak_memory
+    skip 'no /proc/self/status' unless File.readable?('/proc/self/status')
+    File.read('/proc/self/status')[/VmHWM:\s+(\d+)/, 1].to_i * 1024
+  end
 
   # the implementation before the loop, as the reference for the names
   def former_unique_filename(filenames, filename, index = 2)

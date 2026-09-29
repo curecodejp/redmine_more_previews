@@ -136,12 +136,17 @@ class Zippy < RedmineMorePreviews::Conversion
   # host / anchor, which url helpers interpret as options, out of the (cached) listing.
   # The name is passed unencoded (to_query encodes it once); an extra
   # URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
+  # Only the rev parameter is kept: a revision the route's :rev does not take (a slash,
+  # capitals) comes as a parameter, and without it the link leads to the default branch.
   #---------------------------------------------------------------------------------------
   def entry_link( name )
     basename = File.basename(RmpText.to_utf8(name))
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
-    path   = "#{request.path}?#{ {:asset => safe}.to_query }"
+    query  = {:asset => safe}
+    rev    = request.query_parameters["rev"]
+    query[:rev] = rev if rev.is_a?( String ) && rev.present?
+    path   = "#{request.path}?#{ query.to_query }"
     link_to basename, path, :download => basename
   end #def
   

@@ -66,6 +66,26 @@ class RepositoryPreviewRevisionTest < Redmine::IntegrationTest
     assert_equal 'old', response.body
   end
 
+  # a revision the route's :rev does not take (a slash, capitals) comes as the
+  # rev query parameter: the links keep it, or they lead to the default branch
+  def test_listing_links_keep_a_revision_given_as_a_parameter
+    commit_zip('dir/entry.txt' => 'master')
+    git('checkout', '-q', '-b', 'feature/Review')
+    commit_zip('dir/entry.txt' => 'branch')
+    git('checkout', '-q', 'master')
+
+    get "/projects/#{PRJ_ID}/repository/#{@repository.id}/preview/a.zip@/index.html?rev=feature%2FReview"
+    assert_response :success
+    link = response.body[%r{href="([^"]*asset=dir%2Fentry\.txt[^"]*)"}, 1]
+    assert link, 'the listing links to the entry'
+    link = CGI.unescapeHTML(link)
+    assert_includes link, 'rev=feature%2FReview'
+
+    get link
+    assert_response :success
+    assert_equal 'branch', response.body
+  end
+
   private
 
   # replaces a.zip with an archive of +entries+, commits it and returns the commit id

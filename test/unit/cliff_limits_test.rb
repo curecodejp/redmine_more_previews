@@ -10,9 +10,9 @@ require 'mail'
 # beyond the limit are only counted.
 #
 # The email is parsed in a child process (see Conversion#isolated): an
-# expectation broken there raises in the child, which Cliff writes as its
-# error page, so the tests check the page as well; the parent does not count
-# the child's invocations.
+# expectation broken there fails the child, which gives no preview, so the
+# tests check the preview as well; the parent does not count the child's
+# invocations.
 class CliffLimitsTest < ActiveSupport::TestCase
   RmpFile = RedmineMorePreviews::Lib::RmpFile
 

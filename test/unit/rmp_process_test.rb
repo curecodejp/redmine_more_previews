@@ -116,16 +116,31 @@ class RmpProcessTest < ActiveSupport::TestCase
     assert_operator elapsed, :<, 10
   end
 
-  # memory of the parent, in use or freed, is resident and shared with the
-  # child: a child writing to it copies the pages, which grows its private
-  # memory, not its resident memory or address space
-  def test_child_copying_the_parents_memory_is_stopped
-    skip 'the private memory cannot be read' unless File.readable?('/proc/self/smaps_rollup')
-    buffer = +('x' * (100 * 1024 * 1024))
-    assert_not RmpProcess.fork(timeout: 30, memory: 64 * 1024 * 1024) {
-      (0...buffer.bytesize).step(4096) {|i| buffer.setbyte(i, 121) }
-      sleep 20
-    }
+  # the child's garbage collection writes to most of the heap it inherits,
+  # copying pages that were resident already: that is no memory it takes
+  def test_child_collecting_garbage_in_a_large_parent_is_not_stopped
+    skip 'the memory cannot be read' unless File.readable?('/proc/self/statm')
+    live = Array.new(500_000) { 'z' * 200 }
+    assert RmpProcess.fork(timeout: 30, memory: 64 * 1024 * 1024) { GC.start; GC.start; sleep 1 }
+    assert live.size
+  end
+
+  # a signal stops the child at once: Ruby's DEFAULT would raise
+  # SignalException, which a rescue Exception in the block would take
+  def test_signal_stops_the_child_at_once
+    out = File.join(@dir, 'rescued')
+    elapsed = measure do
+      assert_raises(ConverterTimeout) do
+        RmpProcess.fork(timeout: 1) do
+          sleep 30
+        rescue Exception
+          File.write(out, 'yes')
+          sleep 30
+        end
+      end
+    end
+    assert_not File.exist?(out)
+    assert_operator elapsed, :<, 3
   end
 
   # the child leaves with exit!: no at_exit hook of the parent runs in it

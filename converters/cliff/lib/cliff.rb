@@ -67,9 +67,11 @@ class Cliff < RedmineMorePreviews::Conversion
   def convert
     case preview_format
     when 'html'
-      # what the child needs from the database is read here, before the fork
+      # what the child needs from the database is read here, before the fork,
+      # and the translations loaded, which takes seconds the first time
       LIMITS.each_key {|key| limit( key ) }
       object.to_h["object"].try( :project )
+      I18n.translate( :"redmine_more_previews.cliff.text_more_attachments", :count => 0 )
       isolated( :memory => max_memory ) { eml }
     end
   end #def
@@ -133,8 +135,10 @@ class Cliff < RedmineMorePreviews::Conversion
     
     File.open(tmptarget, "wb") {|f| f.write html }
     
-  rescue Exception => e
-    # the message can quote the mail being parsed, so it is attacker controlled
+  rescue StandardError => e
+    # running out of memory or a signal is no error of the email: the child
+    # fails (see Conversion#isolated), no error page is stored.
+    # The message can quote the mail being parsed, so it is attacker controlled
     File.open(tmptarget, "wb") {|f| f.write (([e.message] + e.backtrace).map{|line| ERB::Util.html_escape(line)}.join("<br>\n")) }
   end #def
   

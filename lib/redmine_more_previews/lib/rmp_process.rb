@@ -20,6 +20,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
+require "etc"
+
 module RedmineMorePreviews
   module Lib
     # Runs a converter command with a time limit. The command gets a process group
@@ -64,12 +66,15 @@ module RedmineMorePreviews
       # files. The child leaves with exit!, running no at_exit hooks and no ensure
       # of the caller (a test runner, a database connection, a tmp directory).
       #
-      # The memory is watched from here, on the child's private memory: a limit
-      # of the address space alone lets the child reuse the free memory it
-      # inherits, whose pages the resident memory counts from the start as
-      # shared with the parent, and a thread in the child does not run while the
-      # child is in a regular expression. The address space is limited as well,
-      # to twice the memory, for growth between two looks.
+      # The memory is watched from here, on the growth of the child's resident
+      # memory: a thread in the child does not run while the child is in a
+      # regular expression. Not on its private memory: the child's garbage
+      # collection writes to most of the heap it inherits, copying hundreds of
+      # megabytes of a large server that were resident already. The resident
+      # memory misses the free memory the child inherits and reuses, which the
+      # parent's free memory bounds, whatever the input; the address space is
+      # limited as well, to twice the memory, which also bounds growth between
+      # two looks.
       #
       # Returns whether the block ran to its end (false when it raised, or the
       # child was killed or stopped for its memory); raises ConverterTimeout when
@@ -82,7 +87,9 @@ module RedmineMorePreviews
         end
         pid = Process.fork do
           begin
-            CHILD_SIGNALS.each {|signal| Signal.trap( signal, "DEFAULT" ) rescue nil }
+            # the system's default: Ruby's DEFAULT raises SignalException, which
+            # a rescue Exception in the block would take for an error
+            CHILD_SIGNALS.each {|signal| Signal.trap( signal, "SYSTEM_DEFAULT" ) rescue nil }
             Process.setpgid( 0, 0 )
             limit_address_space( 2 * memory ) if memory
             yield
@@ -95,40 +102,44 @@ module RedmineMorePreviews
         Process.setpgid( pid, pid ) rescue nil
         status = watch( pid, now + timeout, memory )
         raise Exceptions::ConverterTimeout, "child timed out after #{timeout}s" if status.nil?
-        status != :memory && status.success?
+        status.is_a?( Process::Status ) && status.success?
       ensure
         stop( pid, status.is_a?( Process::Status ) ? status : nil ) if pid
       end #def
       
-      # waits for the child until deadline: its status, :memory once its private
-      # memory grew by more than memory bytes, or nil if it is still running
+      # waits for the child until deadline: its status, :memory once its resident
+      # memory grew by more than memory bytes, :gone if another thread reaped it,
+      # or nil if it is still running
       def self.watch( pid, deadline, memory )
-        base = private_memory( pid ) if memory
+        base = resident( pid ) if memory
         loop do
-          status = reap( pid )
+          status = begin
+            reap( pid )
+          rescue Errno::ECHILD
+            return :gone
+          end
           return status if status
           return nil if now >= deadline
-          return :memory if base && ( private_memory( pid ) || base ) - base > memory
+          return :memory if base && ( resident( pid ) || base ) - base > memory
           sleep POLL
         end
       end #def
       private_class_method :watch
       
-      # bytes of the pages only the process has, those it allocated and those it
-      # copied from the parent on writing them (Linux 4.14); the resident memory
-      # where that is not available; nil if neither can be read
-      def self.private_memory( pid )
-        rollup = File.read( "/proc/#{pid}/smaps_rollup" ) rescue nil
-        kb = if rollup
-          rollup.scan( /^Private_(?:Clean|Dirty):\s+(\d+)\s+kB/ ).sum {|(value)| value.to_i }
-        else
-          File.read( "/proc/#{pid}/status" )[/^VmRSS:\s+(\d+)\s+kB/, 1]&.to_i
-        end
-        kb && kb * 1024
+      # bytes of the process's resident memory, nil if it cannot be read (statm
+      # costs next to nothing to read, unlike smaps)
+      def self.resident( pid )
+        pages = File.read( "/proc/#{pid}/statm" ).split[1]
+        pages && pages.to_i * page_size
       rescue SystemCallError
         nil
       end #def
-      private_class_method :private_memory
+      private_class_method :resident
+      
+      def self.page_size
+        @page_size ||= ( Etc.sysconf( Etc::SC_PAGESIZE ) rescue nil ) || 4096
+      end #def
+      private_class_method :page_size
       
       def self.limit_address_space( bytes )
         size = File.read( "/proc/self/status" )[/^VmSize:\s+(\d+)\s+kB/, 1]

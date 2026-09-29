@@ -105,6 +105,17 @@ class RmpProcessTest < ActiveSupport::TestCase
     assert RmpProcess.fork(timeout: 30, memory: 64 * 1024 * 1024) { 'x' * (8 * 1024 * 1024) }
   end
 
+  # the address space is limited to twice the memory: a child within it is
+  # stopped for its resident memory, which also counts the free memory it
+  # inherited and reuses
+  def test_child_is_stopped_for_its_resident_memory
+    skip 'the memory cannot be read' unless File.readable?('/proc/self/status')
+    elapsed = measure do
+      assert_not RmpProcess.fork(timeout: 30, memory: 64 * 1024 * 1024) { kept = 'x' * (100 * 1024 * 1024); sleep 20; kept.size }
+    end
+    assert_operator elapsed, :<, 10
+  end
+
   # the child leaves with exit!: no at_exit hook of the parent runs in it
   def test_child_runs_no_at_exit_hooks
     ran = File.join(@dir, 'at_exit')

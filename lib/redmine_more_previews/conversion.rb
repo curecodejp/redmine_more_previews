@@ -207,6 +207,7 @@ module RedmineMorePreviews
     ensure
       if slot
         Thread.current[:redmine_more_previews_slot] = nil
+        slot.flock( File::LOCK_UN ) # see with_cache_lock
         slot.close
       end
     end #def
@@ -359,7 +360,13 @@ module RedmineMorePreviews
       FileUtils.mkdir_p( File.dirname( dir ) )
       File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
         wait_for( "preview #{dir}" ) { lock.flock( File::LOCK_EX | File::LOCK_NB ) }
-        yield
+        begin
+          yield
+        ensure
+          # closing alone keeps the lock while a child forked meanwhile, by
+          # another request, holds the file (see Lib::RmpProcess.fork)
+          lock.flock( File::LOCK_UN )
+        end
       end
     end #def
     private :with_cache_lock

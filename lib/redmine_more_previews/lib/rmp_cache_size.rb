@@ -57,10 +57,15 @@ module RedmineMorePreviews
         File.open( File.join( storage, "cache_size.lock" ), File::RDWR | File::CREAT, 0644 ) do |lock|
           # another process is adding up: its total will do
           return unless lock.flock( File::LOCK_EX | File::LOCK_NB )
-          return unless stale?
-          tmp = "#{total_path}.#{Process.pid}"
-          File.write( tmp, add_up.to_s )
-          File.rename( tmp, total_path )
+          begin
+            return unless stale?
+            tmp = "#{total_path}.#{Process.pid}"
+            File.write( tmp, add_up.to_s )
+            File.rename( tmp, total_path )
+          ensure
+            # see Conversion#with_cache_lock
+            lock.flock( File::LOCK_UN )
+          end
         end
       end #def
       private_class_method :refresh

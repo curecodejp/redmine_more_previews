@@ -116,6 +116,24 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_equal :inner, worker.send(:with_slot) { worker.send(:with_slot) { :inner } }
   end
 
+  # a child forked by one request inherits the slot another request holds:
+  # the slot is free once that request is done, not once the child is
+  def test_slot_is_free_while_a_child_forked_meanwhile_runs
+    worker = pass_worker
+    forked = Queue.new
+    child = nil
+    worker.send(:with_slot) do
+      child = Thread.new do
+        RedmineMorePreviews::Lib::RmpProcess.fork(timeout: 10) { forked << true; sleep 5 } rescue nil
+      end
+      sleep 0.5 # the child has been forked
+    end
+    assert_equal :converted, pass_worker.send(:with_slot) { :converted }
+  ensure
+    child&.kill
+    child&.join
+  end
+
   def test_request_waits_no_longer_than_the_wait_limit_for_the_cache_lock
     FileUtils.mkdir_p(File.dirname(File.dirname(@target)))
     lock = File.open("#{File.dirname(@target)}.lock", File::RDWR | File::CREAT)

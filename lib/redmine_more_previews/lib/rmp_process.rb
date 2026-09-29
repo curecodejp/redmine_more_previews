@@ -52,6 +52,55 @@ module RedmineMorePreviews
         stop( pid, status ) if pid
       end #def
       
+      # signals whose handlers a forked child must not keep: a server's handler
+      # would start shutting the server down in the child
+      CHILD_SIGNALS = %w(TERM INT HUP QUIT USR1 USR2).freeze
+
+      # Runs the block in a forked child with a time limit and, where the address
+      # space can be read (Linux), a memory limit of that many bytes on top of
+      # what the child starts with. For work in Ruby, f.i. parsing an email, whose
+      # time and memory nothing else bounds: the child is stopped as a command is,
+      # and it may run out of memory, not the server. The block's results must be
+      # files. The child leaves with exit!, running no at_exit hooks and no ensure
+      # of the caller (a test runner, a database connection, a tmp directory).
+      #
+      # Returns whether the block ran to its end (false when it raised or the
+      # child was killed); raises ConverterTimeout when the time limit passes.
+      # Without fork (Windows) the block runs in this process, with neither limit.
+      def self.fork( timeout:, memory: nil )
+        unless Process.respond_to?( :fork )
+          yield
+          return true
+        end
+        pid = Process.fork do
+          begin
+            CHILD_SIGNALS.each {|signal| Signal.trap( signal, "DEFAULT" ) rescue nil }
+            Process.setpgid( 0, 0 )
+            limit_memory( memory ) if memory
+            yield
+            exit!( 0 )
+          rescue Exception
+            exit!( 1 )
+          end
+        end
+        # also here: the group must exist before stop signals it
+        Process.setpgid( pid, pid ) rescue nil
+        status = wait( pid, now + timeout )
+        raise Exceptions::ConverterTimeout, "child timed out after #{timeout}s" unless status
+        status.success?
+      ensure
+        stop( pid, status ) if pid
+      end #def
+
+      def self.limit_memory( bytes )
+        size = File.read( "/proc/self/status" )[/^VmSize:\s+(\d+)\s+kB/, 1]
+        return unless size
+        limit = size.to_i * 1024 + bytes
+        Process.setrlimit( Process::RLIMIT_AS, limit, limit )
+      rescue SystemCallError, NotImplementedError
+      end #def
+      private_class_method :limit_memory
+
       def self.group_option
         Redmine::Platform.mswin? ? { :new_pgroup => true } : { :pgroup => true }
       end #def

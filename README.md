@@ -72,7 +72,7 @@ to html.
 
 You can view the .eml file almost like in a professional email viewer, see mail headers and download attachments. Cliff will sweep the .eml files from scripts, event attributes beginning with "on…", url() in css styles and external images. To do an unsafe preview, you can press a button do so and if you trust the .eml or .mime file
 
-An email larger than 50 MiB, with more than 1,000 MIME parts, or with multipart parts nested more than 100 levels deep or adding up to more than five times the size limit is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The size, parts and attachments limits can be changed in Cliff's settings.
+An email larger than 50 MiB, with more than 1,000 MIME parts, or with multipart parts nested more than 100 levels deep or adding up to more than five times the size limit is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The size, parts and attachments limits can be changed in Cliff's settings. Cliff parses an email in a child process, within the time limit and with at most 1 GiB of memory beyond what the process starts with: the Mail library can take many times the size of an email to parse some of its lines.
 
 ---
 
@@ -381,5 +381,5 @@ A preview is served from memory: one larger than 100 MiB is answered with `413`.
 
 A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown. A preview shown inline in the page of a file ignores the unsafe parameter for administrators as well.
 
-On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn.
+On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn, and Cliff parses an email within the Redmine process, with neither the time limit nor the memory limit.
  

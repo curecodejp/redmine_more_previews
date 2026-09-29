@@ -68,6 +68,50 @@ class RmpProcessTest < ActiveSupport::TestCase
     assert_process_gone File.read(child).to_i
   end
 
+  # --- a block in a forked child ------------------------------------------------------
+
+  def test_block_runs_in_a_child_and_leaves_files
+    out = File.join(@dir, 'out')
+    assert RmpProcess.fork(timeout: 5) { File.write(out, Process.pid.to_s) }
+    assert_not_equal Process.pid, File.read(out).to_i
+  end
+
+  def test_block_that_raises_is_reported
+    assert_not RmpProcess.fork(timeout: 5) { raise 'broken' }
+  end
+
+  def test_block_is_stopped_at_the_time_limit
+    out = File.join(@dir, 'pid')
+    elapsed = measure do
+      assert_raises(ConverterTimeout) { RmpProcess.fork(timeout: 1) { File.write(out, Process.pid.to_s); sleep 30 } }
+    end
+    assert_operator elapsed, :<, 5
+    assert_process_gone File.read(out).to_i
+  end
+
+  # a server's TERM handler must not run in the child: the child is stopped
+  def test_child_ignores_the_signal_handlers_of_the_server
+    handled = File.join(@dir, 'handled')
+    old = Signal.trap('TERM') { File.write(handled, 'yes') }
+    assert_raises(ConverterTimeout) { RmpProcess.fork(timeout: 1) { sleep 30 } }
+    assert_not File.exist?(handled)
+  ensure
+    Signal.trap('TERM', old || 'DEFAULT')
+  end
+
+  def test_child_runs_out_of_memory_not_the_server
+    skip 'the address space cannot be read' unless File.readable?('/proc/self/status')
+    assert_not RmpProcess.fork(timeout: 30, memory: 64 * 1024 * 1024) { 'x' * (512 * 1024 * 1024) }
+    assert RmpProcess.fork(timeout: 30, memory: 64 * 1024 * 1024) { 'x' * (8 * 1024 * 1024) }
+  end
+
+  # the child leaves with exit!: no at_exit hook of the parent runs in it
+  def test_child_runs_no_at_exit_hooks
+    ran = File.join(@dir, 'at_exit')
+    assert RmpProcess.fork(timeout: 5) { at_exit { File.write(ran, 'yes') } }
+    assert_not File.exist?(ran)
+  end
+
   private
 
   def measure

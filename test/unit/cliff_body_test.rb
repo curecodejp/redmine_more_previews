@@ -99,9 +99,11 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes html, '<b>world</b>'
   end
 
-  # the message of a parse failure quotes the mail, so it is attacker controlled
+  # the message of a parse failure quotes the mail, so it is attacker controlled.
+  # The email is parsed in a child process: a stub works there, an expectation
+  # is not counted
   def test_the_error_page_escapes_the_exception_message
-    Mail.expects(:new).raises(RuntimeError.new("broken #{MARKUP}"))
+    Mail.stubs(:new).raises(RuntimeError.new("broken #{MARKUP}"))
     html = convert(plain_message('body'))
     assert_not_includes html, '<b>bold</b>'
     assert_includes html, '&lt;b&gt;bold&lt;/b&gt;'

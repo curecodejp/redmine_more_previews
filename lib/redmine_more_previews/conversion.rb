@@ -562,6 +562,20 @@ module RedmineMorePreviews
       raise
     end #def
     
+    # runs the block in a child process within the time left for the conversion
+    # and, where it can be bounded, memory bytes (see Lib::RmpProcess.fork): for a
+    # converter that parses the file in Ruby. The block's results must be files
+    def isolated( memory: )
+      remaining = @deadline ? @deadline - Lib::RmpProcess.now : conversion_timeout
+      raise ConverterTimeout, "no time left" unless remaining > 0
+      return true if Lib::RmpProcess.fork( :timeout => remaining, :memory => memory ) { yield }
+      Rails.logger.error("Creating preview with #{name} failed in its child process")
+      raise ConverterShellError
+    rescue ConverterTimeout
+      Rails.logger.error("Creating preview with #{name} timed out after #{conversion_timeout}s")
+      raise
+    end #def
+
     # seconds all the commands of one conversion may run together: the plugin
     # setting, or more if the converter needs it (Libre starts slowly)
     def conversion_timeout

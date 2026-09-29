@@ -8,6 +8,11 @@ require 'mail'
 # recursively (quadratic time, and a stack overflow for large n). The size and
 # the MIME parts are checked before the email is parsed, and the attachments
 # beyond the limit are only counted.
+#
+# The email is parsed in a child process (see Conversion#isolated): an
+# expectation broken there raises in the child, which Cliff writes as its
+# error page, so the tests check the page as well; the parent does not count
+# the child's invocations.
 class CliffLimitsTest < ActiveSupport::TestCase
   RmpFile = RedmineMorePreviews::Lib::RmpFile
 
@@ -145,7 +150,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
   # over: a long run is refused before Mail.new, a usual envelope line is not
   def test_long_envelope_line_is_not_parsed
     n = 1024 * 1024
-    ["From " + ('a' * n), "From" + ("\n" * n) + ":", "From" + (' ' * n)].each do |start|
+    ["From " + ('a' * n), "From" + ("\n" * n) + ":", "From" + (' ' * n), "From \u00e9" + ('a' * n), "From \0" + ('a' * n)].each do |start|
       Mail.expects(:new).never
       assert_includes convert(start + "\r\nSubject: x\r\n\r\nbody"), "line longer than #{Cliff::MAX_LINE} characters"
       Mail.unstub(:new)
@@ -156,6 +161,20 @@ class CliffLimitsTest < ActiveSupport::TestCase
     html = convert("From a@example.test Mon Sep 28 10:00:00 2026\r\nFrom: a@example.test\r\nSubject: mbox\r\nContent-Type: text/plain\r\n\r\nhello")
     assert_not_includes html, 'longer than'
     assert_includes html, 'hello'
+  end
+
+  # a field name Mail's pattern runs over for its colon keeps state for every
+  # byte: the email is parsed in a child process, which runs out of memory
+  # instead of the server. Mocha's expectations are not checked in the child
+  def test_email_is_parsed_in_a_child_with_a_memory_limit
+    skip 'the address space cannot be read' unless File.readable?('/proc/self/status')
+    Cliff.any_instance.stubs(:max_memory).returns(64 * 1024 * 1024)
+    source = ('A' * (4 * 1024 * 1024)) + ": x\r\nSubject: s\r\n\r\nthe body"
+    reset_peak_memory
+    before = peak_memory
+    html = convert(source)
+    assert_operator peak_memory - before, :<, 64 * 1024 * 1024
+    assert_not_includes html, 'the body'
   end
 
   # a long line takes no memory beyond itself to count

@@ -53,6 +53,12 @@ class Cliff < RedmineMorePreviews::Conversion
   MAX_DEPTH      = 100
   MAX_PARSED     = 5
   
+  # Mail's patterns keep state for every byte of some header lines, some 50
+  # times the email in memory, and nothing short of parsing tells which: the
+  # email is parsed in a child process with this much memory (see
+  # Conversion#isolated)
+  MAX_MEMORY     = 1024 * 1024 * 1024
+  
   ########################################################################################
   #
   # convert
@@ -61,7 +67,10 @@ class Cliff < RedmineMorePreviews::Conversion
   def convert
     case preview_format
     when 'html'
-      eml
+      # what the child needs from the database is read here, before the fork
+      LIMITS.each_key {|key| limit( key ) }
+      object.to_h["object"].try( :project )
+      isolated( :memory => max_memory ) { eml }
     end
   end #def
   
@@ -271,9 +280,16 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   # limits
   #---------------------------------------------------------------------------------------
+  def max_memory
+    MAX_MEMORY
+  end #def
+  
   def limit( key )
-    value = converter_settings[key].to_i
-    value > 0 ? value : LIMITS[key]
+    @limits ||= {}
+    @limits[key] ||= begin
+      value = converter_settings[key].to_i
+      value > 0 ? value : LIMITS[key]
+    end
   end #def
   
   # a line starting with "--": Mail splits a part at a line of "--" and its
@@ -283,11 +299,12 @@ class Cliff < RedmineMorePreviews::Conversion
   DELIMITER = /(?:\A|[\r\n])--/
   
   # the text Mail's pattern for an mbox "From " line runs over: "From", white
-  # space (line breaks included) and the ASCII text after it. The pattern keeps
+  # space (line breaks included), a character and the ASCII text after it, of
+  # which the rest of the line is an upper bound. The pattern keeps
   # state for every byte it runs over, some 50 times the text in memory, so the
   # run is bounded by the longest line of a message (RFC 5322) first, on no
   # more of the text than that
-  ENVELOPE      = /\AFrom\s*[\x01-\x09\x0b\x0c\x0e-\x7f]*/n
+  ENVELOPE      = /\AFrom\s*[^\r\n]*/n
   MAX_LINE      = 998
   
   # counts the delimiter lines of the raw message, an upper bound of the parts

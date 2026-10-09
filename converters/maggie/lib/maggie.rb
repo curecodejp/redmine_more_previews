@@ -25,6 +25,19 @@ class Maggie < RedmineMorePreviews::Conversion
 
   DENSITIES   = [["72", "72"], ["96", "96"], ["144", "144"], ["300", "300"]]
   CONVERT_BIN = (Redmine::Configuration['imagemagick_convert_command'] || 'convert').freeze
+  
+  # ImageMagick picks the coder of a file from a "<coder>:" prefix or its content, and
+  # reads a name starting with "|" as a command and one starting with "-" as an option:
+  # the input is read with the coder the converter was chosen for, and the output gets
+  # a fixed name instead of one made from the (user chosen) file name
+  CODERS      = {"image/jpeg" => "jpeg", "image/png" => "png", "image/gif" => "gif", "image/bmp" => "bmp"}.freeze
+  OUTPUT      = "out"
+  
+  # bounds of ImageMagick's pixel cache. width, height and disk are hard limits (the
+  # conversion fails): -resample enlarges an image by its own resolution, which the
+  # file sets. They do not bound Ghostscript's rendering of a PDF page.
+  LIMITS      = [["width", "16KP"], ["height", "16KP"], ["area", "128MP"],
+                 ["memory", "256MiB"], ["map", "512MiB"], ["disk", "1GiB"]].freeze
     
   def status
     [:text_convert_available, Redmine::Thumbnail.convert_available?]
@@ -32,22 +45,30 @@ class Maggie < RedmineMorePreviews::Conversion
   
   def convert
     mime_type = Marcel::MimeType.for(Pathname.new(source), name: File.basename(source))
+    output    = thisdir("#{OUTPUT}.#{preview_format}")
     
     cmd = case mime_type
     when "image/jpeg", "image/png"
-      "#{shell_quote CONVERT_BIN} -resample #{get_density}x#{get_density} #{shell_quote source} #{shell_quote "#{preview_format}:#{outfile}"}"
+      "#{convert_command} -resample #{get_density}x#{get_density} #{shell_quote "#{CODERS[mime_type]}:#{source}"} #{shell_quote "#{preview_format}:#{output}"}"
       
     when "image/gif", "image/bmp"
-      "#{shell_quote CONVERT_BIN} -density 72x72 #{shell_quote source} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{outfile}"}"
+      "#{convert_command} -density 72x72 #{shell_quote "#{CODERS[mime_type]}:#{source}"} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
     
     when "application/pdf"
-      if Redmine::Thumbnail.gs_available?
-        "#{shell_quote CONVERT_BIN} -density #{get_density} #{shell_quote "#{source}[0]"} #{shell_quote outfile}"
+      # see RedmineMorePreviews.valid_pdf_magic?
+      if !RedmineMorePreviews.valid_pdf_magic?(source)
+        nil
+      elsif Redmine::Thumbnail.gs_available?
+        "#{convert_command} -density #{get_density} #{shell_quote "pdf:#{source}[0]"} #{shell_quote "#{preview_format}:#{output}"}"
       else
-        copy( source, thisdir(outfile) )
+        copy( source, output )
       end
     end
-    command( cd + join + cmd + join + move(thisdir(outfile))) if cmd
+    command( cd + join + cmd + join + move(output)) if cmd
+  end #def
+  
+  def convert_command
+    ([shell_quote(CONVERT_BIN)] + LIMITS.map{|resource, value| "-limit #{resource} #{value}"}).join(" ")
   end #def
   
   def get_density

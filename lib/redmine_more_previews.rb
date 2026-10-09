@@ -21,6 +21,20 @@
 #
 
 module RedmineMorePreviews
+  
+  # Whether a file starts as a PDF: Ghostscript runs a file as PostScript unless
+  # it does, whatever coder ImageMagick asks for, while Marcel already reports
+  # application/pdf when %PDF- appears near the start. Every converter that hands
+  # a PDF to Ghostscript (also through Redmine::Thumbnail) checks this first:
+  # Redmine's own Redmine::Thumbnail.valid_pdf_magic? is missing in 6.0.0 - 6.0.7
+  # and 6.1.0, and could be bypassed before 6.0.10 / 6.1.3.
+  def self.valid_pdf_magic?(path)
+    magic = File.binread(path, 8).to_s
+    magic.start_with?("%PDF-".b) || magic == "\xEF\xBB\xBF%PDF-".b
+  rescue SystemCallError
+    false
+  end #def
+  
 end
 
 require_relative "redmine_more_previews/constants"

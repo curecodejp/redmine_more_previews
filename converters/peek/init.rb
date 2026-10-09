@@ -26,6 +26,8 @@
 #       - added internationalization for de, en, es, fr, pt, ru, jp, zh
 # 1.1.1
 #       - fixed japanese localization
+# 1.1.2
+#       - validate PDF headers before thumbnail conversion
 #
 #
 require_relative 'lib/peek'
@@ -34,7 +36,7 @@ RedmineMorePreviews::Converter.register :peek do
   name           'Peek'
   author         'Stephan Wenzel'
   description    'Preview PDF in preview pane'
-  version        '1.1.1'
+  version        '1.1.2'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_peek'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_peek'
                  

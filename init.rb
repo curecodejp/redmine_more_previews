@@ -130,6 +130,10 @@
 #       - Redmine 6.1 compatibility verified while retaining Redmine 6.0 support
 #       - compatibility, security hardening, and preview regression fixes
 #       - Plugin version set to 6.1.0 for the Cure Code maintained release
+# 6.1.1
+#       - Fix repository preview permissions (GHSA-858f-2pxg-c64q)
+#       - Isolate repository preview caches by repository, revision and content (GHSA-gw4x-rrqx-3v8x)
+#       - Harden Maggie and Peek PDF processing (GHSA-rxp7-cw7g-6xfv)
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -137,7 +141,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.0'
+  version      '6.1.1'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

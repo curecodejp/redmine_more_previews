@@ -474,11 +474,16 @@ module VObject
     ######################################################################################
     GEO_WEBALIZE_PROC = Proc.new do |hash,iconize|
       icon = iconize.presence && "icon icon-geo"
-      link_to(
-        hash[:fields][:opaque], 
-        "https://www.google.com/maps/@#{hash[:fields][:opaque]},15z",
-        :class => "vcard geo #{icon}"
-      )
+      if hash[:fields][:scheme].to_s.downcase == 'geo' && hash[:fields][:opaque].present?
+        link_to(
+          hash[:fields][:opaque],
+          "https://www.google.com/maps/@#{hash[:fields][:opaque]},15z",
+          :class => "vcard geo #{icon}"
+        )
+      else
+        # Only geo: coordinates should become map links; other schemes stay plain text.
+        content_tag(:span, hash[:fields][:full], :class => "vcard geo #{icon}")
+      end
     end
     
     def geo(*val, **att)

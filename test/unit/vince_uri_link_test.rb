@@ -16,13 +16,20 @@ class VinceUriLinkTest < ActiveSupport::TestCase
       ['url', 'HTTPS://example.invalid/page'],
       ['url', 'ftp://example.invalid/file'],
       ['url', 'mailto:user@example.invalid'],
-      ['tel', 'tel:+12025550123'],
-      ['geo', 'geo:35.0,139.0']
+      ['tel', 'tel:+12025550123']
     ].each do |field, uri|
       link = preview(field, uri).at_css('a')
       assert_not_nil link, uri
       assert_equal uri.downcase.split(':', 2).first, link['href'].split(':', 2).first.downcase, uri
     end
+  end
+
+  def test_geo_has_a_dedicated_google_maps_renderer
+    link = preview('geo', 'geo:35.0,139.0').at_css('a')
+
+    assert_not_nil link
+    assert_match(/\\Ahttps:\\/\\/www\\.google\\.com\\/maps\\//, link['href'])
+    assert_includes link.text, '35.0,139.0'
   end
 
   def test_unsupported_uri_schemes_render_as_plain_text
@@ -31,8 +38,7 @@ class VinceUriLinkTest < ActiveSupport::TestCase
       ['url', 'data:text/plain,hello'],
       ['url', 'file:///tmp/sample.txt'],
       ['url', 'nothttps:example.invalid'],
-      ['tel', 'javascript:noop'],
-      ['geo', 'custom:35.0,139.0']
+      ['tel', 'javascript:noop']
     ].each do |field, uri|
       fragment = preview(field, uri)
       assert_nil fragment.at_css('a'), uri

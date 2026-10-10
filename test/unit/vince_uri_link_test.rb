@@ -38,7 +38,8 @@ class VinceUriLinkTest < ActiveSupport::TestCase
       ['url', 'data:text/plain,hello'],
       ['url', 'file:///tmp/sample.txt'],
       ['url', 'nothttps:example.invalid'],
-      ['tel', 'javascript:noop']
+      ['tel', 'javascript:noop'],
+      ['geo', 'custom:35.0,139.0']
     ].each do |field, uri|
       fragment = preview(field, uri)
       assert_nil fragment.at_css('a'), uri

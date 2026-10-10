@@ -38,7 +38,7 @@ class VinceHtmlTemplateTest < ActiveSupport::TestCase
     assert_includes html, '/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css'
   end
   def test_fn_is_html_escaped_in_both_preview_formats
-    vcf = "BEGIN:VCARD\\r\\nVERSION:4.0\\r\\nFN:Name <b>not markup</b> & friends\\r\\nEND:VCARD\\r\\n"
+    vcf = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Name <b>not markup</b> & friends\r\nEND:VCARD\r\n"
     card = VinceLib::VObject::Reader.new(object: :vcard, string: vcf).stringall.first
 
     %w[html inline].each do |format|

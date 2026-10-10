@@ -46,6 +46,8 @@ module VObject
       attr_accessor :name, :parent, :fields, :humanize_proc, :webalize_proc, :readable_proc
       
       LABEL_WIDTH=24
+      LINKABLE_URI_SCHEMES = %w[http https ftp mailto tel geo].freeze
+      LINKABLE_IM_SCHEMES = %w[xmpp sip sips im skype].freeze
       
       ####################################################################################
       # dynamic method definitions
@@ -331,21 +333,24 @@ module VObject
               webalize_proc.call(hash,iconize)
             else
               if hash[:fields][:scheme].present?
-                text = case hash[:fields][:scheme]
-                when /http/i, /https/i, /ftp/i
+                scheme = hash[:fields][:scheme].to_s.downcase
+                text = case scheme
+                when 'http', 'https', 'ftp'
                   hash[:fields][:host].presence || hash[:fields][:path]
-                when /tel/i
+                when 'tel'
                   teltype = (hash.dig(:attributes, :TYPE).to_a.map(&:to_s).map(&:downcase) & %w(voice fax text cell video pager textphone)).first
                   icon << "-#{teltype}" if iconize.present? && teltype.present?
-                  hash[:fields][:opaque][0..32] 
-                when /mailto/i
-                  hash[:fields][:opaque][0..32] 
-                when /geo/i
-                  hash[:fields][:opaque][0..32] 
+                  hash[:fields][:opaque][0..32]
+                when 'mailto', 'geo'
+                  hash[:fields][:opaque][0..32]
                 else
-                  hash[:fields][:scheme]
+                  hash[:fields][:full]
                 end
-                content_tag(:span, link_to( text, hash[:fields][:full]), :class => "#{parent_class_symbol} #{name} #{icon}")
+                # Restrict IM client schemes to IMPP; all other unknown schemes stay plain text.
+                allowed = LINKABLE_URI_SCHEMES.include?(scheme) ||
+                          (name == :impp && LINKABLE_IM_SCHEMES.include?(scheme))
+                rendered = allowed ? link_to(text, hash[:fields][:full]) : text
+                content_tag(:span, rendered, :class => "#{parent_class_symbol} #{name} #{icon}")
                 
               elsif hash[:fields][:opaque].present?
                 content_tag(:span, hash[:fields][:opaque][0..32], :class => "#{parent_class_symbol} #{name} #{icon}")

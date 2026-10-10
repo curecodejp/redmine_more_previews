@@ -1,0 +1,2 @@
+# PDF object and xref offsets are byte-based; preserve bytes on every platform.
+*.pdf -text

@@ -28,7 +28,7 @@ class VinceUriLinkTest < ActiveSupport::TestCase
     link = preview('geo', 'geo:35.0,139.0').at_css('a')
 
     assert_not_nil link
-    assert_match(/\\Ahttps:\\/\\/www\\.google\\.com\\/maps\\//, link['href'])
+    assert link['href'].start_with?('https://www.google.com/maps/'), link['href']
     assert_includes link.text, '35.0,139.0'
   end
 

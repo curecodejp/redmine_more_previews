@@ -40,11 +40,24 @@ class VinceUriLinkTest < ActiveSupport::TestCase
   def test_geo_uses_only_numeric_coordinates_in_map_url
     [
       ['geo:35.0,139.0;u=30', 'https://www.google.com/maps/@35.0,139.0,15z'],
-      ['geo:-45.25,120.5,15;crs=wgs84', 'https://www.google.com/maps/@-45.25,120.5,15z']
+      ['geo:-45.25,120.5,15;crs=wgs84', 'https://www.google.com/maps/@-45.25,120.5,15z'],
+      ['geo:35.0,139.0;u=%2F..%2F', 'https://www.google.com/maps/@35.0,139.0,15z']
     ].each do |uri, expected_href|
       link = preview('geo', uri).at_css('a')
       assert_not_nil link, uri
       assert_equal expected_href, link['href'], uri
+    end
+  end
+
+  def test_geo_rejects_malformed_parameters_without_creating_a_link
+    [
+      'geo:35.0,139.0;u=30/../../url?q=https://evil.example',
+      'geo:35.0,139.0;u=30?next=https://evil.example'
+    ].each do |uri|
+      fragment = preview('geo', uri)
+
+      assert_nil fragment.at_css('a'), uri
+      assert_includes fragment.text, uri, uri
     end
   end
 

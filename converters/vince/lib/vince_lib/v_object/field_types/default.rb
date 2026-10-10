@@ -46,6 +46,8 @@ module VObject
       attr_accessor :name, :parent, :fields, :humanize_proc, :webalize_proc, :readable_proc
       
       LABEL_WIDTH=24
+      LINKABLE_URI_SCHEMES = %w[http https ftp mailto tel geo].freeze
+      LINKABLE_IM_SCHEMES = %w[xmpp sip sips im skype].freeze
       
       ####################################################################################
       # dynamic method definitions
@@ -344,8 +346,9 @@ module VObject
                 else
                   hash[:fields][:full]
                 end
-                # Unsupported URI schemes must not produce clickable links.
-                allowed = %w[http https ftp mailto tel geo].include?(scheme)
+                # Restrict IM client schemes to IMPP; all other unknown schemes stay plain text.
+                allowed = LINKABLE_URI_SCHEMES.include?(scheme) ||
+                          (name == :impp && LINKABLE_IM_SCHEMES.include?(scheme))
                 rendered = allowed ? link_to(text, hash[:fields][:full]) : text
                 content_tag(:span, rendered, :class => "#{parent_class_symbol} #{name} #{icon}")
                 

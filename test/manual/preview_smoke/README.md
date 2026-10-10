@@ -8,7 +8,7 @@ All five test files, **including the PDF**, are checked into this directory. The
 
 1. Open a test-only issue in a test project on `test-lab`; confirm that `redmine_more_previews` v6.1.1 or later is installed.
 2. Upload the five files from this directory to that issue as attachments.
-3. Choose `inline` for Markdown and both vCards. For EML, check the available `inline` and/or `html` preview modes. Use the regular PDF preview for the PDF.
+3. Choose `inline` for Markdown and both vCards. For EML, use the `html` preview format (Cliff supports `html` only). Use the `pdf` preview format for the PDF.
 4. Record results on Redmine #19143. Report the tested Redmine/plugin versions and preview format. A successful automated test suite alone does not complete the manual visual check.
 
 ## Manual checks
@@ -19,7 +19,7 @@ All five test files, **including the PDF**, are checked into this directory. The
 | `02-vcard-remote-image.vcf` | vCard text is readable. **No browser request is made** for `rmp-external-image-probe.png` when displayed `inline` (details below). |
 | `03-vcard-inline-image.vcf` | The embedded `data:image/png;base64,...` PHOTO is retained and can be inspected in the rendered markup. It is a tiny test PNG, so inspect the image element if the pixel is difficult to see. |
 | `04-email-long-headers.eml` | Long To, Cc, and Subject fields wrap instead of escaping the preview pane or obscuring other UI elements. |
-| `05-pdf-preview.pdf` | This **repository-tracked** one-page PDF opens normally. The heading `PDF PREVIEW OK` and the three numbered rows (01-03) are visible, without CSP/sandbox blocking the viewer. |
+| `05-pdf-preview.pdf` | Preview format **`pdf`**. This **repository-tracked** one-page PDF opens normally. The heading `PDF PREVIEW OK` and the three numbered rows (01-03) are visible, without CSP/sandbox blocking the viewer. Optionally repeat with `png` and record it as a separate result. |
 
 ## Confirm remote images are *not requested*
 

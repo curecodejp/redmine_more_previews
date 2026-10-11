@@ -305,6 +305,19 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # an entry of a zip that fails to extract: the names listed from the central
+  # directory are stored, and the failure remembered, so that the entry is not
+  # extracted again
+  def test_zip_entry_that_fails_is_not_extracted_again
+    zip = build_zip(path('a.zip'), 'a.txt' => 'a')
+    Zip::Entry.any_instance.stubs(:get_input_stream).raises(Zip::Error, 'broken')
+    assert_nil stored_asset(zip, 'a.txt')
+    assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(asset_target(zip, 'a.txt'))
+    Zippy.any_instance.expects(:convert).never
+    assert_nil stored_asset(zip, 'a.txt')
+    assert_nil stored_asset(zip, 'missing.txt')
+  end
+
   # the first exact match wins over a later entry of the same name, as before
   # the walk went on past it
   def test_first_entry_of_a_name_is_extracted

@@ -311,6 +311,7 @@ module RedmineMorePreviews
         Rails.logger.error "An error occured while generating preview for #{file.path}"
         Rails.logger.error "Exception was: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
+        failure ||= targetpath if asset && asset_listed == true
         Lib::RmpFailures.record( failure, "error" )
         return nil
       end
@@ -371,11 +372,11 @@ module RedmineMorePreviews
             return with_slot { sync { transient_preview{|target_data, asset_data, *| asset ? asset_data : target_data } } }
           end
           # a preview that could not be served is not stored either; the names a
-          # converter listed before it stopped at a limit are, so that another
-          # name is not looked for again
+          # converter listed before it stopped at a limit or failed are, so that
+          # another name is not looked for again
           begin
             with_slot { sync { transient_preview( read: false ) { check_output_size; copy_over } } }
-          rescue ConverterTooLarge
+          rescue StandardError
             store_asset_list
             raise
           end

@@ -318,6 +318,18 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_nil stored_asset(zip, 'missing.txt')
   end
 
+  # a listing that fails at a broken entry offers the entries before it still
+  def test_entries_before_a_break_in_a_failed_listing_are_offered
+    tar = build_tar(path('broken.tar'), 'a.txt' => 'a', 'b.txt' => 'b')
+    data = File.binread(tar)
+    data[1024, 512] = 'x' * 512 # the header of b.txt
+    File.binwrite(tar, data)
+    assert_nil zippy_worker(target: target_of(tar), request: fake_request).preview(File.new(tar))
+    assert_equal 'a', stored_asset(tar, 'a.txt')
+    Zippy.any_instance.expects(:convert).never
+    assert_raises(ConverterTooLarge) { stored_asset(tar, 'b.txt') }
+  end
+
   # a zip that cannot be opened offers no asset: no name opens it again
   def test_zip_that_cannot_be_opened_is_not_opened_again
     zip = build_zip(path('a.zip'), 'a.txt' => 'a')

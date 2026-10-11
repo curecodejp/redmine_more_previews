@@ -130,7 +130,14 @@ class Zippy < RedmineMorePreviews::Conversion
   def tartoc( tarball )
     list = [[I18n.translate(:label_filepath)]]
     @names = Set.new
-    complete = tarlist( tarball, "", list)
+    complete = begin
+      tarlist( tarball, "", list)
+    rescue StandardError
+      # the listing fails, the names before the break are offered still, as a
+      # list that stopped at a limit
+      list_assets( @names, false )
+      raise
+    end
     list_assets( @names, complete )
     list << [CGI.escapeHTML(I18n.translate(:"redmine_more_previews.zippy.text_list_truncated"))] unless complete
     html = list.to_html(

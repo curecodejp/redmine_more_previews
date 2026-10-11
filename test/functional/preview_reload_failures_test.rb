@@ -172,19 +172,53 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     assert_response 413
   end
 
-  def test_missing_asset_is_remembered_and_does_not_stop_the_others
+  # the name of an asset comes from the request: one the stored listing has not
+  # is not converted for, and no failure is kept for it (a file for each name)
+  def test_missing_asset_is_not_converted_for_and_does_not_stop_the_others
     as_user(2)
-    get :more_asset, params: {id: @attachment.id, asset: 'missing', assetformat: 'txt'}
-    assert_response 404
+    get_preview
     Zippy.any_instance.expects(:convert).never
-    get :more_asset, params: {id: @attachment.id, asset: 'missing', assetformat: 'txt'}
-    assert_response 404
+    %w(missing other/missing).each do |name|
+      get :more_asset, params: {id: @attachment.id, asset: name, assetformat: 'txt'}
+      assert_response 404
+    end
+    assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
+    # nor is the cache lock of its directory taken
+    assert_not File.exist?(File.join(File.dirname(cached_listing), 'other'))
+    assert_not File.exist?(File.join(File.dirname(cached_listing), 'other.lock'))
     Zippy.any_instance.unstub(:convert)
     get :more_asset, params: {id: @attachment.id, asset: 'safe', assetformat: 'txt'}
     assert_response :success
     assert_equal 'safe', response.body
     get_preview
     assert_response :success
+  end
+
+  def test_missing_asset_without_a_listing_is_not_remembered
+    as_user(2)
+    get :more_asset, params: {id: @attachment.id, asset: 'missing', assetformat: 'txt'}
+    assert_response 404
+    assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
+  end
+
+  # a converter that writes its assets with the preview: an asset the stored
+  # preview has not does not exist, and the preview is not converted again for it
+  def test_asset_missing_from_a_preview_with_all_its_assets_is_not_converted_for
+    as_user(2)
+    Zippy.any_instance.stubs(:assets_on_demand?).returns(false)
+    get_preview
+    Zippy.any_instance.expects(:convert).never
+    get :more_asset, params: {id: @attachment.id, asset: 'missing', assetformat: 'txt'}
+    assert_response 404
+    assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
+  end
+
+  def test_reload_by_an_administrator_converts_a_missing_asset
+    as_user(1)
+    get_preview
+    Zippy.any_instance.expects(:convert).once
+    get :more_asset, params: {id: @attachment.id, asset: 'missing', assetformat: 'txt', reload: '1'}
+    assert_response 404
   end
 
   def test_busy_is_not_remembered

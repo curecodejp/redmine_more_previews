@@ -97,6 +97,27 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  # the links of the stored listing lead to entries whose names are not ASCII,
+  # in UTF-8 or in the code page of Windows: the list of the assets has them by
+  # the name of the link
+  def test_toc_links_of_entries_with_non_ascii_names_resolve_to_the_entries
+    Dir.mktmpdir do |dir|
+      cp932 = "日本語/資料.txt".encode('CP932').b
+      a = attach(build_tar(File.join(dir, 'names.tar'), 'ディレクトリ/ファイル.txt' => 'utf-8', cp932 => 'cp932'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      hrefs = response.body.scan(/href="([^"]*asset=[^"]*)"/).flatten
+      assert_equal 2, hrefs.size, "links in #{response.body}"
+      bodies = hrefs.map do |href|
+        query = Rack::Utils.parse_query(URI.parse(CGI.unescapeHTML(href)).query)
+        get :more_preview, params: {id: a.id, format: 'html'}.merge(query.symbolize_keys)
+        assert_response :success
+        response.body
+      end
+      assert_equal %w(cp932 utf-8), bodies.sort
+    end
+  end
+
   def test_asset_escaping_the_preview_directory_is_rejected
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'bad.zip'), '../../escaped.txt' => 'owned'))

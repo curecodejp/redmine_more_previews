@@ -26,8 +26,9 @@ module RedmineMorePreviews
     # each stored preview has (<dir>.converter, written when it is stored; using
     # a preview does not renew it). A preview is removed under its cache lock,
     # and skipped while a request holds the lock: it is removed on the next run.
-    # The lock files stay, as a request may be waiting on one. Failures
-    # remembered longer than Converter.failure_ttl are removed as well.
+    # The lock files stay, as a request may be waiting on one; the list of its
+    # assets goes with it (see RmpAssetList). Failures remembered longer than
+    # Converter.failure_ttl are removed as well.
     module RmpCacheClean
       
       # the number of previews removed
@@ -49,6 +50,7 @@ module RedmineMorePreviews
             next unless old?( marker, cutoff )
             FileUtils.rm_rf( dir )
             FileUtils.rm_f( marker )
+            RmpAssetList.remove( dir )
             removed += 1
           end
         end

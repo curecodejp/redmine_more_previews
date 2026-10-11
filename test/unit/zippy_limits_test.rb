@@ -185,7 +185,65 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_equal Zippy::MAX_DEPTH, depth
   end
 
+  # the stored listing names the entries: another name is not looked for in the
+  # archive again, and no failure is kept for it (one for each name asked for)
+  def test_name_missing_from_the_stored_listing_is_not_looked_for
+    tgz = build_tgz(path('a.tgz'), 'a.txt' => 'a', 'dir/b.txt' => 'b')
+    store_listing(tgz)
+    Zippy.any_instance.expects(:convert).never
+    %w(missing.txt dir/missing.txt).each do |name|
+      assert_nil stored_asset(tgz, name)
+      assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(asset_target(tgz, name))
+    end
+  end
+
+  def test_names_in_the_stored_listing_are_extracted
+    tgz = build_tgz(path('a.tgz'), './a.txt' => 'a', 'dir/b.txt' => 'b')
+    zip = build_zip(path('a.zip'), 'dir/' => '', 'dir/c.txt' => 'c')
+    store_listing(tgz)
+    store_listing(zip)
+    assert_equal 'a', stored_asset(tgz, 'a.txt'), 'by its normalized name'
+    assert_equal 'b', stored_asset(tgz, 'dir/b.txt')
+    assert_equal 'c', stored_asset(zip, 'dir/c.txt')
+    assert_nil stored_asset(zip, 'dir'), 'a directory is no asset'
+  end
+
+  # a listing that stopped at a limit: a name it has not may lie beyond, and is
+  # refused as the walk would refuse it, without the walk
+  def test_name_beyond_a_truncated_listing_is_refused_without_a_walk
+    tgz = build_tgz(path('a.tgz'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    with_zippy_limits('max_entries' => '3') do
+      store_listing(tgz)
+      assert_equal 'file 2', stored_asset(tgz, 'f2.txt')
+      Zippy.any_instance.expects(:convert).never
+      assert_raises(ConverterTooLarge) { stored_asset(tgz, 'f5.txt') }
+      assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(asset_target(tgz, 'f5.txt'))
+    end
+  end
+
+  # without a stored listing the archive is walked, and a missing name is still
+  # not remembered as failed
+  def test_missing_name_without_a_stored_listing_is_not_remembered
+    tgz = build_tgz(path('a.tgz'), 'a.txt' => 'a')
+    assert_nil stored_asset(tgz, 'missing.txt')
+    assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(asset_target(tgz, 'missing.txt'))
+  end
+
   private
+
+  def store_listing(archive_path)
+    worker = zippy_worker(target: target_of(archive_path), request: fake_request)
+    assert worker.preview(File.new(archive_path))
+  end
+
+  def asset_target(archive_path, asset)
+    File.join(File.dirname(target_of(archive_path)), asset)
+  end
+
+  # an asset converted into the cache, as a link of the listing asks for it
+  def stored_asset(archive_path, asset)
+    zippy_worker(target: asset_target(archive_path, asset), asset: asset).preview(File.new(archive_path))
+  end
 
   def path(name)
     File.join(FileUtils.mkdir_p(File.join(@tmp, 'archives')).first, name)

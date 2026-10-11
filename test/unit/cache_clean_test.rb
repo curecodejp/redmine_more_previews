@@ -29,6 +29,7 @@ class CacheCleanTest < ActiveSupport::TestCase
     assert_equal 2, RmpCacheClean.run(30)
     assert_not File.exist?(old)
     assert_not File.exist?("#{old}.converter")
+    assert_not File.exist?("#{old}.assets"), 'the list of its assets goes with it'
     assert File.exist?("#{old}.lock"), 'lock files stay'
     assert File.exist?(File.join(recent, 'index.html'))
     assert_not File.exist?(repository)
@@ -88,6 +89,7 @@ class CacheCleanTest < ActiveSupport::TestCase
     FileUtils.mkdir_p(dir)
     File.write(File.join(dir, 'index.html'), 'preview')
     File.write("#{dir}.converter", 'zippy')
+    File.write("#{dir}.assets", "complete\n")
     File.write("#{dir}.lock", '')
     age("#{dir}.converter", days * DAY)
     dir

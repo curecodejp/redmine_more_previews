@@ -76,6 +76,12 @@ class Zippy < RedmineMorePreviews::Conversion
   # convert
   #
   ########################################################################################
+  # an asset is extracted when it is asked for: the listing gives the names of
+  # the entries, so that other names are not looked for in the archive again
+  def assets_on_demand?
+    true
+  end #def
+  
   def convert
     case File.extname( source ).downcase
     when ".zip"
@@ -123,7 +129,9 @@ class Zippy < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   def tartoc( tarball )
     list = [[I18n.translate(:label_filepath)]]
+    @names = Set.new
     complete = tarlist( tarball, "", list)
+    list_assets( @names, complete )
     list << [CGI.escapeHTML(I18n.translate(:"redmine_more_previews.zippy.text_list_truncated"))] unless complete
     html = list.to_html(
         :table_class => "list",
@@ -141,6 +149,7 @@ class Zippy < RedmineMorePreviews::Conversion
    def tarlist( tarball, path="", arr=[], level=0 )
     each_tar_entry( tarball ) do |entry|
       if entry.file?
+        list_name( entry.full_name )
         arr << [("&nbsp;" * 2 * level + tarlink(entry))]
       elsif entry.directory?
         arr << [("&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(File.basename(RmpText.to_utf8(entry.full_name)))) + "</strong>"]
@@ -165,11 +174,12 @@ class Zippy < RedmineMorePreviews::Conversion
     true
   end #def
   
-  # the cache directory of the whole archive: an asset is stored below it at its
-  # own path, so dir is the directory of a nested asset only (a/b.txt -> .../a)
-  def archive_dir
-    suffix = File.join( "", asset.to_s )
-    asset && targetpath.to_s.end_with?( suffix ) ? targetpath.delete_suffix( suffix ) : dir
+  # an asset is asked for by the name of its entry or by that name normalized
+  # (see asset_entry)
+  def list_name( name )
+    @names << name
+    normalized = RmpFile.safe_relative_path( name )
+    @names << normalized if normalized
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -249,7 +259,7 @@ class Zippy < RedmineMorePreviews::Conversion
   
   # bytes of the files cached for this archive (the listing and the assets)
   def stored_bytes
-    root = archive_dir
+    root = preview_root
     return 0 unless root && File.directory?( root )
     Dir.glob( File.join( root, "**", "*" ), File::FNM_DOTMATCH ).sum do |path|
       stat = File.lstat( path ) rescue nil
@@ -354,6 +364,9 @@ class Zippy < RedmineMorePreviews::Conversion
              I18n.translate(:label_compressed_filesize)
     ]];
     ziplist( zip_file, "", list )
+    @names = Set.new
+    zip_file.entries.each {|entry| list_name( entry.name ) if entry.ftype == :file }
+    list_assets( @names, true )
     html = list.to_html(
       :table_class => "list",
       :headings    => true,

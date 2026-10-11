@@ -113,7 +113,7 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   def tgztable
-    unreadable( Zlib::GzipFile::Error ) do
+    unreadable do
       Zlib::GzipReader.open(source) do |tarfile|
         tartoc( Gem::Package::TarReader.new( tarfile ))
       end
@@ -121,7 +121,7 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   def tgzasset
-    unreadable( Zlib::GzipFile::Error ) do
+    unreadable do
       Zlib::GzipReader.open(source) do |tarfile|
         tarcontent( Gem::Package::TarReader.new( tarfile ))
       end
@@ -129,13 +129,24 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   # an archive that cannot be opened offers no asset: an empty list is stored, so
-  # that no name opens it again (an error of the system may pass, and is not taken
-  # for the archive's)
-  def unreadable( error )
+  # that no name opens it again. rubyzip and zlib fail on a broken archive with
+  # errors of their own and others (TypeError, ArgumentError, ...), any of which
+  # is taken for the archive's; an error of the system may pass, and a limit is
+  # not the archive's failure either
+  def unreadable
     yield
-  rescue error
-    list_assets( [], true ) unless @listed_assets || File.file?( RmpAssetList.path( dir ) )
+  rescue SystemCallError, ConverterTooLarge, ConverterTimeout
     raise
+  rescue IOError => e
+    broken if e.is_a?( EOFError )
+    raise
+  rescue StandardError
+    broken
+    raise
+  end #def
+
+  def broken
+    list_assets( [], true ) unless @listed_assets || File.file?( RmpAssetList.path( dir ) )
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -342,7 +353,7 @@ class Zippy < RedmineMorePreviews::Conversion
   ########################################################################################
   def ziptable
     check_central_directory
-    unreadable( Zip::Error ) do
+    unreadable do
       Zip::File.open(source)  do |zip_file|
         ziptoc( zip_file )
       end
@@ -351,7 +362,7 @@ class Zippy < RedmineMorePreviews::Conversion
   
   def zipasset
     check_central_directory
-    unreadable( Zip::Error ) do
+    unreadable do
       Zip::File.open(source)  do |zip_file|
         zipcontent( zip_file )
       end

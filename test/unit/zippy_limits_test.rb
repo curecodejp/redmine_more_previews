@@ -340,6 +340,16 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_nil stored_asset(zip, 'other.txt')
   end
 
+  # rubyzip fails on some broken zips with errors not its own (a zip64 record
+  # before its locator: TypeError): no name opens such a zip again either
+  def test_zip_failing_with_another_error_is_not_opened_again
+    zip = build_zip(path('a.zip'), 'a.txt' => 'a')
+    Zip::File.stubs(:open).raises(TypeError, 'broken')
+    assert_nil stored_asset(zip, 'a.txt')
+    Zippy.any_instance.expects(:convert).never
+    assert_nil stored_asset(zip, 'other.txt')
+  end
+
   # an error of the system is not taken for a broken archive: the stored list
   # stays, and the other entries are extracted once it passes
   def test_error_of_the_system_keeps_the_stored_list

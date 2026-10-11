@@ -318,6 +318,16 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_nil stored_asset(zip, 'missing.txt')
   end
 
+  # a zip that cannot be opened offers no asset: no name opens it again
+  def test_zip_that_cannot_be_opened_is_not_opened_again
+    zip = build_zip(path('a.zip'), 'a.txt' => 'a')
+    Zip::File.stubs(:open).raises(Zip::Error, 'broken')
+    assert_nil stored_asset(zip, 'a.txt')
+    Zippy.any_instance.expects(:convert).never
+    assert_nil stored_asset(zip, 'a.txt')
+    assert_nil stored_asset(zip, 'other.txt')
+  end
+
   # the first exact match wins over a later entry of the same name, as before
   # the walk went on past it
   def test_first_entry_of_a_name_is_extracted

@@ -376,7 +376,12 @@ module RedmineMorePreviews
           # another name is not looked for again
           begin
             with_slot { sync { transient_preview( read: false ) { check_output_size; copy_over } } }
-          rescue StandardError
+          rescue ConverterLockTimeOut
+            raise
+          rescue StandardError => e
+            # one that failed before it listed a name (an archive it cannot open)
+            # offers no asset; a limit is checked again at little cost
+            list_assets( [], true ) if assets_on_demand? && @listed_assets.nil? && !e.is_a?( ConverterTooLarge )
             store_asset_list
             raise
           end

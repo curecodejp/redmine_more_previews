@@ -35,6 +35,8 @@
 # 1.1.4
 #       - contain archive asset paths and validate asset names
 #       - fixed listing links (double encoding, repositories preview) and zips without directory entries
+# 1.1.5
+#       - bound the entries, inflated size and depth walked in archives and the size of extracted and stored assets
 
 require_relative 'lib/array'
 require_relative 'lib/zippy'
@@ -43,7 +45,7 @@ RedmineMorePreviews::Converter.register :zippy do
   name           'Zippy'
   author         'Stephan Wenzel'
   description    'Zip Converter'
-  version        '1.1.4'
+  version        '1.1.5'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_zippy'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_zippy'
                    

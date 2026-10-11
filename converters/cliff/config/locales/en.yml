@@ -33,4 +33,5 @@ en:
       label_max_parts:                           "Most MIME parts"
       label_max_attachments:                     "Most attachments shown"
       text_help_limits:                          "An email larger than this or with more MIME parts is not previewed. Attachments beyond the limit are counted in the list but not extracted."
-      text_more_attachments:                     "and %{count} more attachments"  
+      text_more_attachments:                     "and %{count} more attachments"
+      text_not_previewed:                        "The email could not be previewed."  

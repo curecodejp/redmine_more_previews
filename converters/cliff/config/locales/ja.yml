@@ -34,3 +34,4 @@ ja:
       label_max_attachments:                     "表示する添付の数の上限"
       text_help_limits:                          "これより大きいメールや、MIME パートの多いメールはプレビューしません。上限を超えた添付は、一覧に件数だけ出し、取り出しません。"
       text_more_attachments:                     "ほか %{count} 件の添付"
+      text_not_previewed:                        "このメールはプレビューできませんでした。"

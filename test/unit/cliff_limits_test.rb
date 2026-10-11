@@ -81,6 +81,12 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # any other error can name the paths of the server in its message
+  def test_failed_email_shows_no_message_of_the_error
+    Mail.stubs(:new).raises(Errno::ENAMETOOLONG, '/tmp/d20261012-1-abc/attachment')
+    assert_equal I18n.translate(:"redmine_more_previews.cliff.text_not_previewed"), convert("Subject: x\n\nbody")
+  end
+
   def test_email_with_too_many_parts_is_not_parsed
     source = mail_with_attachments(20)
     with_cliff_settings('max_parts' => '10') do

@@ -139,9 +139,11 @@ class Cliff < RedmineMorePreviews::Conversion
     # running out of memory or a signal is no error of the email: the child
     # fails (see Conversion#isolated), no error page is stored.
     # The message can quote the mail being parsed, so it is attacker controlled.
-    # Its backtrace, which names the paths of the server, goes to the log only
+    # The page tells why a limit refused the email; any other message can name
+    # the paths of the server (f.i. a system call's), which go to the log only
     Rails.logger.error "Email #{File.basename(source)} not previewed: #{e.class}: #{e.message}\n#{Array(e.backtrace).join("\n")}"
-    File.open(tmptarget, "wb") {|f| f.write ERB::Util.html_escape(e.message) }
+    reason = e.is_a?( ConverterBadArgument ) ? e.message : I18n.translate( :"redmine_more_previews.cliff.text_not_previewed" )
+    File.open(tmptarget, "wb") {|f| f.write ERB::Util.html_escape(reason) }
   end #def
   
   #---------------------------------------------------------------------------------------

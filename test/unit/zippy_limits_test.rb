@@ -221,6 +221,18 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # an asset stored already (f.i. by an administrator's reload after the limits
+  # were raised) is served, though the listing stopped before it
+  def test_stored_asset_beyond_a_truncated_listing_is_served
+    tgz = build_tgz(path('a.tgz'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    with_zippy_limits('max_entries' => '3') do
+      store_listing(tgz)
+      File.write(asset_target(tgz, 'f5.txt'), 'file 5')
+      Zippy.any_instance.expects(:convert).never
+      assert_equal 'file 5', stored_asset(tgz, 'f5.txt')
+    end
+  end
+
   # without a stored listing the archive is walked once, to its end, and the
   # names are stored then: another name is not looked for again, and a missing
   # name is not remembered as failed

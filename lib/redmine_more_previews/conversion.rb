@@ -255,7 +255,8 @@ module RedmineMorePreviews
       
       # an asset the stored preview does not offer is not converted for: its
       # name comes from the request, and every new name would convert again
-      listed = asset && asset_listed
+      # (an asset stored already is served, whatever the list says)
+      listed = asset && (File.file?( assetpath ) ? true : asset_listed)
       unless reload
         if listed == false
           Rails.logger.info "Asset #{asset} of #{file.path} not found in its preview"

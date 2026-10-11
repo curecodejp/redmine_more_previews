@@ -194,11 +194,16 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     assert_response :success
   end
 
-  def test_missing_asset_without_a_listing_is_not_remembered
+  # without a listing, the first asset asked for lists the names of the archive:
+  # another missing name is not converted for either
+  def test_missing_asset_without_a_listing_is_not_remembered_nor_converted_again
     as_user(2)
     get :more_asset, params: {id: @attachment.id, asset: 'missing', assetformat: 'txt'}
     assert_response 404
     assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
+    Zippy.any_instance.expects(:convert).never
+    get :more_asset, params: {id: @attachment.id, asset: 'other', assetformat: 'txt'}
+    assert_response 404
   end
 
   # a converter that writes its assets with the preview: an asset the stored

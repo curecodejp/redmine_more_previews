@@ -113,15 +113,29 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   def tgztable
-    Zlib::GzipReader.open(source) do |tarfile|
-      tartoc( Gem::Package::TarReader.new( tarfile ))
+    unreadable( Zlib::GzipFile::Error ) do
+      Zlib::GzipReader.open(source) do |tarfile|
+        tartoc( Gem::Package::TarReader.new( tarfile ))
+      end
     end
   end #def
   
   def tgzasset
-    Zlib::GzipReader.open(source) do |tarfile|
-      tarcontent( Gem::Package::TarReader.new( tarfile ))
+    unreadable( Zlib::GzipFile::Error ) do
+      Zlib::GzipReader.open(source) do |tarfile|
+        tarcontent( Gem::Package::TarReader.new( tarfile ))
+      end
     end
+  end #def
+  
+  # an archive that cannot be opened offers no asset: an empty list is stored, so
+  # that no name opens it again (an error of the system may pass, and is not taken
+  # for the archive's)
+  def unreadable( error )
+    yield
+  rescue error
+    list_assets( [], true ) unless @listed_assets || File.file?( RmpAssetList.path( dir ) )
+    raise
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -328,15 +342,19 @@ class Zippy < RedmineMorePreviews::Conversion
   ########################################################################################
   def ziptable
     check_central_directory
-    Zip::File.open(source)  do |zip_file|
-      ziptoc( zip_file )
+    unreadable( Zip::Error ) do
+      Zip::File.open(source)  do |zip_file|
+        ziptoc( zip_file )
+      end
     end
   end #def
   
   def zipasset
     check_central_directory
-    Zip::File.open(source)  do |zip_file|
-      zipcontent( zip_file )
+    unreadable( Zip::Error ) do
+      Zip::File.open(source)  do |zip_file|
+        zipcontent( zip_file )
+      end
     end
   end #def
   

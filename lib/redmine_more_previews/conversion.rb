@@ -271,9 +271,13 @@ module RedmineMorePreviews
       # asset's failure only if the asset is known to exist: a failure kept for
       # any name asked for would take a file for each
       failure = targetpath if !asset || listed == true
+      # an asset of a converter that writes its assets with its preview is
+      # converted with the preview: the preview's failure is the asset's as well
+      whole = File.join( dir, ["index", preview_format].join(".") ) if asset && listed.nil? && !assets_on_demand?
       if reload
         Lib::RmpFailures.forget( failure )
-      elsif (reason = Lib::RmpFailures.recorded( failure ))
+        Lib::RmpFailures.forget( whole )
+      elsif (reason = Lib::RmpFailures.recorded( failure ) || Lib::RmpFailures.recorded( whole ))
         Rails.logger.info "Preview for #{file.path} failed before (#{reason}), not converted again"
         raise ConverterTooLarge, "#{File.basename(file.path)} failed before" if reason == "too_large"
         return nil
@@ -305,14 +309,14 @@ module RedmineMorePreviews
         Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
         # the conversion may have listed the asset meanwhile (see store_asset_list)
         failure ||= targetpath if asset && asset_listed == true
-        Lib::RmpFailures.record( failure, "too_large" )
+        Lib::RmpFailures.record( failure || whole, "too_large" )
         raise
       rescue Exception => e
         Rails.logger.error "An error occured while generating preview for #{file.path}"
         Rails.logger.error "Exception was: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
         failure ||= targetpath if asset && asset_listed == true
-        Lib::RmpFailures.record( failure, "error" )
+        Lib::RmpFailures.record( failure || whole, "error" )
         return nil
       end
     end #def
@@ -378,10 +382,7 @@ module RedmineMorePreviews
             with_slot { sync { transient_preview( read: false ) { check_output_size; copy_over } } }
           rescue ConverterLockTimeOut
             raise
-          rescue StandardError => e
-            # one that failed before it listed a name (an archive it cannot open)
-            # offers no asset; a limit is checked again at little cost
-            list_assets( [], true ) if assets_on_demand? && @listed_assets.nil? && !e.is_a?( ConverterTooLarge )
+          rescue StandardError
             store_asset_list
             raise
           end

@@ -218,6 +218,20 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
   end
 
+  # an asset of a converter that writes its assets with the preview is converted
+  # with it: a preview that fails is not converted again for any asset of it
+  def test_failed_preview_with_all_its_assets_is_not_converted_again_for_assets
+    as_user(2)
+    Zippy.any_instance.stubs(:assets_on_demand?).returns(false)
+    Zippy.any_instance.expects(:convert).once.raises(RuntimeError, 'broken')
+    %w(one one other).each do |name|
+      get :more_asset, params: {id: @attachment.id, asset: name, assetformat: 'png'}
+      assert_response 404
+    end
+    get_preview
+    assert_response 404
+  end
+
   def test_reload_by_an_administrator_converts_a_missing_asset
     as_user(1)
     get_preview

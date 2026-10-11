@@ -232,6 +232,24 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     assert_response 404
   end
 
+  # an asset too large is the asset's failure: the preview converted with it is
+  # not stopped, and the asset is not converted again
+  def test_asset_too_large_does_not_stop_its_preview
+    as_user(2)
+    Zippy.any_instance.stubs(:assets_on_demand?).returns(false)
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(10_000)
+    @attachment = attach(build_tar(File.join(@dir, 'big.tar'), 'big.txt' => 'x' * 20_000))
+    get :more_asset, params: {id: @attachment.id, asset: 'big', assetformat: 'txt'}
+    assert_response 413
+    Zippy.any_instance.expects(:convert).never
+    get :more_asset, params: {id: @attachment.id, asset: 'big', assetformat: 'txt'}
+    assert_response 413
+    Zippy.any_instance.unstub(:convert)
+    get_preview
+    assert_response :success
+    assert_select 'a', text: 'big.txt'
+  end
+
   def test_reload_by_an_administrator_converts_a_missing_asset
     as_user(1)
     get_preview

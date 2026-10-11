@@ -274,10 +274,11 @@ module RedmineMorePreviews
       # an asset of a converter that writes its assets with its preview is
       # converted with the preview: the preview's failure is the asset's as well
       whole = File.join( dir, ["index", preview_format].join(".") ) if asset && listed.nil? && !assets_on_demand?
+      # one kept is looked for whatever the name: looking writes no file
       if reload
-        Lib::RmpFailures.forget( failure )
+        Lib::RmpFailures.forget( targetpath )
         Lib::RmpFailures.forget( whole )
-      elsif (reason = Lib::RmpFailures.recorded( failure ) || Lib::RmpFailures.recorded( whole ))
+      elsif (reason = Lib::RmpFailures.recorded( targetpath ) || Lib::RmpFailures.recorded( whole ))
         Rails.logger.info "Preview for #{file.path} failed before (#{reason}), not converted again"
         raise ConverterTooLarge, "#{File.basename(file.path)} failed before" if reason == "too_large"
         return nil
@@ -307,16 +308,17 @@ module RedmineMorePreviews
       rescue ConverterTooLarge => e
         # answered with 413 by the controller
         Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
-        # the conversion may have listed the asset meanwhile (see store_asset_list)
-        failure ||= targetpath if asset && asset_listed == true
-        Lib::RmpFailures.record( failure || whole, "too_large" )
+        # the conversion may have listed the asset meanwhile (see store_asset_list);
+        # an asset too large exists, and is the asset's failure, not the preview's
+        failure ||= targetpath if asset && (@asset_too_large || asset_listed == true)
+        Lib::RmpFailures.record( failure || whole_failed( whole ), "too_large" )
         raise
       rescue Exception => e
         Rails.logger.error "An error occured while generating preview for #{file.path}"
         Rails.logger.error "Exception was: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
         failure ||= targetpath if asset && asset_listed == true
-        Lib::RmpFailures.record( failure || whole, "error" )
+        Lib::RmpFailures.record( failure || whole_failed( whole ), "error" )
         return nil
       end
     end #def
@@ -473,6 +475,13 @@ module RedmineMorePreviews
     end #def
     private :asset_listed
     
+    # the key of the preview's failure for an asset that failed with it (see
+    # preview), nil once the preview is stored: then the failure is the asset's
+    def whole_failed( whole )
+      whole unless whole.nil? || File.file?( whole )
+    end #def
+    private :whole_failed
+    
     #-------------------------------------------------------------------------------------
     # copy over
     #-------------------------------------------------------------------------------------
@@ -516,6 +525,7 @@ module RedmineMorePreviews
     def check_output_size
       [tmptarget, tmpasset].compact.each do |path|
         next unless File.file?( path ) && File.size( path ) > RedmineMorePreviews::Converter.max_output
+        @asset_too_large = asset && path == tmpasset
         raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
       end
     end #def
@@ -525,6 +535,7 @@ module RedmineMorePreviews
     # read (ConverterTooLarge)
     def read_limited( path )
       if File.size( path ) > RedmineMorePreviews::Converter.max_output
+        @asset_too_large = asset && [tmpasset, assetpath].include?( path )
         raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
       end
       File.open( path, "rb" ) {|io| io.read}

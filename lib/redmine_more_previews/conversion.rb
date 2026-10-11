@@ -278,7 +278,7 @@ module RedmineMorePreviews
       if reload
         Lib::RmpFailures.forget( targetpath )
         Lib::RmpFailures.forget( whole )
-      elsif (reason = Lib::RmpFailures.recorded( targetpath ) || Lib::RmpFailures.recorded( whole ))
+      elsif !stored? && (reason = Lib::RmpFailures.recorded( targetpath ) || Lib::RmpFailures.recorded( whole ))
         Rails.logger.info "Preview for #{file.path} failed before (#{reason}), not converted again"
         raise ConverterTooLarge, "#{File.basename(file.path)} failed before" if reason == "too_large"
         return nil
@@ -480,6 +480,15 @@ module RedmineMorePreviews
       nil
     end #def
     private :asset_listed
+    
+    # the preview or asset asked for is stored: it is served whatever failure was
+    # remembered, which a request that failed may write after another stored it
+    def stored?
+      !( unsafe || transient ) && valid && cached_by_this_converter? && File.file?( asset ? assetpath : targetpath )
+    rescue SystemCallError
+      false
+    end #def
+    private :stored?
     
     # the key of the preview's failure for an asset that failed with it (see
     # preview), nil once the preview is converted or stored: then the failure is

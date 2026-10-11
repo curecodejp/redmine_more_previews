@@ -361,6 +361,31 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_equal 'b', stored_asset(tar, 'b.txt')
   end
 
+  # a failure written after another request stored the preview does not hide
+  # it: A fails, B converts and stores the preview meanwhile, then A writes
+  # its failure
+  def test_failure_written_after_a_stored_preview_does_not_hide_it
+    tar = build_tar(path('a.tar'), 'a.txt' => 'a')
+    Zippy.any_instance.stubs(:convert).raises(RuntimeError, 'busy disk')
+    failures = RedmineMorePreviews::Lib::RmpFailures
+    record = failures.method(:record)
+    other = false
+    convert_b = -> { zippy_worker(target: target_of(tar), request: fake_request).preview(File.new(tar)) }
+    failures.define_singleton_method(:record) do |key, reason|
+      unless other
+        other = true
+        Zippy.any_instance.unstub(:convert)
+        raise 'B failed' unless convert_b.call
+      end
+      record.call(key, reason)
+    end
+    assert_nil zippy_worker(target: target_of(tar), request: fake_request).preview(File.new(tar))
+    assert other
+    assert zippy_worker(target: target_of(tar), request: fake_request).preview(File.new(tar)), 'the stored preview is served'
+  ensure
+    failures.define_singleton_method(:record, record) if record
+  end
+
   # the first exact match wins over a later entry of the same name, as before
   # the walk went on past it
   def test_first_entry_of_a_name_is_extracted

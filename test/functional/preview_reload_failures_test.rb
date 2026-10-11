@@ -232,6 +232,19 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     assert_response 404
   end
 
+  # nor is a preview that converts to nothing converted again for any asset
+  def test_empty_preview_with_all_its_assets_is_not_converted_again_for_assets
+    as_user(2)
+    Zippy.any_instance.stubs(:assets_on_demand?).returns(false)
+    Zippy.any_instance.expects(:convert).once
+    %w(one one other).each do |name|
+      get :more_asset, params: {id: @attachment.id, asset: name, assetformat: 'png'}
+      assert_response 404
+    end
+    get_preview
+    assert_response 404
+  end
+
   # an asset too large is the asset's failure: the preview converted with it is
   # not stopped, and the asset is not converted again
   def test_asset_too_large_does_not_stop_its_preview

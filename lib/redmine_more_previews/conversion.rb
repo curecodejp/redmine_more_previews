@@ -292,13 +292,17 @@ module RedmineMorePreviews
           # transient (non-cached) conversion, yielded in block. What the block is
           # given is checked first: it may return from the caller
           with_slot { sync { transient_preview do |*files|
-            Lib::RmpFailures.record( failure, "empty" ) if (asset ? files[1] : files[0]).nil?
+            # an asset missing from a preview that was converted is no failure of the
+            # preview's; none at all is
+            if (asset ? files[1] : files[0]).nil?
+              Lib::RmpFailures.record( failure || (whole if files[0].nil?), "empty" )
+            end
             block.call( *files )
           end } }
         else
           # cached conversion, just read from file
           data = cached_preview
-          data.nil? ? Lib::RmpFailures.record( failure, "empty" ) : Lib::RmpFailures.forget( failure )
+          data.nil? ? Lib::RmpFailures.record( failure || whole_failed( whole ), "empty" ) : Lib::RmpFailures.forget( failure )
           data
         end
       rescue ConverterLockTimeOut => e

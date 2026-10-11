@@ -221,12 +221,48 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     end
   end
 
-  # without a stored listing the archive is walked, and a missing name is still
-  # not remembered as failed
-  def test_missing_name_without_a_stored_listing_is_not_remembered
-    tgz = build_tgz(path('a.tgz'), 'a.txt' => 'a')
+  # without a stored listing the archive is walked once, to its end, and the
+  # names are stored then: another name is not looked for again, and a missing
+  # name is not remembered as failed
+  def test_names_are_listed_by_the_first_asset_without_a_stored_listing
+    tgz = build_tgz(path('a.tgz'), 'a.txt' => 'a', 'b.txt' => 'b')
+    assert_equal 'a', stored_asset(tgz, 'a.txt')
     assert_nil stored_asset(tgz, 'missing.txt')
     assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(asset_target(tgz, 'missing.txt'))
+    Zippy.any_instance.expects(:convert).never
+    assert_nil stored_asset(tgz, 'other.txt')
+    assert_equal 'a', stored_asset(tgz, 'a.txt')
+  end
+
+  def test_names_are_listed_by_a_missing_asset_without_a_stored_listing
+    zip = build_zip(path('a.zip'), 'a.txt' => 'a')
+    assert_nil stored_asset(zip, 'missing.txt')
+    Zippy.any_instance.expects(:convert).never
+    assert_nil stored_asset(zip, 'other.txt')
+  end
+
+  # the walk of a first asset stopped at a limit: the names before it are
+  # stored all the same, and another name is refused without a walk
+  def test_names_are_listed_by_an_asset_beyond_the_limits
+    tgz = build_tgz(path('a.tgz'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    with_zippy_limits('max_entries' => '3') do
+      assert_raises(ConverterTooLarge) { stored_asset(tgz, 'f5.txt') }
+      Zippy.any_instance.expects(:convert).never
+      assert_raises(ConverterTooLarge) { stored_asset(tgz, 'f6.txt') }
+      assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(asset_target(tgz, 'f6.txt'))
+    end
+  end
+
+  # the first exact match wins over a later entry of the same name, as before
+  # the walk went on past it
+  def test_first_entry_of_a_name_is_extracted
+    tar = build_tar(path('dup.tar'), 'a.txt' => 'first')
+    File.open(tar, 'r+b') do |f|
+      data = f.read
+      f.seek(data.rindex("\0" * 1024))
+      Gem::Package::TarWriter.new(f) { |t| t.add_file_simple('a.txt', 0o644, 6) { |io| io.write('second') } }
+    end
+    assert_equal 'first', stored_asset(tar, 'a.txt')
   end
 
   private

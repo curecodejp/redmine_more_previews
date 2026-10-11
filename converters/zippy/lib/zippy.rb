@@ -227,17 +227,25 @@ class Zippy < RedmineMorePreviews::Conversion
     # but an entry literally named "dir/file" wins. A tar can only be read forward, so
     # the first normalized match is written right away and replaced if an exact match
     # turns up later.
+    # The walk goes on to the end, or to a limit, and lists the names of the entries
+    # as the listing does: once stored, a name the archive has not is not looked for
+    # again, whether the listing was asked for or not
+    @names = Set.new
+    exact  = false
     complete = each_tar_entry( tarball ) do |entry|
       next unless entry.file?
+      list_name( entry.full_name )
+      next if exact
       if entry.full_name == asset
         check_asset_size( entry.header.size )
         write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
-        break
+        exact = true
       elsif !File.exist?(tmpasset) && RmpFile.safe_relative_path( entry.full_name ) == asset
         check_asset_size( entry.header.size )
         write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
       end
     end
+    list_assets( @names, complete )
     # the walk stopped at a limit before the asset was found: it may lie beyond
     if complete == false && !File.exist?( tmpasset )
       raise ConverterTooLarge, "#{asset} lies beyond the limits of #{File.basename(source)}"
@@ -440,7 +448,11 @@ class Zippy < RedmineMorePreviews::Conversion
     # which would recreate symlink entries. Zip::File#extract also refused entries whose
     # data exceeds the declared size (Zip::EntrySizeError); the stream does not, so the
     # check is repeated here.
-    entry = asset_entry( zip_file.entries.select{|e| e.ftype == :file } ){|e| e.name }
+    files = zip_file.entries.select{|e| e.ftype == :file }
+    @names = Set.new
+    files.each {|e| list_name( e.name ) }
+    list_assets( @names, true )
+    entry = asset_entry( files ){|e| e.name }
     return unless entry
     check_asset_size( entry.size )
     entry.get_input_stream do |io|

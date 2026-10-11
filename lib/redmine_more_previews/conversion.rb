@@ -367,8 +367,15 @@ module RedmineMorePreviews
             self.transient = true
             return with_slot { sync { transient_preview{|target_data, asset_data, *| asset ? asset_data : target_data } } }
           end
-          # a preview that could not be served is not stored either
-          with_slot { sync { transient_preview( read: false ) { check_output_size; copy_over } } }
+          # a preview that could not be served is not stored either; the names a
+          # converter listed before it stopped at a limit are, so that another
+          # name is not looked for again
+          begin
+            with_slot { sync { transient_preview( read: false ) { check_output_size; copy_over } } }
+          rescue ConverterTooLarge
+            store_asset_list
+            raise
+          end
         end
         read_safe
       end
@@ -471,9 +478,19 @@ module RedmineMorePreviews
           FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
         end
         write_marker
-        Lib::RmpAssetList.write( dir, *@listed_assets ) if @listed_assets
+        store_asset_list
       end
     end #def
+    
+    # the names of the assets a converter listed (see list_assets), with the
+    # marker they are taken by
+    def store_asset_list
+      return unless @listed_assets && dir
+      FileUtils.mkdir_p( dir )
+      write_marker
+      Lib::RmpAssetList.write( dir, *@listed_assets )
+    end #def
+    private :store_asset_list
     
     #-------------------------------------------------------------------------------------
     # read safe

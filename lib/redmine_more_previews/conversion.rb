@@ -294,9 +294,8 @@ module RedmineMorePreviews
           with_slot { sync { transient_preview do |*files|
             # an asset missing from a preview that was converted is no failure of the
             # preview's; none at all is
-            if (asset ? files[1] : files[0]).nil?
-              Lib::RmpFailures.record( failure || (whole if files[0].nil?), "empty" )
-            end
+            @preview_converted = !files[0].nil?
+            Lib::RmpFailures.record( failure || whole_failed( whole ), "empty" ) if (asset ? files[1] : files[0]).nil?
             block.call( *files )
           end } }
         else
@@ -379,7 +378,10 @@ module RedmineMorePreviews
             Rails.logger.warn "Preview cache is full, #{dir} is not stored"
             # nothing is stored: a converter's limits on what it stores do not apply
             self.transient = true
-            return with_slot { sync { transient_preview{|target_data, asset_data, *| asset ? asset_data : target_data } } }
+            return with_slot { sync { transient_preview{|target_data, asset_data, *|
+              @preview_converted = !target_data.nil?
+              asset ? asset_data : target_data
+            } } }
           end
           # a preview that could not be served is not stored either; the names a
           # converter listed before it stopped at a limit or failed are, so that
@@ -480,9 +482,10 @@ module RedmineMorePreviews
     private :asset_listed
     
     # the key of the preview's failure for an asset that failed with it (see
-    # preview), nil once the preview is stored: then the failure is the asset's
+    # preview), nil once the preview is converted or stored: then the failure is
+    # the asset's
     def whole_failed( whole )
-      whole unless whole.nil? || File.file?( whole )
+      whole unless whole.nil? || @preview_converted || File.file?( whole )
     end #def
     private :whole_failed
     

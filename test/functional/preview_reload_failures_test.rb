@@ -245,6 +245,20 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     assert_response 404
   end
 
+  # a full cache stores no preview: one converted for an asset it has not is no
+  # failure of the preview's either
+  def test_missing_asset_with_a_full_cache_does_not_stop_its_preview
+    as_user(2)
+    RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
+    with_eager_zippy do
+      get :more_asset, params: {id: @attachment.id, asset: 'missing', assetformat: 'png'}
+      assert_response 404
+      get_preview
+      assert_response :success
+      assert_select 'a', text: 'safe.txt'
+    end
+  end
+
   # an asset too large is the asset's failure: the preview converted with it is
   # not stopped, and the asset is not converted again
   def test_asset_too_large_does_not_stop_its_preview
@@ -303,6 +317,18 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
     settings = ZIPPY_SETTINGS.deep_dup
     settings['converter']['zippy']['mime_types']['tar']['format'] = 'inline'
     Setting.plugin_redmine_more_previews = settings
+  end
+
+  # Zippy as a converter that writes its assets with the preview: the listing is
+  # converted for an asset as well
+  def with_eager_zippy
+    Zippy.alias_method :lazy_convert, :convert
+    Zippy.define_method(:convert) { tartable; tarasset if asset }
+    Zippy.any_instance.stubs(:assets_on_demand?).returns(false)
+    yield
+  ensure
+    Zippy.alias_method :convert, :lazy_convert
+    Zippy.remove_method :lazy_convert
   end
 
   def cached_listing

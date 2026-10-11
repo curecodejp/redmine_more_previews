@@ -231,8 +231,9 @@ class Zippy < RedmineMorePreviews::Conversion
     # as the listing does: once stored, a name the archive has not is not looked for
     # again, whether the listing was asked for or not
     # An asset too large is refused only after the walk, so that the names are
-    # listed all the same. An archive broken after the asset still serves it, with
-    # the names before as a list that stopped at a limit.
+    # listed all the same. A broken archive ends the walk as a limit does: the
+    # names before the break are a list that stopped at a limit, an asset written
+    # whole before it is served, a part of one is not.
     @names    = Set.new
     exact     = false
     matched   = false
@@ -251,8 +252,9 @@ class Zippy < RedmineMorePreviews::Conversion
           written   = too_large.nil?
         end
       end
-    rescue StandardError
-      raise unless written
+    rescue StandardError => e
+      Rails.logger.warn "#{File.basename(source)} could not be read beyond #{@names.size} names: #{e.message}"
+      FileUtils.rm_f( tmpasset ) unless written
       false
     end
     list_assets( @names, complete )

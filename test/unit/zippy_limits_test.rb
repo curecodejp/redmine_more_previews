@@ -288,6 +288,23 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_equal 'a', stored_asset(tar, 'a.txt')
   end
 
+  # a broken archive ends the walk as a limit does: an asset too large before the
+  # break is refused, the names before it are listed and the failure remembered,
+  # and a name not found may lie beyond the break: neither walks the archive again
+  def test_broken_archive_is_not_walked_again
+    tar = build_tar(path('broken.tar'), 'big.bin' => 'x' * (2 * 1024 * 1024), 'a.txt' => 'a', 'b.txt' => 'b')
+    data = File.binread(tar)
+    offset = 512 + 2 * 1024 * 1024 + 512 + 512 # big.bin, a.txt: the header of b.txt
+    data[offset, 512] = 'x' * 512
+    File.binwrite(tar, data)
+    with_zippy_limits('max_asset' => '1') do
+      assert_raises(ConverterTooLarge) { stored_asset(tar, 'big.bin') }
+      Zippy.any_instance.expects(:convert).never
+      assert_raises(ConverterTooLarge) { stored_asset(tar, 'big.bin') }
+      assert_raises(ConverterTooLarge) { stored_asset(tar, 'missing.txt') }
+    end
+  end
+
   # the first exact match wins over a later entry of the same name, as before
   # the walk went on past it
   def test_first_entry_of_a_name_is_extracted

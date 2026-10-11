@@ -73,6 +73,14 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # the page of an email that is not previewed says why, not where in the code
+  def test_refused_email_shows_no_backtrace
+    with_cliff_settings('max_size' => '1') do
+      html = convert("Subject: big\n\n" + ('x' * (1024 * 1024 + 1)))
+      assert_equal 'the email is larger than 1 MiB', html
+    end
+  end
+
   def test_email_with_too_many_parts_is_not_parsed
     source = mail_with_attachments(20)
     with_cliff_settings('max_parts' => '10') do

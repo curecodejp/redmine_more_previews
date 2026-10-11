@@ -138,8 +138,10 @@ class Cliff < RedmineMorePreviews::Conversion
   rescue StandardError => e
     # running out of memory or a signal is no error of the email: the child
     # fails (see Conversion#isolated), no error page is stored.
-    # The message can quote the mail being parsed, so it is attacker controlled
-    File.open(tmptarget, "wb") {|f| f.write (([e.message] + e.backtrace).map{|line| ERB::Util.html_escape(line)}.join("<br>\n")) }
+    # The message can quote the mail being parsed, so it is attacker controlled.
+    # Its backtrace, which names the paths of the server, goes to the log only
+    Rails.logger.error "Email #{File.basename(source)} not previewed: #{e.class}: #{e.message}\n#{Array(e.backtrace).join("\n")}"
+    File.open(tmptarget, "wb") {|f| f.write ERB::Util.html_escape(e.message) }
   end #def
   
   #---------------------------------------------------------------------------------------

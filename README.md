@@ -9,11 +9,11 @@
 > - License: GNU GPL v2.0 or later, inherited from the upstream project
 > - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
-> The plugin version is `6.1.0`: Redmine 6.1 compatibility has been verified, and Redmine 6.0 remains supported. Generic fixes should be contributed back upstream when practical.
+> The plugin version is `6.1.1`: Redmine 6.1 compatibility has been verified, and Redmine 6.0 remains supported. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
-Pull requests run automated smoke tests against Redmine 6.0.5 and 6.1.4 with Ruby 3.3.8. The workflow installs the plugin into a clean Redmine checkout, resolves the Redmine bundle with SQLite, migrates the database, boots Rails, verifies that the Mark and Zippy converters are registered, checks `marcel`, `rubyzip`, and `zlib`, asserts each Redmine release's `rubyzip` requirement, and performs a basic Pandoc Markdown conversion.
+Pull requests run automated smoke tests against Redmine 6.0.11 and 6.1.5 with Ruby 3.3.8. The workflow installs the plugin into a clean Redmine checkout, resolves the Redmine bundle with SQLite, migrates the database, boots Rails, verifies that the Mark and Zippy converters are registered, checks `marcel`, `rubyzip`, and `zlib`, asserts each Redmine release's `rubyzip` requirement, and performs a basic Pandoc Markdown conversion.
 
 ---
 
@@ -199,6 +199,13 @@ You can enable to any **existing** project from /projects/[any-project]/settings
 Native speakers: please help to improve localizations
 
 ### Change-Log
+
+**6.1.1**
+ - Fix repository preview authorization to require `browse_repository` (GHSA-858f-2pxg-c64q).
+ - Scope repository preview caches by repository ID, revision and content, and remove the old shared cache (GHSA-gw4x-rrqx-3v8x).
+ - Validate PDF headers in Maggie and Peek; restrict ImageMagick input/output formats and resource limits (GHSA-rxp7-cw7g-6xfv).
+ - Maggie 1.0.3 and Peek 1.1.2.
+ - The resource-exhaustion fixes tracked for 6.1.2 are not included in this release.
 
 **6.1.0**
  - Redmine 6.1 compatibility verified while retaining Redmine 6.0 support

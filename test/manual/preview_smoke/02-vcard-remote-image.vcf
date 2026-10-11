@@ -1,0 +1,6 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:RMP Remote Photo Probe
+N:Probe;Remote;;;
+PHOTO;VALUE=uri:https://example.invalid/rmp-external-image-probe.png
+END:VCARD

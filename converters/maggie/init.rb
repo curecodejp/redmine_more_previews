@@ -24,6 +24,8 @@
 #       - simplified code version
 # 1.0.2
 #       - fixed japanese localization
+# 1.0.3
+#       - validate PDF headers, explicit ImageMagick formats, resource limits
 #
 require_relative 'lib/maggie'
 
@@ -31,7 +33,7 @@ RedmineMorePreviews::Converter.register :maggie do
   name           'Maggie'
   author         'Stephan Wenzel'
   description    'Convert images'
-  version        '1.0.2'
+  version        '1.0.3'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_maggie'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_maggie'
                  

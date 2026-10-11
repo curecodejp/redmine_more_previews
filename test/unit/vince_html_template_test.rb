@@ -6,10 +6,14 @@ require 'erb'
 class VinceHtmlTemplateTest < ActiveSupport::TestCase
   TEMPLATE = File.expand_path('../../converters/vince/app/views/vince/vince.html.erb', __dir__)
 
-  def render(format)
+  def render(format, cards: [])
     @preview_format = format
-    @vcfs = []
-    @converter = Struct.new(:public_web_directory).new('/plugin_assets/redmine_more_previews/converters/vince')
+    @vcfs = cards
+    @iconize = false
+    @converter = Struct.new(:public_web_directory, :settings).new(
+      '/plugin_assets/redmine_more_previews/converters/vince',
+      { logo: 'logo.png' }
+    )
     ERB.new(File.read(TEMPLATE)).result(binding).squish
   end
 
@@ -33,4 +37,16 @@ class VinceHtmlTemplateTest < ActiveSupport::TestCase
     assert_not_includes html, 'html, body {'
     assert_includes html, '/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css'
   end
+  def test_fn_is_html_escaped_in_both_preview_formats
+    vcf = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Name <b>not markup</b> & friends\r\nEND:VCARD\r\n"
+    card = VinceLib::VObject::Reader.new(object: :vcard, string: vcf).stringall.first
+
+    %w[html inline].each do |format|
+      html = render(format, cards: [card])
+
+      assert_includes html, 'Name &lt;b&gt;not markup&lt;/b&gt; &amp; friends'
+      assert_not_includes html, '<b>not markup</b>'
+    end
+  end
+
 end

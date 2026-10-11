@@ -1,0 +1,9 @@
+From: "Long Test Sender" <sender@example.invalid>
+To: "Very Long Test Recipient For Layout Verification" <a.very.long.test.recipient.address@example.invalid>
+Cc: "Long Copy Recipient For Wrapping Verification" <long-copy@example.invalid>
+Subject: This is a deliberately very long subject for checking that the Redmine More Previews email header table wraps within the preview pane
+Date: Sat, 10 Oct 2026 09:00:00 +0900
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Synthetic data for Redmine issue 19143.

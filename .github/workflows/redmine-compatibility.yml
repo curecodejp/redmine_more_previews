@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - redmine: '6.0.5'
+          - redmine: '6.0.11'
             rubyzip_requirement: '~> 2.3.0'
-          - redmine: '6.1.4'
+          - redmine: '6.1.5'
             rubyzip_requirement: '~> 2.4.0'
 
     steps:
@@ -62,7 +62,7 @@ jobs:
           cp -a plugin redmine/plugins/redmine_more_previews
           rm -rf redmine/plugins/redmine_more_previews/.git
 
-          # Redmine 6.0.5 does not pin minitest and resolves 6.x, whose Runnable.run
+          # Older Redmine tags without a minitest pin resolve 6.x, whose Runnable.run
           # signature breaks Rails 7.2.2.1 (line_filtering.rb: wrong number of
           # arguments). 6.0-stable and 6.1.x pin it in their own Gemfile (and Bundler
           # rejects a second, different requirement), so add the pin only when the

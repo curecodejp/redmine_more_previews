@@ -12,7 +12,7 @@
       <img src="<%= "#{@converter.public_web_directory}/images/#{@converter.settings[:logo]}" %>" alt="VCard Logo" title="VCard Logo" class="logo" %>
     </div>
     
-    <h2><%= vcf.fn.readable.join(", ") %></h2>
+    <h2><%= ERB::Util.html_escape(vcf.fn.readable.join(", ")) %></h2>
     
     <% if vcf.logo.present? || vcf.photo.present? %>
       <div>

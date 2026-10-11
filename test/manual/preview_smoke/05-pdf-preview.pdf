@@ -1,0 +1,57 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+6 0 obj
+<< /Length 899 >>
+stream
+q
+0.114 0.224 0.333 rg
+0 695 595 147 re f
+Q
+BT /F2 27 Tf 1 1 1 rg 48 764 Td (PDF PREVIEW OK) Tj ET
+BT /F1 11 Tf 1 1 1 rg 48 740 Td (redmine_more_previews / Manual regression fixture / #19143) Tj ET
+BT /F2 16 Tf 0.13 0.20 0.29 rg 48 618 Td (Visual verification checklist) Tj ET
+0.91 0.94 0.97 rg
+46 540 503 52 re f
+46 452 503 52 re f
+46 364 503 52 re f
+BT /F2 15 Tf 0.114 0.224 0.333 rg 63 562 Td (01) Tj ET
+BT /F1 11 Tf 0.114 0.224 0.333 rg 101 562 Td (The PDF opens in the preview area.) Tj ET
+BT /F2 15 Tf 0.114 0.224 0.333 rg 63 474 Td (02) Tj ET
+BT /F1 11 Tf 0.114 0.224 0.333 rg 101 474 Td (All three numbered rows remain readable.) Tj ET
+BT /F2 15 Tf 0.114 0.224 0.333 rg 63 386 Td (03) Tj ET
+BT /F1 11 Tf 0.114 0.224 0.333 rg 101 386 Td (No sandbox or CSP restriction blocks the viewer.) Tj ET
+BT /F1 9 Tf 0.4 0.48 0.55 rg 48 67 Td (Generated sample. No sensitive or external content.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Title (RMP PDF Preview Manual Test) /Author (Cure Code) >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000000321 00000 n 
+0000000396 00000 n 
+0000001345 00000 n 
+trailer
+<< /Root 1 0 R /Info 7 0 R /Size 8 >>
+startxref
+1423
+%%EOF

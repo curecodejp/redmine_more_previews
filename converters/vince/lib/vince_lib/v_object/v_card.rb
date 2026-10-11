@@ -472,13 +472,24 @@ module VObject
     #                         / mediatype-param / altid-param / any-param
     #               GEO-value = URI
     ######################################################################################
+    # Only numeric coordinates may be embedded into the Google Maps path.
+    # RFC 5870 permits an optional altitude and semicolon-delimited parameters.
+    GEO_COORDINATES_PATTERN = /\A(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)(?:,-?\d+(?:\.\d+)?)?(?:;[A-Za-z][A-Za-z0-9-]*=[A-Za-z0-9_.~%+-]+)*\z/
+
     GEO_WEBALIZE_PROC = Proc.new do |hash,iconize|
       icon = iconize.presence && "icon icon-geo"
-      link_to(
-        hash[:fields][:opaque], 
-        "https://www.google.com/maps/@#{hash[:fields][:opaque]},15z",
-        :class => "vcard geo #{icon}"
-      )
+      coordinates = hash[:fields][:opaque].to_s.match(GEO_COORDINATES_PATTERN)
+      if hash[:fields][:scheme].to_s.downcase == 'geo' &&
+         coordinates && coordinates[1].to_f.abs <= 90 && coordinates[2].to_f.abs <= 180
+        link_to(
+          hash[:fields][:opaque],
+          "https://www.google.com/maps/@#{coordinates[1]},#{coordinates[2]},15z",
+          :class => "vcard geo #{icon}"
+        )
+      else
+        # Invalid coordinates or other URI schemes remain escaped, non-clickable text.
+        content_tag(:span, hash[:fields][:full], :class => "vcard geo #{icon}")
+      end
     end
     
     def geo(*val, **att)

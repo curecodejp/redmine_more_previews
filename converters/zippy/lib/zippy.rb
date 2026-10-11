@@ -230,26 +230,47 @@ class Zippy < RedmineMorePreviews::Conversion
     # The walk goes on to the end, or to a limit, and lists the names of the entries
     # as the listing does: once stored, a name the archive has not is not looked for
     # again, whether the listing was asked for or not
-    @names = Set.new
-    exact  = false
-    complete = each_tar_entry( tarball ) do |entry|
-      next unless entry.file?
-      list_name( entry.full_name )
-      next if exact
-      if entry.full_name == asset
-        check_asset_size( entry.header.size )
-        write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
-        exact = true
-      elsif !File.exist?(tmpasset) && RmpFile.safe_relative_path( entry.full_name ) == asset
-        check_asset_size( entry.header.size )
-        write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+    # An asset too large is refused only after the walk, so that the names are
+    # listed all the same. An archive broken after the asset still serves it, with
+    # the names before as a list that stopped at a limit.
+    @names    = Set.new
+    exact     = false
+    matched   = false
+    written   = false
+    too_large = nil
+    complete  = begin
+      each_tar_entry( tarball ) do |entry|
+        next unless entry.file?
+        list_name( entry.full_name )
+        next if exact
+        if entry.full_name == asset || (!matched && RmpFile.safe_relative_path( entry.full_name ) == asset)
+          exact     = entry.full_name == asset
+          matched   = true
+          written   = false
+          too_large = take_entry( entry )
+          written   = too_large.nil?
+        end
       end
+    rescue StandardError
+      raise unless written
+      false
     end
     list_assets( @names, complete )
+    raise too_large if too_large
     # the walk stopped at a limit before the asset was found: it may lie beyond
     if complete == false && !File.exist?( tmpasset )
       raise ConverterTooLarge, "#{asset} lies beyond the limits of #{File.basename(source)}"
     end
+  end #def
+  
+  # writes the entry as the asset; the ConverterTooLarge that refuses it, if any
+  def take_entry( entry )
+    check_asset_size( entry.header.size )
+    write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+    nil
+  rescue ConverterTooLarge => e
+    FileUtils.rm_f( tmpasset )
+    e
   end #def
   
   #---------------------------------------------------------------------------------------

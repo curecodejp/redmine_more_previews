@@ -265,6 +265,29 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # an asset too large is refused after the walk: the names are listed, and its
+  # failure remembered, so that neither it nor another name walks the archive again
+  def test_asset_too_large_without_a_stored_listing_is_not_walked_again
+    tgz = build_tgz(path('a.tgz'), 'big.bin' => "\0" * (2 * 1024 * 1024), 'a.txt' => 'a')
+    with_zippy_limits('max_asset' => '1') do
+      assert_raises(ConverterTooLarge) { stored_asset(tgz, 'big.bin') }
+      assert_equal 'too_large', RedmineMorePreviews::Lib::RmpFailures.recorded(asset_target(tgz, 'big.bin'))
+      Zippy.any_instance.expects(:convert).never
+      assert_raises(ConverterTooLarge) { stored_asset(tgz, 'big.bin') }
+      assert_nil stored_asset(tgz, 'missing.txt')
+    end
+  end
+
+  # an archive broken after the asset still serves it, as when the walk stopped
+  # at the asset
+  def test_asset_before_a_broken_entry_is_served
+    tar = build_tar(path('broken.tar'), 'a.txt' => 'a', 'b.txt' => 'b')
+    data = File.binread(tar)
+    data[1024, 512] = 'x' * 512 # the header of b.txt
+    File.binwrite(tar, data)
+    assert_equal 'a', stored_asset(tar, 'a.txt')
+  end
+
   # the first exact match wins over a later entry of the same name, as before
   # the walk went on past it
   def test_first_entry_of_a_name_is_extracted

@@ -303,6 +303,8 @@ module RedmineMorePreviews
       rescue ConverterTooLarge => e
         # answered with 413 by the controller
         Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        # the conversion may have listed the asset meanwhile (see store_asset_list)
+        failure ||= targetpath if asset && asset_listed == true
         Lib::RmpFailures.record( failure, "too_large" )
         raise
       rescue Exception => e

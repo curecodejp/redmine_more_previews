@@ -126,6 +126,12 @@ module RedmineMorePreviews
       
       # create path_sets for cache storage
       self.targetpath, self.dir,        self.file,       self.ext      = path_set( target,                :nocreate => true )
+      # an asset is stored below the directory of its preview at its own path
+      # (a/b.txt -> <preview>/a/b.txt): that directory is the asset's as well, for
+      # its lock, its marker and what is copied into it. The directory of the
+      # target held the asset at a/a/b.txt, where it was never found again
+      suffix = File.join( "", asset.to_s )
+      self.dir = targetpath.delete_suffix( suffix ) if asset && targetpath.to_s.end_with?( suffix )
       self.assetpath,  self.assetdir,   self.assetfile,  self.assetext = path_set( File.join(dir, asset), :nocreate => true ) if asset
       self.assetspaths = assets.to_a.map{ |ass| path_set( File.join(dir, ass), nil, :nocreate => true )}
     end #def
@@ -421,14 +427,6 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     # assets offered by the stored preview
     #-------------------------------------------------------------------------------------
-    # the directory of the preview an asset belongs to: an asset is stored below
-    # it at its own path, so dir is the directory of a nested asset only
-    # (a/b.txt -> .../a)
-    def preview_root
-      suffix = File.join( "", asset.to_s )
-      asset && targetpath.to_s.end_with?( suffix ) ? targetpath.delete_suffix( suffix ) : dir
-    end #def
-
     # true for a converter that extracts an asset only when it is asked for, and
     # lists the names it offers (see list_assets); false for one that writes all
     # its assets with the preview
@@ -447,13 +445,11 @@ module RedmineMorePreviews
     # converter without converting: true, false (it does not), :beyond (a list
     # that stopped at a limit has not its name) or nil (not known)
     def asset_listed
-      root = preview_root
-      marker = "#{root}.converter"
-      return nil unless File.file?( marker ) && File.read( marker ).strip == id.to_s
+      return nil unless cached_by_this_converter?
       if assets_on_demand?
-        Lib::RmpAssetList.lookup( root, asset )
-      elsif File.file?( File.join( root, ["index", preview_format].join(".") ) )
-        File.file?( targetpath ) || File.file?( assetpath )
+        Lib::RmpAssetList.lookup( dir, asset )
+      elsif File.file?( File.join( dir, ["index", preview_format].join(".") ) )
+        File.file?( assetpath )
       end
     rescue SystemCallError
       nil

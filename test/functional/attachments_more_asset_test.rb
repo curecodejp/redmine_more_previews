@@ -97,6 +97,22 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  # a nested asset is stored at its own path below the preview, and served from
+  # there afterwards, not extracted again for each request
+  def test_nested_asset_is_extracted_once
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'nested.tar'), 'dir/file.txt' => 'nested'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      get :more_asset, params: {id: a.id, asset: 'dir/file', assetformat: 'txt'}
+      assert_response :success
+      assert_equal 'nested', File.read(File.join(a.preview_dirname(format: 'html'), 'dir', 'file.txt'))
+      Zippy.any_instance.expects(:convert).never
+      get :more_asset, params: {id: a.id, asset: 'dir/file', assetformat: 'txt'}
+      assert_response :success
+      assert_equal 'nested', response.body
+    end
+  end
+
   # the links of the stored listing lead to entries whose names are not ASCII,
   # in UTF-8 or in the code page of Windows: the list of the assets has them by
   # the name of the link

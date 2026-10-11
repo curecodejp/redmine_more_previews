@@ -259,9 +259,8 @@ class Zippy < RedmineMorePreviews::Conversion
   
   # bytes of the files cached for this archive (the listing and the assets)
   def stored_bytes
-    root = preview_root
-    return 0 unless root && File.directory?( root )
-    Dir.glob( File.join( root, "**", "*" ), File::FNM_DOTMATCH ).sum do |path|
+    return 0 unless dir && File.directory?( dir )
+    Dir.glob( File.join( dir, "**", "*" ), File::FNM_DOTMATCH ).sum do |path|
       stat = File.lstat( path ) rescue nil
       stat&.file? ? stat.size : 0
     end

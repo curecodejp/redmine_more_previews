@@ -7,9 +7,10 @@ documents. Uploaders and repository contributors can supply untrusted file
 contents, paths, MIME types, and names. Preview readers may have fewer
 permissions than uploaders.
 
-Converters include Pass/Mark (HTML, Pandoc), Cliff (email/MIME), Zippy
-(archives), Libre (office documents), Maggie/Peek (images and PDF through
-ImageMagick/Ghostscript), and Vince (vCard).
+Converters include Pass/Mark (HTML, Pandoc), Teddie (text files), Cliff
+(email/MIME), Zippy (archives), Libre (office documents), Maggie/Peek (images
+and PDF through ImageMagick/Ghostscript), Vince (vCard), and NilText.
+NilText is a diagnostic converter and must not be enabled in production.
 
 ## Security invariants
 
@@ -36,6 +37,21 @@ ImageMagick/Ghostscript), and Vince (vCard).
   filenames and handling of partial failures.
 - ImageMagick, Ghostscript, LibreOffice and Pandoc: version-dependent
   protection, sandboxing and resource consumption.
+
+## How to exercise
+
+Run Redmine commands from `/redmine`, not `/src`:
+
+```sh
+cd /redmine
+bundle exec rake redmine:plugins:test NAME=redmine_more_previews
+bundle exec rails runner 'puts Redmine::Plugin.find(:redmine_more_previews).version'
+```
+
+`/redmine/plugins/redmine_more_previews` is a build-time copy of `/src`.
+After editing `/src`, copy changes into the Redmine plugin directory or
+rebuild the image before testing. Inspect `test/manual/preview_smoke` if
+present for additional manual checks.
 
 ## Reporting
 

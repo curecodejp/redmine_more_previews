@@ -191,6 +191,13 @@ class CliffLimitsTest < ActiveSupport::TestCase
     assert_not_includes html, 'the body'
   end
 
+  # Mail warns of a field it cannot parse with the whole field, twice
+  def test_unparsable_field_is_not_written_to_stderr
+    source = ('A' * (256 * 1024)) + " B: x\r\nSubject: s\r\n\r\nthe body"
+    _, err = capture_subprocess_io { convert(source) }
+    assert_operator err.bytesize, :<, 4096
+  end
+
   # a long line takes no memory beyond itself to count
   def test_long_line_takes_no_memory_to_count
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))

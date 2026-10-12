@@ -32,17 +32,22 @@ else
   setsid "$@" > "$log" 2>&1 &
 fi
 sid=$!
+finished() {
+  [ ! -d "/proc/$sid" ] || grep -q '^State:.*Z' "/proc/$sid/status" 2>/dev/null
+}
+# checked once more after the last second, for a command ending in it
 for _ in $(seq "$limit"); do
-  if [ ! -d "/proc/$sid" ] || grep -q '^State:.*Z' "/proc/$sid/status" 2>/dev/null; then
-    wait "$sid"
-    status=$?
-    pkill -KILL -s "$sid" 2>/dev/null
-    [ "$status" -eq 137 ] && error="::error::killed (out of memory?): $*"
-    show "$error"
-    exit $status
-  fi
+  finished && break
   sleep 1
 done
+if finished; then
+  wait "$sid"
+  status=$?
+  pkill -KILL -s "$sid" 2>/dev/null
+  [ "$status" -eq 137 ] && error="::error::killed (out of memory?): $*"
+  show "$error"
+  exit $status
+fi
 {
   echo "--- still running after ${limit}s"
   free -m

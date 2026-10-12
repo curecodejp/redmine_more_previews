@@ -20,8 +20,8 @@ The build downloads Redmine 6.1.5 and its Ruby gems, installs the plugin,
 prepares a disposable SQLite database, and executes its test suite. The
 test command has a 240-second deadline plus a 10-second forced-kill grace
 period. Its output is kept in a temporary file and only the last 60 lines,
-truncated to 2,000 characters per line, are displayed. An unsuccessful
-test or a timeout **fails the image build**.
+truncated to 2,000 characters per line, are displayed. An unsuccessful test or timeout emits a warning during image build.
+The GitHub Actions smoke test runs the suite separately and fails on errors.
 
 The build requires network access; scanning can run offline afterward.
 The original plugin checkout is available at `/src`, with Redmine at
@@ -48,4 +48,6 @@ for plugin analysis.
 - The non-root runtime and `--network none` reduce risk, but do not make
   arbitrary malicious documents safe. Review ImageMagick/Ghostscript
   policies and use external resource limits and disposable hosts.
-- The Dockerfile was built and the plugin startup was verified by the\n`Scanner Docker build test` GitHub Actions job on 2026-10-12.\nThis is not a substitute for Anthropic's official `tools/check` validation.
+- The Dockerfile was built and plugin startup verified by the
+`Scanner Docker build test` GitHub Actions job on 2026-10-12.
+This is not a substitute for Anthropic's official `tools/check` validation.

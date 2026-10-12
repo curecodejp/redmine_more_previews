@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       imagemagick ghostscript pandoc libreoffice fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
+# A root-level .dockerignore keeps local secrets, VCS metadata, and build
+# artifacts out of the context. Build from a clean checkout as well.
 COPY . /src
 
 # Match the existing Redmine compatibility workflow.
@@ -23,16 +25,28 @@ RUN git clone --depth 1 --branch "${REDMINE_VERSION}" \
 
 WORKDIR /redmine
 
+# Redmine 6.1.5 already declares minitest (~> 5.27) in its Gemfile.
+# Do not write another, incompatible minitest requirement in Gemfile.local.
 RUN printf 'production:\n  adapter: sqlite3\n  database: db/redmine.sqlite3\ntest:\n  adapter: sqlite3\n  database: db/redmine_test.sqlite3\n' > config/database.yml \
-    && if ! grep -q "gem 'minitest'" Gemfile; then \
-         printf "gem 'minitest', '< 6.0'\n" > Gemfile.local; \
-       fi \
     && bundle config set --local without development \
     && bundle install --jobs 4 --retry 3
 
-# Create a disposable SQLite database; no production data or secrets are used.
+# Run analyses and document converters without root privileges.
+RUN useradd --create-home --uid 10001 --shell /bin/bash scanner \
+    && chown -R scanner:scanner /src /redmine
+ENV HOME=/home/scanner
+USER scanner
+
+# Test with a disposable SQLite database. Keep pathological Mail warnings
+# out of the Docker build log, and cap the runtime of the complete suite.
 RUN bundle exec rake db:migrate \
-    && bundle exec rake redmine:plugins:test NAME=redmine_more_previews
+    && (timeout --signal=TERM --kill-after=10s 240s \
+          bundle exec rake redmine:plugins:test NAME=redmine_more_previews \
+          > /tmp/rmp-tests.log 2>&1; \
+        status=$?; \
+        cut -c1-2000 /tmp/rmp-tests.log | tail -n 60; \
+        rm -f /tmp/rmp-tests.log; \
+        exit "$status")
 
 # Useful tools and checkout stay available when the offline scan starts.
 WORKDIR /src

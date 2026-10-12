@@ -1,0 +1,47 @@
+name: Scanner Docker build test
+
+on:
+  pull_request:
+    paths:
+      - '.oss-scanner/**'
+      - '.github/workflows/scanner-docker-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanner-docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check disk and memory
+        run: |
+          df -h .
+          free -h
+
+      - name: Build test image
+        run: |
+          docker build --progress=plain \
+            -f .oss-scanner/Dockerfile \
+            -t redmine-more-previews-scanner .
+
+      - name: Verify isolated offline runtime
+        run: |
+          docker run --rm --network none \
+            redmine-more-previews-scanner \
+            bash -lc 'cd /redmine && bundle exec rails runner "abort(%q{Plugin missing}) unless Redmine::Plugin.find(:redmine_more_previews); puts Redmine::VERSION.to_s"'
+
+      - name: Display Docker usage
+        if: always()
+        run: docker system df

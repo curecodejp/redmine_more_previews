@@ -203,6 +203,7 @@ Native speakers: please help to improve localizations
 **6.1.2**
  - Bound the time, number and size of preview conversions (GHSA-mq93-c4mm-98v3): a time limit for every conversion, at most `max_conversions` at the same time (`503` beyond), size limits for repository files, archives, emails, previews and the cache (`413` beyond), failed conversions remembered for a while, `reload` and `unsafe` for administrators only, and a rake task that cleans the cache. See [a note on conversion limits](#a-note-on-conversion-limits).
  - Vince: HTML-escape names, link only known URI schemes and build GEO map links from validated coordinates.
+ - Cliff: keep Mail's warnings of unparsable header fields out of the server's stderr.
  - Cliff 1.1.3, Zippy 1.1.5, Libre 1.1.3, Peek 1.1.3, Maggie 1.0.4 and Vince 1.1.2.
 
 **6.1.1**

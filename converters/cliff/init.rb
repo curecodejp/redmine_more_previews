@@ -36,6 +36,7 @@
 # 1.1.3
 #       - bound the size, delimiter lines and nesting of emails; parse them in a child process with a time and memory limit
 #       - show why an email is not previewed without the backtrace
+#       - keep Mail's warnings of unparsable header fields out of stderr
 #
 
 require_relative 'lib/cliff'

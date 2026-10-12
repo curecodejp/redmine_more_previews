@@ -22,7 +22,7 @@ module RedmineMorePreviews
         return false unless formats.respond_to?(:each_pair)
 
         supported = RedmineMorePreviews::Converter.find(:libre).mime_types
-        formats.all? do |extension, config|
+        formats.each_pair.all? do |extension, config|
           entry = supported[extension.to_s.to_sym]
           next false unless entry && config.respond_to?(:key?) && config.respond_to?(:[])
 

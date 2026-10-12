@@ -48,4 +48,4 @@ for plugin analysis.
 - The non-root runtime and `--network none` reduce risk, but do not make
   arbitrary malicious documents safe. Review ImageMagick/Ghostscript
   policies and use external resource limits and disposable hosts.
-- The Dockerfile has **not** yet been validated by an actual Docker build.
+- The Dockerfile was built and the plugin startup was verified by the\n`Scanner Docker build test` GitHub Actions job on 2026-10-12.\nThis is not a substitute for Anthropic's official `tools/check` validation.

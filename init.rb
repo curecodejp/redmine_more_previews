@@ -137,6 +137,7 @@
 # 6.1.2
 #       - Bound the time, number and size of preview conversions (GHSA-mq93-c4mm-98v3)
 #       - Vince: escape names and restrict links to known URI schemes
+#       - Cliff: keep Mail's warnings of unparsable header fields out of stderr
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------

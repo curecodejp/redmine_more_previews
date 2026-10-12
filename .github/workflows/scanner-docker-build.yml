@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -41,7 +41,7 @@ jobs:
         run: |
           docker run --rm --network none \
             redmine-more-previews-scanner \
-            bash -lc 'cd /redmine && bundle exec rails runner "abort(%q{Plugin missing}) unless Redmine::Plugin.find(:redmine_more_previews); puts Redmine::VERSION.to_s"'
+            bash -lc 'cd /redmine && bundle exec rails runner "abort(%q{Plugin missing}) unless Redmine::Plugin.find(:redmine_more_previews); puts Redmine::VERSION.to_s" && gs --version && soffice --version && pandoc --version && convert -version && bundle exec rake redmine:plugins:test NAME=redmine_more_previews'
 
       - name: Display Docker usage
         if: always()

@@ -158,9 +158,31 @@ class RmpProcessTest < ActiveSupport::TestCase
     RmpProcess.now - start
   end
 
+  # a killed process whose parent was killed with it is reaped by init: until
+  # then it is a zombie, which still counts as a member of the group
   def assert_group_gone(pgid)
     assert pgid
-    assert_raises(Errno::ESRCH) { Process.kill(0, -pgid) }
+    deadline = RmpProcess.now + 2
+    loop do
+      running = group_members(pgid).reject {|state| state == 'Z' }
+      return pass if running.empty?
+      flunk "processes of group #{pgid} are still running" if RmpProcess.now > deadline
+      sleep 0.05
+    end
+  end
+
+  # states of the processes in the group, from /proc where it can be read
+  def group_members(pgid)
+    Process.kill(0, -pgid)
+    return ['?'] unless File.directory?('/proc/self')
+    Dir.glob('/proc/[0-9]*/stat').filter_map do |stat|
+      fields = File.read(stat).split(') ').last.to_s.split(' ')
+      fields[0] if fields[2].to_i == pgid
+    rescue SystemCallError
+      nil
+    end
+  rescue Errno::ESRCH
+    []
   end
 
   # a killed process whose parent is gone is reaped by init: it may still show

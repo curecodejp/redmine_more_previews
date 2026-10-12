@@ -12,7 +12,8 @@ permissions:
 jobs:
   redmine-smoke:
     name: Redmine ${{ matrix.redmine }} / Ruby 3.3.8
-    runs-on: ubuntu-latest
+    # pinned: ubuntu-latest moves to a new release on its own schedule
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -328,7 +329,9 @@ jobs:
           RAILS_ENV: test
         run: |
           bundle exec rake db:migrate
-          bundle exec rake redmine:plugins:test NAME=redmine_more_previews
+          # -v names each test as it runs, and timeout stops a hanging test before
+          # the job's limit does, so the log shows which test it was
+          timeout 600 bundle exec rake redmine:plugins:test NAME=redmine_more_previews TESTOPTS="-v"
 
       - name: Verify Pandoc Markdown conversion
         run: |

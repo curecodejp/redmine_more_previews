@@ -31,7 +31,7 @@ class Mark < RedmineMorePreviews::Conversion
   # constants
   #---------------------------------------------------------------------------------
   PANDOC_BIN = 'pandoc'.freeze
-  PANDOC_FRM = {"text/markdown" => "markdown", "text/html" => "html"}
+  PANDOC_FRM = {"text/markdown" => "markdown", "text/x-web-textile" => "textile", "text/html" => "html"}
   
   #---------------------------------------------------------------------------------
   # check: is Pandoc available?
@@ -47,7 +47,7 @@ class Mark < RedmineMorePreviews::Conversion
   #
   ########################################################################################
   def convert
-    command(cd + join + pandoc + join + move(outfile))
+    command(cd + join + pandoc + join + move(thisdir(outfile)))
   end #def
   
   #---------------------------------------------------------------------------------
@@ -82,7 +82,7 @@ class Mark < RedmineMorePreviews::Conversion
       end
       
       if base_url
-        base = "<base href='#{base_url}'>"
+        base = "<base href='#{ERB::Util.html_escape(base_url)}'>"
         "#{PANDOC_BIN} #{shell_quote source} -f #{frompts} -t html -s -V header-includes=#{shell_quote base} -o #{shell_quote outfile}"
       else
         "#{PANDOC_BIN} #{shell_quote source} -f #{frompts} -t html -s -o #{shell_quote outfile}"

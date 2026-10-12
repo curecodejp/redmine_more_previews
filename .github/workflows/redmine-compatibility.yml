@@ -14,7 +14,7 @@ jobs:
     name: Redmine ${{ matrix.redmine }} / Ruby 3.3.8
     # pinned: ubuntu-latest moves to a new release on its own schedule
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -323,17 +323,43 @@ jobs:
 
           bundle exec rails runner /tmp/redmine-more-previews-security.rb
 
-      - name: Run plugin test suite
+      # unbuffered output, so the log shows the test that runs; on WINCH every
+      # thread's backtrace (see .github/scripts/run-watched.sh)
+      - name: Prepare test diagnostics
+        run: |
+          cat > /tmp/rmp-debug.rb <<'RUBY'
+          $stdout.sync = true
+          $stderr.sync = true
+          Signal.trap('WINCH') do
+            Thread.list.each do |thread|
+              $stderr.write("--- ruby #{Process.pid} #{thread.inspect}\n#{Array(thread.backtrace).first(40).join("\n")}\n")
+            end
+          end
+          RUBY
+
+      - name: Run plugin test files one by one
         working-directory: redmine
         env:
           RAILS_ENV: test
+          RUBYOPT: -r/tmp/rmp-debug.rb
         run: |
           bundle exec rake db:migrate
-          # -v names each test as it runs, unbuffered, and timeout stops a hanging
-          # test before the job's limit does, so the log shows which test it was:
-          # INT makes Ruby print where it was, KILL follows if that does not stop it
-          echo '$stdout.sync = true; $stderr.sync = true' > /tmp/rmp-sync.rb
-          RUBYOPT="-r/tmp/rmp-sync.rb" timeout --signal=INT --kill-after=10s 600s \
+          failed=0
+          for file in $(ls plugins/redmine_more_previews/test/{unit,functional,integration}/*_test.rb); do
+            echo "::group::$file"
+            ../plugin/.github/scripts/run-watched.sh 120 bundle exec ruby -Itest "$file" -v || { failed=1; echo "::error::$file failed"; }
+            echo "::endgroup::"
+          done
+          exit $failed
+
+      - name: Run plugin test suite
+        if: always()
+        working-directory: redmine
+        env:
+          RAILS_ENV: test
+          RUBYOPT: -r/tmp/rmp-debug.rb
+        run: |
+          ../plugin/.github/scripts/run-watched.sh 420 \
             bundle exec rake redmine:plugins:test NAME=redmine_more_previews TESTOPTS="-v"
 
       - name: Verify Pandoc Markdown conversion

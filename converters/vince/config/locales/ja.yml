@@ -48,6 +48,7 @@ ja:
     LABEL:                "アドレスラベル"
     ORG:                  "組織"
     EMAIL:                "Eメール"
+    IMPP:                 "インスタントメッセージ"
     
     GENDER:               "性別"
     GENDER_VALUE:         

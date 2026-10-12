@@ -17,8 +17,15 @@ class LibreCommandTest < ActiveSupport::TestCase
     end
   end
 
+  def test_shell_quote_is_called_for_the_validated_format
+    @worker.preview_format = 'pdf'
+    @worker.stubs(:shell_quote).returns('quoted')
+    @worker.expects(:shell_quote).with('pdf').returns("'pdf'")
+    assert_includes @worker.soffice('/tmp/input.docx', '/tmp/profile'), "--convert-to 'pdf'"
+  end
+
   def test_unknown_and_shell_metacharacter_formats_are_rejected
-    ['inline', 'xml', '', 'pdf;touch /tmp/unwanted', 'pdf$(id)', 'pdf\nwhoami'].each do |format|
+    ['inline', 'xml', '', 'pdf;touch /tmp/unwanted', 'pdf$(id)', "pdf\nwhoami"].each do |format|
       @worker.preview_format = format
       assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) do
         @worker.soffice('/tmp/input.docx', '/tmp/profile')

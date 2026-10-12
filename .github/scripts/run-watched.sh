@@ -13,39 +13,51 @@
 # memory and no swap: a process taking more is killed by the OOM killer instead
 # of the runner swapping until nothing, the watch included, gets to run. sudo
 # drops RUBYOPT, so it is passed on.
+#
+# The output goes to a file, shown once COMMAND is done with its lines cut to
+# 2000 characters: a line of megabytes in the step's output stopped the job's
+# log, and with it the step, for good.
 limit=$1; shift
+log=$(mktemp "${RUNNER_TEMP:-/tmp}/run-watched.XXXXXX")
+show() {
+  [ -n "$1" ] && echo "$1"
+  cut -c1-2000 "$log"
+  echo "(longest line: $(wc -L < "$log") characters)"
+}
 if [ -n "$RMP_MEMORY_MAX" ]; then
   setsid sudo -n --preserve-env systemd-run --quiet --scope \
     -p MemoryMax="$RMP_MEMORY_MAX" -p MemorySwapMax=0 \
-    --uid="$(id -u)" --gid="$(id -g)" env PATH="$PATH" RUBYOPT="$RUBYOPT" "$@" &
+    --uid="$(id -u)" --gid="$(id -g)" env PATH="$PATH" RUBYOPT="$RUBYOPT" "$@" > "$log" 2>&1 &
 else
-  setsid "$@" &
+  setsid "$@" > "$log" 2>&1 &
 fi
 sid=$!
-free -m | sed -n 2p
 for _ in $(seq "$limit"); do
   if [ ! -d "/proc/$sid" ] || grep -q '^State:.*Z' "/proc/$sid/status" 2>/dev/null; then
     wait "$sid"
     status=$?
     pkill -KILL -s "$sid" 2>/dev/null
-    [ "$status" -eq 137 ] && echo "::error::killed (out of memory?): $*"
-    free -m | sed -n 2p
+    [ "$status" -eq 137 ] && error="::error::killed (out of memory?): $*"
+    show "$error"
     exit $status
   fi
   sleep 1
 done
-echo "::error::still running after ${limit}s: $*"
-free -m
-ps -s "$sid" -o pid,ppid,pgid,stat,rss,wchan:32,etime,args --forest
-for p in $(pgrep -s "$sid"); do
-  echo "--- kernel stack of $p"
-  sudo -n cat "/proc/$p/stack" 2>/dev/null
-  for t in /proc/$p/task/*; do
-    echo "  task ${t##*/}: $(cut -d' ' -f3 "$t/stat" 2>/dev/null) $(cat "$t/wchan" 2>/dev/null)"
+{
+  echo "--- still running after ${limit}s"
+  free -m
+  ps -s "$sid" -o pid,ppid,pgid,stat,rss,wchan:32,etime,args --forest
+  for p in $(pgrep -s "$sid"); do
+    echo "--- kernel stack of $p"
+    sudo -n cat "/proc/$p/stack" 2>/dev/null
+    for t in /proc/$p/task/*; do
+      echo "  task ${t##*/}: $(cut -d' ' -f3 "$t/stat" 2>/dev/null) $(cat "$t/wchan" 2>/dev/null)"
+    done
   done
-done
+} >> "$log" 2>&1
 pkill -WINCH -s "$sid"
 sleep 5
 sudo -n pkill -KILL -s "$sid" || pkill -KILL -s "$sid"
 wait "$sid"
+show "::error::still running after ${limit}s: $*"
 exit 124

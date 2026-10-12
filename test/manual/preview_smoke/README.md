@@ -1,15 +1,15 @@
 # Manual preview regression fixtures
 
-Synthetic files for visual regression checks of the changes in [PR #14](https://github.com/curecodejp/redmine_more_previews/pull/14), tracked in [Redmine #19143](https://redmine.curecode.jp/issues/19143).
+Synthetic files for visual regression checks following the inline-preview sanitization changes in [PR #14](https://github.com/curecodejp/redmine_more_previews/pull/14). These reusable fixtures were introduced in [PR #23](https://github.com/curecodejp/redmine_more_previews/pull/23).
 
 All five test files, **including the PDF**, are checked into this directory. They contain no personal information, executable scripts, credentials, or external service dependencies. Do not run checks against production just for manual verification.
 
 ## Setup
 
-1. Open a test-only issue in a test project on `test-lab`; confirm that `redmine_more_previews` v6.1.1 or later is installed.
+1. Open a test-only issue in a test project on a non-production Redmine instance; confirm that `redmine_more_previews` v6.1.1 or later is installed.
 2. Upload the five files from this directory to that issue as attachments.
 3. Choose `inline` for Markdown and both vCards. For EML, use the `html` preview format (Cliff supports `html` only). Use the `pdf` preview format for the PDF.
-4. Record results on Redmine #19143. Report the tested Redmine/plugin versions and preview format. A successful automated test suite alone does not complete the manual visual check.
+4. Record results in the test report or your project's issue tracker. Include the tested Redmine/plugin versions and preview format. A successful automated test suite alone does not complete the manual visual check.
 
 ## Manual checks
 
@@ -36,6 +36,6 @@ If the browser or Redmine configuration prevents inspecting the network/DOM, mar
 
 ## Record the outcome
 
-On Redmine #19143, record `PASS / FAIL / NOT TESTED` per file and format, the test-lab URL or attachment IDs, browser, Redmine and plugin versions, and any screenshots or console/network evidence for failures.
+In the test report, record `PASS / FAIL / NOT TESTED` per file and format, the test installation URL or attachment IDs, browser, Redmine and plugin versions, and any screenshots or console/network evidence for failures.
 
 The files are **manual UI fixtures**. They complement but do not replace automated security and regression tests.

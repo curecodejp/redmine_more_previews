@@ -36,6 +36,8 @@ module RedmineMorePreviews
           before_action :find_attachment_for_more_preview, :only => [:more_preview, :more_asset]
           before_action :read_authorize_for_more_preview,  :only => [:more_preview, :more_asset]
           before_action :find_asset_param,                 :only => [:more_preview, :more_asset]
+          rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
+          rescue_from   RedmineMorePreviews::Exceptions::ConverterTooLarge,    :with => :render_more_preview_too_large
           
           ################################################################################
           #
@@ -90,20 +92,27 @@ module RedmineMorePreviews
           def send_more_preview
             apply_preview_security_headers(@attachment.diskfile)
 
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile))
-                send_data @attachment.more_preview(preview_params),
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+              if preview_reload? || stale?(:etag => preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile))
+                # nil: the conversion failed or timed out (see Conversion#preview)
+                data = @attachment.more_preview(preview_params)
+                return render_404 if data.nil?
+                send_data data,
                   :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
               end
             else #no cache
               @attachment.more_preview(preview_params) do |preview_data|
+                 # no output: answered with 404 below, not with an empty 200
+                 next if preview_data.nil?
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                    :disposition => 'inline'
               end
+              # the conversion failed or timed out: nothing was yielded
+              render_404 unless performed?
             end
           end #def
           private :send_more_preview
@@ -111,8 +120,8 @@ module RedmineMorePreviews
           def send_more_asset
             apply_asset_security_headers
 
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => @attachment.asset_mtime(preview_params))
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+              if preview_reload? || stale?(:etag => @attachment.asset_mtime(preview_params))
                 # nil: the archive has no such entry (read_safe no longer falls back to the preview)
                 data = @attachment.more_asset(preview_params)
                 return render_404 if data.nil?
@@ -142,7 +151,10 @@ module RedmineMorePreviews
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
             return if @asset.nil?
             @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
-            render_404 if @asset.nil?
+            # the preview itself is stored as index.<format> in the same directory:
+            # an asset of that name would be read, and remembered as failed, as the
+            # preview (see ControllerHelper#preview_asset?)
+            render_404 unless preview_asset?(@asset, @attachment.preview_format)
           end #def
           private :find_asset_param
         end #base

@@ -3,6 +3,12 @@
 # Load the Redmine helper
 require File.expand_path(File.dirname(__FILE__) + '/../../../test/test_helper')
 
+# the conversions keep lock files, the cache size and the failures they remember
+# in the storage path: keep them out of the Redmine instance the tests run in
+RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, Dir.mktmpdir('rmp-test-storage'))
+Minitest.after_run { FileUtils.rm_rf(RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH) }
+
 module RedmineMorePreviews
   module TestHelper
     # plugin settings with the Zippy converter enabled for zip / tar / tgz

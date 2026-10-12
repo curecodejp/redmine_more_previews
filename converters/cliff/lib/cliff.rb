@@ -35,6 +35,30 @@ class Cliff < RedmineMorePreviews::Conversion
   delegate :number_to_human_size, :link_to, :to => "ApplicationController.helpers"
   delegate :url_for, :to => "Rails.application.routes.url_helpers"
   
+  #---------------------------------------------------------------------------------------
+  # limits
+  #---------------------------------------------------------------------------------------
+  # Mail parses the whole message into objects, part by part, and every attachment
+  # is written out: an email of many small parts takes memory and time far beyond
+  # its size. The size (MiB) and the number of MIME parts are checked on the raw
+  # text before it is parsed, the attachments beyond the limit are listed only.
+  # A converter setting overrides each default.
+  LIMITS         = {'max_size' => 50, 'max_parts' => 1000, 'max_attachments' => 1000}.freeze
+  
+  # nested multipart parts: Mail's helpers (attachments, html_part, ...) walk
+  # the whole tree again and again, in more than linear time in its depth,
+  # and Mail keeps the body of every level, so the bodies parsed add up to
+  # the size of the email times the depth. Both are bounded, the bodies by a
+  # multiple of the size limit
+  MAX_DEPTH      = 100
+  MAX_PARSED     = 5
+  
+  # Mail's patterns keep state for every byte of some header lines, some 50
+  # times the email in memory, and nothing short of parsing tells which: the
+  # email is parsed in a child process with this much memory (see
+  # Conversion#isolated)
+  MAX_MEMORY     = 1024 * 1024 * 1024
+  
   ########################################################################################
   #
   # convert
@@ -43,7 +67,12 @@ class Cliff < RedmineMorePreviews::Conversion
   def convert
     case preview_format
     when 'html'
-      eml
+      # what the child needs from the database is read here, before the fork,
+      # and the translations loaded, which takes seconds the first time
+      LIMITS.each_key {|key| limit( key ) }
+      object.to_h["object"].try( :project )
+      I18n.translate( :"redmine_more_previews.cliff.text_more_attachments", :count => 0 )
+      isolated( :memory => max_memory ) { eml }
     end
   end #def
   
@@ -59,7 +88,13 @@ class Cliff < RedmineMorePreviews::Conversion
   def eml
   
     # read eml file
-    mail  = Mail.new(RmpText.to_utf8(File.read(source)))
+    if File.size(source) > limit('max_size') * 1024 * 1024
+      raise ConverterBadArgument, "the email is larger than #{limit('max_size')} MiB"
+    end
+    text  = RmpText.to_utf8(File.read(source))
+    check_parts( text )
+    mail  = Mail.new(text)
+    check_depth( mail )
     
     # get html
     html, charset = html( mail )
@@ -85,12 +120,13 @@ class Cliff < RedmineMorePreviews::Conversion
     
       # save attachments( which will not collide with index.html and attachments.html)
       attachments = save_attachments( mail ) 
+      omitted     = mail.attachments.size - attachments.size
       
       # modify cid:links in html and save 
       html = link( Nokogiri::HTML( html ), Array(attachments) ).to_html
       
       # create list of attachments and save
-      att_html = list( attachments )
+      att_html = list( attachments, omitted )
       attachments_path = File.join( File.dirname(tmptarget), "attachments.html")
       File.open(attachments_path, "wb") {|f| f.write att_html }
       
@@ -99,9 +135,15 @@ class Cliff < RedmineMorePreviews::Conversion
     
     File.open(tmptarget, "wb") {|f| f.write html }
     
-  rescue Exception => e
-    # the message can quote the mail being parsed, so it is attacker controlled
-    File.open(tmptarget, "wb") {|f| f.write (([e.message] + e.backtrace).map{|line| ERB::Util.html_escape(line)}.join("<br>\n")) }
+  rescue StandardError => e
+    # running out of memory or a signal is no error of the email: the child
+    # fails (see Conversion#isolated), no error page is stored.
+    # The message can quote the mail being parsed, so it is attacker controlled.
+    # The page tells why a limit refused the email; any other message can name
+    # the paths of the server (f.i. a system call's), which go to the log only
+    Rails.logger.error "Email #{File.basename(source)} not previewed: #{e.class}: #{e.message}\n#{Array(e.backtrace).join("\n")}"
+    reason = e.is_a?( ConverterBadArgument ) ? e.message : I18n.translate( :"redmine_more_previews.cliff.text_not_previewed" )
+    File.open(tmptarget, "wb") {|f| f.write ERB::Util.html_escape(reason) }
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -224,9 +266,13 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   def save_attachments( message )
     attachments      = {}
+    # the names in use and the next index of each name, kept across attachments
+    names, counters  = Set.new( Dir.children(tmpdir) ), {}
     message.attachments.each_with_index do | attachment, i |
+      break if i >= limit('max_attachments')
       filename       = RmpFile.sanitize(attachment.filename)
-      filename       = RmpFile.unique_filename( Dir.children(tmpdir), filename)
+      filename       = RmpFile.unique_filename( names, filename, :counters => counters )
+      names         << filename
       content_id     = attachment.content_id.to_s.match(/^\<(.*?)\>$/)
       content_id   ||= [0, attachment.content_id.to_s]
       content_id     = content_id && content_id[1]
@@ -237,6 +283,69 @@ class Cliff < RedmineMorePreviews::Conversion
       File.open(File.join(tmpdir, filename), "w+b", 0644) {|f| f.write attachment.decoded}
     end 
     attachments 
+  end #def
+  
+  #---------------------------------------------------------------------------------------
+  # limits
+  #---------------------------------------------------------------------------------------
+  def max_memory
+    MAX_MEMORY
+  end #def
+  
+  def limit( key )
+    @limits ||= {}
+    @limits[key] ||= begin
+      value = converter_settings[key].to_i
+      value > 0 ? value : LIMITS[key]
+    end
+  end #def
+  
+  # a line starting with "--": Mail splits a part at a line of "--" and its
+  # boundary, which it reads in forms no simple pattern follows (quoted, with
+  # comments, RFC 2231, empty ...), after making every CR, LF or CRLF a line
+  # break. Every such line is counted
+  DELIMITER = /(?:\A|[\r\n])--/
+  
+  # the text Mail's pattern for an mbox "From " line runs over: "From", white
+  # space (line breaks included), a character and the ASCII text after it, of
+  # which the rest of the line is an upper bound. The pattern keeps
+  # state for every byte it runs over, some 50 times the text in memory, so the
+  # run is bounded by the longest line of a message (RFC 5322) first, on no
+  # more of the text than that
+  ENVELOPE      = /\AFrom\s*[^\r\n]*/n
+  MAX_LINE      = 998
+  
+  # counts the delimiter lines of the raw message, an upper bound of the parts
+  # Mail would parse, and stops at the first one beyond the limit
+  def check_parts( text )
+    if text.start_with?( "From" ) && text.byteslice( 0, MAX_LINE + 1 ).b[ENVELOPE].bytesize > MAX_LINE
+      raise ConverterBadArgument, "the email starts with a \"From\" line longer than #{MAX_LINE} characters"
+    end
+    count = 0
+    text.scan( DELIMITER ) do
+      count += 1
+      raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts" if count > limit('max_parts')
+    end
+  end #def
+  
+  # walks the parts as Mail reads them, before anything walks the whole tree:
+  # Mail splits the body of a part only when its parts are asked for, so
+  # nothing beyond the limits is parsed. Whether a part is multipart is Mail's
+  # decision, not a guess from the raw text
+  def check_depth( mail )
+    budget = MAX_PARSED * limit('max_size') * 1024 * 1024
+    parsed = 0
+    stack  = [[mail, 1]]
+    until stack.empty?
+      part, depth = stack.pop
+      next unless part.multipart?
+      raise ConverterBadArgument, "the email has more than #{MAX_DEPTH} nested multipart parts" if depth > MAX_DEPTH
+      parsed += part.body.raw_source.to_s.bytesize
+      if parsed > budget
+        raise ConverterBadArgument, "the nested multipart parts of the email add up to more than #{MAX_PARSED * limit('max_size')} MiB"
+      end
+      part.parts.each {|child| stack.push( [child, depth + 1] ) }
+    end
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -371,9 +480,10 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   # list 
   #---------------------------------------------------------------------------------------
-  def list( attachments )
+  def list( attachments, omitted = 0 )
     b = binding
     b.local_variable_set(:attachments, attachments)
+    b.local_variable_set(:omitted, omitted)
     b.local_variable_set(:object, object)
     erb = ERB.new(File.read(File.join(views, 'cliff', 'attachments.html.erb')))
     erb.result(b).squish.html_safe

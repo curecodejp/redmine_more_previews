@@ -20,7 +20,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
-require "timeout"
 require "benchmark"
 
 module RedmineMorePreviews
@@ -59,31 +58,35 @@ module RedmineMorePreviews
        
        private
        
+       # the command runs in a process group of its own and is stopped with
+       # everything it started when it times out (see Lib::RmpProcess)
        def execute_open3(command, options = {})
-         require "open3"
+         in_r,  in_w  = IO.pipe
+         out_r, out_w = IO.pipe
+         err_r, err_w = IO.pipe
+         [in_w, out_r, err_r].each(&:binmode)
+         # the pipes are closed below also when the command could not be started
+         stdout_reader = Thread.new { out_r.read rescue "" }
+         stderr_reader = Thread.new { err_r.read rescue "" }
          
-         # We would ideally use Open3.capture3, but it wouldn't allow us to
-         # terminate the command after timing out.
-         Open3.popen3(*command) do |in_w, out_r, err_r, thread|
-           [in_w, out_r, err_r].each(&:binmode)
-           stdout_reader = Thread.new { out_r.read }
-           stderr_reader = Thread.new { err_r.read }
-           begin
-             in_w.write options[:stdin].to_s
-           rescue Errno::EPIPE
+         status = RedmineMorePreviews::Lib::RmpProcess.run(command, timeout: timeout, in: in_r, out: out_w, err: err_w) do
+           # the child's ends: the readers see the end of the output when it exits
+           [in_r, out_w, err_w].each(&:close)
+           Thread.new do
+             begin
+               in_w.write options[:stdin].to_s
+             rescue Errno::EPIPE, IOError
+             ensure
+               in_w.close rescue nil
+             end
            end
-           in_w.close
-           
-           begin
-             Timeout.timeout( timeout ) { thread.join }
-           rescue Timeout::Error
-             Process.kill("TERM", thread.pid) rescue nil
-             Process.waitpid(thread.pid)      rescue nil
-             raise Timeout::Error, "Converter command timed out: #{command}"
-           end
-           
-           [stdout_reader.value, stderr_reader.value, thread.value]
          end
+         
+         [stdout_reader.value, stderr_reader.value, status]
+       rescue RedmineMorePreviews::Exceptions::ConverterTimeout
+         raise RedmineMorePreviews::Exceptions::ConverterTimeout, "Converter command timed out: #{command}"
+       ensure
+         [in_r, in_w, out_r, out_w, err_r, err_w].each { |io| io.close unless io.nil? || io.closed? }
        end
        
        def execute_posix_spawn(command, options = {})
@@ -91,7 +94,7 @@ module RedmineMorePreviews
          child = POSIX::Spawn::Child.new(*command, input: options[:stdin].to_s, timeout: timeout)
          [child.out, child.err, child.status]
        rescue POSIX::Spawn::TimeoutExceeded
-         raise Timeout::Error, "Converter command timed out: #{command}"
+         raise RedmineMorePreviews::Exceptions::ConverterTimeout, "Converter command timed out: #{command}"
        end
        
        def log(command, &block)

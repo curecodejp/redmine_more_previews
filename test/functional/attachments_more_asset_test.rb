@@ -97,6 +97,43 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  # a nested asset is stored at its own path below the preview, and served from
+  # there afterwards, not extracted again for each request
+  def test_nested_asset_is_extracted_once
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'nested.tar'), 'dir/file.txt' => 'nested'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      get :more_asset, params: {id: a.id, asset: 'dir/file', assetformat: 'txt'}
+      assert_response :success
+      assert_equal 'nested', File.read(File.join(a.preview_dirname(format: 'html'), 'dir', 'file.txt'))
+      Zippy.any_instance.expects(:convert).never
+      get :more_asset, params: {id: a.id, asset: 'dir/file', assetformat: 'txt'}
+      assert_response :success
+      assert_equal 'nested', response.body
+    end
+  end
+
+  # the links of the stored listing lead to entries whose names are not ASCII,
+  # in UTF-8 or in the code page of Windows: the list of the assets has them by
+  # the name of the link
+  def test_toc_links_of_entries_with_non_ascii_names_resolve_to_the_entries
+    Dir.mktmpdir do |dir|
+      cp932 = "日本語/資料.txt".encode('CP932').b
+      a = attach(build_tar(File.join(dir, 'names.tar'), 'ディレクトリ/ファイル.txt' => 'utf-8', cp932 => 'cp932'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      hrefs = response.body.scan(/href="([^"]*asset=[^"]*)"/).flatten
+      assert_equal 2, hrefs.size, "links in #{response.body}"
+      bodies = hrefs.map do |href|
+        query = Rack::Utils.parse_query(URI.parse(CGI.unescapeHTML(href)).query)
+        get :more_preview, params: {id: a.id, format: 'html'}.merge(query.symbolize_keys)
+        assert_response :success
+        response.body
+      end
+      assert_equal %w(cp932 utf-8), bodies.sort
+    end
+  end
+
   def test_asset_escaping_the_preview_directory_is_rejected
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'bad.zip'), '../../escaped.txt' => 'owned'))

@@ -134,6 +134,9 @@
 #       - Fix repository preview permissions (GHSA-858f-2pxg-c64q)
 #       - Isolate repository preview caches by repository, revision and content (GHSA-gw4x-rrqx-3v8x)
 #       - Harden Maggie and Peek PDF processing (GHSA-rxp7-cw7g-6xfv)
+# 6.1.2
+#       - Bound the time, number and size of preview conversions (GHSA-mq93-c4mm-98v3)
+#       - Vince: escape names and restrict links to known URI schemes
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -141,7 +144,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.1'
+  version      '6.1.2'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   
@@ -151,6 +154,13 @@ Redmine::Plugin.register :redmine_more_previews do
                         'cache_previews' => '1',  # yes, cache previews
                         'debug'          => '0',  # no, do not debug
                         'absolute'       => '0',  # no, use relative paths for iFrame- and embed-tags
+                        'conversion_timeout' => '60', # seconds a conversion may run
+                        'lock_timeout'       => '5',  # seconds a request waits for a lock
+                        'max_conversions'    => '2',  # conversions at the same time, all processes
+                        'max_repository_file' => '50',    # MiB, largest repository file previewed
+                        'max_output'          => '100',   # MiB, largest converted file served
+                        'max_cache'           => '10240', # MiB, cache size above which nothing new is stored
+                        'failure_ttl'         => '10',    # minutes a failed conversion is remembered
                        },
            :partial => 'settings/redmine_more_previews/settings'
            

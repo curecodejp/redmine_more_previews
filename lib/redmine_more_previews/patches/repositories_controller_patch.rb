@@ -33,6 +33,8 @@ module RedmineMorePreviews
           alias_method  :find_project_repository_for_more_preview, :find_project_repository
           before_action :find_project_repository_for_more_preview, :only => [:more_asset, :more_preview ]
           before_action :find_path_param,                          :only => [:more_asset, :more_preview ]
+          rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
+          rescue_from   RedmineMorePreviews::Exceptions::ConverterTooLarge,    :with => :render_more_preview_too_large
           
           ################################################################################
           #
@@ -87,11 +89,14 @@ module RedmineMorePreviews
           #
           ################################################################################
           def send_more_preview
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
               # read before the freshness check: the ETag needs the selected converter
               content = entry_content_for_preview
-              if params[:reload] || stale?(:etag => preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content))
-                send_data @repository.more_preview(@path, @rev, preview_params),
+              if preview_reload? || stale?(:etag => preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content))
+                # nil: the conversion failed or timed out (see Conversion#preview)
+                data = @repository.more_preview(@path, @rev, preview_params)
+                return render_404 if data.nil?
+                send_data data,
                   :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
@@ -99,11 +104,15 @@ module RedmineMorePreviews
             else #no cache
               entry_content_for_preview
               @repository.more_preview(@path, @rev, preview_params) do |preview_data|
+                 # no output: answered with 404 below, not with an empty 200
+                 next if preview_data.nil?
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                    :disposition => 'inline'
               end
+              # the conversion failed or timed out: nothing was yielded
+              render_404 unless performed?
             end
           end #def
           private :send_more_preview
@@ -121,8 +130,8 @@ module RedmineMorePreviews
           def send_more_asset
             apply_asset_security_headers
 
-            if !params[:unsafe] && RedmineMorePreviews::Converter.cache_previews?
-              if params[:reload] || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
+            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+              if preview_reload? || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
                 data = @repository.more_asset(@path, @rev, preview_params)
                 return render_404 if data.nil?
                 send_data data,
@@ -151,7 +160,10 @@ module RedmineMorePreviews
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
             return if @asset.nil?
             @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
-            render_404 if @asset.nil?
+            # the format of the preview as Repository#preview_format finds it, from
+            # the entry's name, without asking the SCM for the entry
+            extension = File.extname(@path.to_s)[1..].to_s.downcase
+            render_404 unless preview_asset?(@asset, RedmineMorePreviews::Converter.conversion_extension(extension))
           end #def
           private :find_path_param
           
@@ -168,8 +180,9 @@ module RedmineMorePreviews
           # If the entry is a dir, show the browser
           (show; return) if @entry.is_dir?
           
+          # a file too large to preview is shown as Redmine shows it
           if @repository.project.module_enabled?('redmine_more_previews') &&
-             @entry.convertible?
+             @entry.convertible? && !@repository.preview_too_large?(@path, @rev)
               
             parent_path = @path.split('/')[0...-1].join('/')
             @entries = @repository.entries(parent_path, @rev).reject(&:is_dir?)

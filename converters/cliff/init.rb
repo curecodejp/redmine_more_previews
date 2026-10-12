@@ -33,6 +33,9 @@
 # 1.1.2
 #       - HTML-escape mail header values and the mail body; label the Cc row correctly
 #       - keep the bundled header template in sync
+# 1.1.3
+#       - bound the size, delimiter lines and nesting of emails; parse them in a child process with a time and memory limit
+#       - show why an email is not previewed without the backtrace
 #
 
 require_relative 'lib/cliff'
@@ -42,12 +45,13 @@ RedmineMorePreviews::Converter.register :cliff do
   name           'Cliff'
   author         'Stephan Wenzel'
   description    'Preview email files in preview pane'
-  version        '1.1.2'
+  version        '1.1.3'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
                  
   settings       :logo    => 'logo.png',
-                 :partial => 'settings/redmine_more_previews/cliff/settings'
+                 :partial => 'settings/redmine_more_previews/cliff/settings',
+                 :default => Cliff::LIMITS.transform_values(&:to_s)
                  
   mime_types     :eml  =>    {:formats => [:html], :mime => 'message/rfc822', :icon => 'eml.png' },
                  :mime  =>   {:formats => [:html], :mime => 'message/rfc822', :icon => 'eml.png' }

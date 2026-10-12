@@ -23,6 +23,29 @@ module RedmineMorePreviews
   module Constants
     module Defaults
       MORE_PREVIEWS_STORAGE_PATH = File.join(Rails.root, "tmp", "more_previews")
+      
+      # seconds a conversion may run (a converter may ask for more, see
+      # Converter#conversion_timeout), seconds a request waits for a lock before
+      # it is answered with 503, and the number of conversions running at the
+      # same time across all Redmine processes (a request finding them all
+      # taken is answered with 503 at once)
+      CONVERSION_TIMEOUT         = 60
+      LOCK_TIMEOUT               = 5
+      MAX_CONVERSIONS            = 2
+      
+      # MiB: the largest repository file previewed (repository files are not
+      # bound by the attachment size limit), the largest converted file served,
+      # and the size of the whole cache above which new previews are not stored
+      MAX_REPOSITORY_FILE        = 50
+      MAX_OUTPUT                 = 100
+      MAX_CACHE                  = 10 * 1024
+      
+      # minutes a failed conversion is remembered (see Lib::RmpFailures)
+      FAILURE_TTL                = 10
+      
+      # days after which the redmine_more_previews:cache:clean task removes a
+      # cached preview
+      CACHE_DAYS                 = 30
     end
   end
 end

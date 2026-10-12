@@ -24,7 +24,7 @@
 class Maggie < RedmineMorePreviews::Conversion
 
   DENSITIES   = [["72", "72"], ["96", "96"], ["144", "144"], ["300", "300"]]
-  CONVERT_BIN = (Redmine::Configuration['imagemagick_convert_command'] || 'convert').freeze
+  CONVERT_BIN = RedmineMorePreviews::CONVERT_BIN
   
   # ImageMagick picks the coder of a file from a "<coder>:" prefix or its content, and
   # reads a name starting with "|" as a command and one starting with "-" as an option:
@@ -33,11 +33,8 @@ class Maggie < RedmineMorePreviews::Conversion
   CODERS      = {"image/jpeg" => "jpeg", "image/png" => "png", "image/gif" => "gif", "image/bmp" => "bmp"}.freeze
   OUTPUT      = "out"
   
-  # bounds of ImageMagick's pixel cache. width, height and disk are hard limits (the
-  # conversion fails): -resample enlarges an image by its own resolution, which the
-  # file sets. They do not bound Ghostscript's rendering of a PDF page.
-  LIMITS      = [["width", "16KP"], ["height", "16KP"], ["area", "128MP"],
-                 ["memory", "256MiB"], ["map", "512MiB"], ["disk", "1GiB"]].freeze
+  # see RedmineMorePreviews::IMAGEMAGICK_LIMITS
+  LIMITS      = RedmineMorePreviews::IMAGEMAGICK_LIMITS
     
   def status
     [:text_convert_available, Redmine::Thumbnail.convert_available?]
@@ -68,7 +65,7 @@ class Maggie < RedmineMorePreviews::Conversion
   end #def
   
   def convert_command
-    ([shell_quote(CONVERT_BIN)] + LIMITS.map{|resource, value| "-limit #{resource} #{value}"}).join(" ")
+    RedmineMorePreviews.convert_command
   end #def
   
   def get_density

@@ -48,6 +48,38 @@
   </p>
 </fieldset>
 
+<fieldset class="box tabular settings"><legend><%= l(:text_more_previews_limits) %></legend>
+  <p>
+    <label><%= l(:label_conversion_timeout) %></label>
+      <%= number_field_tag 'settings[conversion_timeout]', RedmineMorePreviews::Converter.conversion_timeout, :min => 1, :size => 6 %>
+  </p>
+  <p>
+    <label><%= l(:label_lock_timeout) %></label>
+      <%= number_field_tag 'settings[lock_timeout]', RedmineMorePreviews::Converter.lock_timeout, :min => 1, :size => 6 %>
+  </p>
+  <p>
+    <label><%= l(:label_max_conversions) %></label>
+      <%= number_field_tag 'settings[max_conversions]', RedmineMorePreviews::Converter.max_conversions, :min => 1, :size => 6 %>
+  </p>
+  <% %w(max_repository_file max_output max_cache).each do |key| %>
+  <p>
+    <label><%= l(:"label_#{key}") %></label>
+      <%= number_field_tag "settings[#{key}]", RedmineMorePreviews::Converter.send(key) / (1024 * 1024), :min => 1, :size => 6 %>
+  </p>
+  <% end %>
+  <p>
+    <label><%= l(:label_failure_ttl) %></label>
+      <%= number_field_tag 'settings[failure_ttl]', RedmineMorePreviews::Converter.failure_ttl / 60, :min => 1, :size => 6 %>
+  </p>
+  <p>
+    <a class='icon icon-help' href='#' title='<%= "#{l(:label_help)}" %>' onclick='$("#help_redmine_more_previews_limits").toggle(); return false;'><%= l(:label_help) %></a>
+    <br>
+    <span id="help_redmine_more_previews_limits" class="info" style="display: none;">
+      <em class="info"><%= l(:text_help_redmine_more_previews_limits) %></em>
+    </span>
+  </p>
+</fieldset>
+
 <fieldset class="box tabular settings"><legend><%= l(:label_debug) %></legend>
   <p>  
     <label><%= l(:label_debug)  %></label>

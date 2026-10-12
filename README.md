@@ -9,7 +9,7 @@
 > - License: GNU GPL v2.0 or later, inherited from the upstream project
 > - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
-> The plugin version is `6.1.1`: Redmine 6.1 compatibility has been verified, and Redmine 6.0 remains supported. Generic fixes should be contributed back upstream when practical.
+> The plugin version is `6.1.2`: Redmine 6.1 compatibility has been verified, and Redmine 6.0 remains supported. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
@@ -72,6 +72,8 @@ to html.
 
 You can view the .eml file almost like in a professional email viewer, see mail headers and download attachments. Cliff will sweep the .eml files from scripts, event attributes beginning with "on…", url() in css styles and external images. To do an unsafe preview, you can press a button do so and if you trust the .eml or .mime file
 
+An email larger than 50 MiB, with more than 1,000 MIME parts, or with multipart parts nested more than 100 levels deep or adding up to more than five times the size limit is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The size, parts and attachments limits can be changed in Cliff's settings. Cliff parses an email in a child process, within the time limit and with at most 1 GiB of memory beyond what the process starts with: the Mail library can take many times the size of an email to parse some of its lines.
+
 ---
 
 ![Mark](doc/mark/logo.png "##mark##")
@@ -92,13 +94,15 @@ Peek lets you preview pdf-Files in the browser. Peek uses imagemagick to do the 
 
 Zippy lets you preview zip, tgz or tar-Files in the browser. Click on an entry to download one individual file from within the compressed file.
 
+A zip with more than 10,000 entries is not opened, and the list of a tar or tgz ends after 10,000 entries or 1 GiB unpacked. A file larger than 100 MiB is not extracted, and at most 1 GiB of files is stored per archive; larger requests are answered with `413`. The limits can be changed in Zippy's settings.
+
 ---
 
 ![Maggie](doc/maggie/logo.png "Maggie")
 
 Maggie converts images from one format to another and downscales images.
 
-Maggie hands uploaded files and repository files to ImageMagick, and PDF files to Ghostscript through ImageMagick. It reads each file with the coder of its type, passes a PDF only when the file starts as a PDF, and limits ImageMagick's pixel cache (width and height 16K pixels, disk 1 GiB): an image wider or higher than 16K pixels, f.i. a large panorama, is not previewed. The limits do not bound Ghostscript's rendering of a PDF page. Peek, which converts PDFs through Redmine's thumbnails, makes the same check of the start of the file. Since both programs parse untrusted files:
+Maggie hands uploaded files and repository files to ImageMagick, and PDF files to Ghostscript through ImageMagick. It reads each file with the coder of its type, passes a PDF only when the file starts as a PDF, and limits ImageMagick's pixel cache (width and height 16K pixels, disk 1 GiB): an image wider or higher than 16K pixels, f.i. a large panorama, is not previewed. The limits do not bound Ghostscript's rendering of a PDF page: the time limit of the conversion stops it (see [a note on conversion limits](#a-note-on-conversion-limits)). Peek converts the first page of a PDF to an image with the same limits, after the same check of the start of the file. Since both programs parse untrusted files:
 
  - use Ghostscript 10.03.1 or later: earlier versions have known -dSAFER bypasses
  - use Redmine 6.0.10 / 6.1.3 or later: the PDF thumbnails of earlier versions can pass PostScript to Ghostscript ([Redmine issue 44145](https://www.redmine.org/issues/44145))
@@ -156,6 +160,7 @@ Choose the following options
 
  - use embed-tag or iframe-tag
  - cache previews (speeds views, may bloat your rails root's tmp folder a bit)
+ - conversion limits: time limit, wait limit and number of conversions at the same time (see [a note on conversion limits](#a-note-on-conversion-limits))
  - activate sub plugins above
  - for each sub plugin activate the file extension for files you want to preview (if you choose two sub plugins converting the same file type, then a warning will be issued and the last activated sub plugin will do the conversion).
 
@@ -194,6 +199,11 @@ You can enable to any **existing** project from /projects/[any-project]/settings
 Native speakers: please help to improve localizations
 
 ### Change-Log
+
+**6.1.2**
+ - Bound the time, number and size of preview conversions (GHSA-mq93-c4mm-98v3): a time limit for every conversion, at most `max_conversions` at the same time (`503` beyond), size limits for repository files, archives, emails, previews and the cache (`413` beyond), failed conversions remembered for a while, `reload` and `unsafe` for administrators only, and a rake task that cleans the cache. See [a note on conversion limits](#a-note-on-conversion-limits).
+ - Vince: HTML-escape names, link only known URI schemes and build GEO map links from validated coordinates.
+ - Cliff 1.1.3, Zippy 1.1.5, Libre 1.1.3, Peek 1.1.3, Maggie 1.0.4 and Vince 1.1.2.
 
 **6.1.1**
  - Fix repository preview authorization to require `browse_repository` (GHSA-858f-2pxg-c64q).
@@ -358,7 +368,30 @@ This plugin ideally works together with
 # a note on caching
 This plugin caches conversions in the Rail tmp-directory. For large repositories (f.i. firm file servers) each conversion will store a copy of the conversion file in the Rails tmp directory and thus the tmp directory may become as large or even larger as the original repository. There are two ways to handle such a situation: 1. swipe Rails tmp/more_previews directory frequently, 2. change the storage path in the plugin's init.rb file to choose a mass storage, which can handle the amount of data.
 
-Repository previews are cached per repository, revision and file content (`tmp/more_previews/repository_previews/<repository id>/<path>/<digest>/`), so that a preview is never served for another project or another version of the file. A new directory is added for each revision and content that is previewed, and older ones are not removed: include this directory in the regular clean-up. To find its cache directory, a preview or asset request reads the whole file from the repository and computes its SHA-256 digest, also when the preview is already cached. The previews cached by 6.1.0 and earlier (`tmp/more_previews/repository/`) are removed on start.
+Repository previews are cached per repository, revision and file content (`tmp/more_previews/repository_previews/<repository id>/<path>/<digest>/`), so that a preview is never served for another project or another version of the file. A new directory is added for each revision and content that is previewed, and older ones are not removed by the plugin itself: remove them with the task below. To find its cache directory, a preview or asset request reads the whole file from the repository and computes its SHA-256 digest, also when the preview is already cached. A repository file larger than 50 MiB (a setting) is not read: its preview is answered with `413`, and its page is shown as Redmine shows it. So is a file whose size the repository does not report (Bazaar, CVS): it could only be checked after it has been read whole. The previews cached by 6.1.0 and earlier (`tmp/more_previews/repository/`) are removed on start.
 
 If two users choose to reload (do a new conversion) concurrently, then thread safety is honored.
+
+The previews cached more than 30 days ago (or `DAYS`) are removed by a rake task; using a preview does not renew it, a preview cached again starts anew. Run it regularly, f.i. daily from cron:
+
+```
+cd /path/to/redmine && bundle exec rake redmine_more_previews:cache:clean RAILS_ENV=production DAYS=30
+```
+
+A preview being converted or served is skipped and removed on the next run. The task also removes the failures remembered longer than their time.
+
+# a note on conversion limits
+The external programs a converter runs (ImageMagick, Ghostscript, LibreOffice, Pandoc, ...) are stopped when a conversion runs longer than the time limit (default 60 seconds, at least 120 seconds for Libre, which starts slowly). The programs run in a process group of their own, and the whole group is stopped, including the programs they started in turn (f.i. Ghostscript started by ImageMagick). The preview is not shown then (404). A large office document may take Libre longer than 120 seconds (f.i. a text document of several hundred pages); raise the time limit if such documents are to be previewed.
+
+At most the configured number of conversions (default 2) run at the same time, counted over all Redmine processes (lock files in `tmp/more_previews/slots/`). A request that needs a conversion while all of them are taken, or that waits longer than the wait limit (default 5 seconds) for a preview another request is converting, is answered with `503 Service Unavailable` and `Retry-After`; reloading the page later shows the preview. A preview that is already cached is served without waiting for conversions of other files.
+
+The number of conversions is counted with `flock` on the lock files. With many users, 503 answers get more frequent: raise the number if the server has the CPU and memory for more conversions at the same time. When several Redmine servers share `tmp/more_previews` over a network file system such as NFS, `flock` may not hold across the servers, and the number then applies to each server rather than to all of them together.
+
+A reverse proxy in front of Redmine often gives up after 60 seconds. A first conversion that takes longer, f.i. a large office document converted by Libre, then shows an error in the browser while the conversion finishes and is cached; the next view shows it. Raise the proxy's timeout to the time limit to avoid this.
+
+A preview is served from memory: one larger than 100 MiB is answered with `413`. A request holds the preview it serves, converted or cached, until it is sent, and the number of conversions does not bound requests for cached previews: a server may need this limit times the number of requests it serves at the same time (processes times threads, f.i. of Passenger or Puma). Where memory is short, lower the limit or the number of processes and threads. When the whole cache has grown beyond 10 GiB, new previews are converted for each request and not stored; the size of the cache is added up again at most every 10 minutes. Both limits are settings.
+
+A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. An asset that the cached preview does not offer (a name not in the list of an archive, or a file not among the assets stored with a preview) is answered with `404` without converting, and its failure is not remembered: only the failures of assets known to exist are. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown. A preview shown inline in the page of a file ignores the unsafe parameter for administrators as well.
+
+On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn, and Cliff parses an email within the Redmine process, with neither the time limit nor the memory limit.
  

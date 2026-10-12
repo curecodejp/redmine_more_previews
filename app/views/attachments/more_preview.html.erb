@@ -8,20 +8,21 @@
 <%= render :layout => 'layouts/file' do %>
   <div>
     <p class="contextual">
-      <%= link_to l(:button_update), reloadpath, :class => "icon icon-reload" %>
+      <%# a reload converts again: only administrators may ask for it (see ControllerHelper#preview_reload?) %>
+      <%= link_to l(:button_update), reloadpath, :class => "icon icon-reload" if User.current.admin? %>
       <%= call_hook(:preview_attachment_contextual, :attachment => @attachment, :project => @project ) %>
     </p>
   </div><div style="clear:both;"></div>
   <%- case RedmineMorePreviews::Converter.conversion_ext(@attachment.diskfile) %>
   <%- when "inline" %>
     <div id="preview_repository_entry_top">
-      <%= call_hook(:preview_attachment_top, :attachment => @attachment, :project => @project, :params => preview_query_parameters.merge(:format => "inline", :request => request).symbolize_keys ) %>
+      <%= call_hook(:preview_attachment_top, :attachment => @attachment, :project => @project, :params => inline_preview_options ) %>
     </div>
     <div>
     <% if RedmineMorePreviews::Converter.cache_previews? %>
-      <%= sanitize_inline_preview( @attachment.more_preview( preview_query_parameters.merge(:format => "inline", :request => request).symbolize_keys ).to_s.to_utf8 ) %>
+      <%= sanitize_inline_preview( @attachment.more_preview( inline_preview_options ).to_s.to_utf8 ) %>
     <% else %>
-      <%  @attachment.more_preview( preview_query_parameters.merge(:format => "inline", :request => request).symbolize_keys ) do |html| %>
+      <%  @attachment.more_preview( inline_preview_options ) do |html| %>
         <%= sanitize_inline_preview( html.to_s.to_utf8 ) %>
       <% end %>
     <% end %>

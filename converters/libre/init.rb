@@ -30,6 +30,8 @@
 #       - fixed japanese localization
 # 1.1.2
 #       - fixed the image path rewrite for non-ASCII file names (regex range, File.exist?)
+# 1.1.3
+#       - time limit of at least 120 seconds; soffice and its child processes are stopped at the limit
 ##
 
 require_relative 'lib/libre'
@@ -38,12 +40,15 @@ RedmineMorePreviews::Converter.register :libre do
   name           'Libre'
   author         'Stephan Wenzel'
   description    'Preview office files with LibreOffice'
-  version        '1.1.2'
+  version        '1.1.3'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_libre'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_libre'
                  
   settings       :logo   => "logo.png",
                  :partial => 'settings/redmine_more_previews/libre/settings'
+  
+  # seconds at least, whatever the plugin setting: LibreOffice starts slowly
+  conversion_timeout 120
   
   mime_types(
     :csv  => {:formats => [:html,       :pdf, :png, :jpg], :mime => "text/csv"},

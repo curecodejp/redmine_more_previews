@@ -63,13 +63,55 @@ module RedmineMorePreviews
     INLINE_ASSET_MIME_TYPES =
       %r{\A(?:image/(?!svg)|audio/|video/|application/pdf\z|text/plain\z)}.freeze
   
+    # reload converts again and skips a remembered failure, unsafe converts
+    # without the cache (and without Cliff's sweep): both take effect for
+    # administrators only, for anyone else the request is served as without
+    # them. Decided here once, for the cache branch, the ETag and the converter.
+    def preview_reload?
+      params[:reload].present? && User.current.admin?
+    end
+    private :preview_reload?
+
+    def preview_unsafe?
+      params[:unsafe].present? && User.current.admin?
+    end
+    private :preview_unsafe?
+
+    # a valid asset name (see RmpFile.safe_relative_path) other than the name the
+    # preview is stored under next to its assets (Attachment#preview_filename)
+    def preview_asset?(asset, preview_format)
+      asset.present? && asset != ["index", preview_format.presence].compact.join(".")
+    end
+    private :preview_asset?
+
     def preview_params
-      params.permit(:format, :asset, :reload, :convert, :unsafe).
+      params.permit(:format, :asset).
       merge({:request => request, 
              :asset   => @asset, 
-             :format  => params[:format]&.downcase}.compact )
+             :format  => params[:format]&.downcase,
+             :reload  => preview_reload?,
+             :unsafe  => preview_unsafe?}.compact )
     end #def
     private :preview_params
+
+    # seconds after which a client may ask again for a preview that was busy
+    BUSY_RETRY_AFTER = 10
+
+    # no conversion slot or lock became free in time (see Conversion#wait_for):
+    # the preview is being converted, or too many are. Nothing was converted, a
+    # later request can succeed.
+    def render_more_preview_busy(exception)
+      response.headers['Retry-After'] = BUSY_RETRY_AFTER.to_s
+      render :plain => l(:text_more_previews_busy), :status => 503, :content_type => 'text/plain'
+    end
+    private :render_more_preview_busy
+
+    # a file, an archive entry or a preview is larger than its limit (see
+    # Converter.max_repository_file, Converter.max_output, Zippy::LIMITS)
+    def render_more_preview_too_large(exception)
+      render :plain => l(:text_more_previews_too_large), :status => 413, :content_type => 'text/plain'
+    end
+    private :render_more_preview_too_large
 
     # ETag for a cached preview: the file's mtime alone would answer a conditional
     # request with 304 from a cache that another converter produced (the

@@ -126,6 +126,12 @@ module RedmineMorePreviews
       
       # create path_sets for cache storage
       self.targetpath, self.dir,        self.file,       self.ext      = path_set( target,                :nocreate => true )
+      # an asset is stored below the directory of its preview at its own path
+      # (a/b.txt -> <preview>/a/b.txt): that directory is the asset's as well, for
+      # its lock, its marker and what is copied into it. The directory of the
+      # target held the asset at a/a/b.txt, where it was never found again
+      suffix = File.join( "", asset.to_s )
+      self.dir = targetpath.delete_suffix( suffix ) if asset && targetpath.to_s.end_with?( suffix )
       self.assetpath,  self.assetdir,   self.assetfile,  self.assetext = path_set( File.join(dir, asset), :nocreate => true ) if asset
       self.assetspaths = assets.to_a.map{ |ass| path_set( File.join(dir, ass), nil, :nocreate => true )}
     end #def
@@ -161,7 +167,65 @@ module RedmineMorePreviews
     def try_lock; threadsafe ||               (semaphore && semaphore.try_lock);  end #def
     def locked?;  return false if threadsafe; (semaphore && semaphore.locked?);   end #def
     def owned?;   return true  if threadsafe; (semaphore && semaphore.owned?);    end #def
-    def sync(&b); threadsafe ? call.b : (semaphore && semaphore.synchronize(&b)); end #def
+    
+    # the converter's semaphore, waited for no longer than the wait limit
+    # (ConverterLockTimeOut): a conversion holds it until it ends or times out
+    def sync
+      return yield if threadsafe || semaphore.nil? || semaphore.owned?
+      wait_for( "converter #{name}" ) { semaphore.try_lock }
+      begin
+        yield
+      ensure
+        semaphore.unlock
+      end
+    end #def
+    
+    # calls the block until it returns true, raises ConverterLockTimeOut once the wait
+    # limit (Converter.lock_timeout) has passed
+    def wait_for( what )
+      deadline = Lib::RmpProcess.now + RedmineMorePreviews::Converter.lock_timeout
+      until yield
+        raise ConverterLockTimeOut, "#{what} is busy" if Lib::RmpProcess.now >= deadline
+        sleep 0.05
+      end
+    end #def
+    private :wait_for
+    
+    #-------------------------------------------------------------------------------------
+    # conversion slots
+    #-------------------------------------------------------------------------------------
+    # at most Converter.max_conversions conversions run at the same time, counted
+    # across processes with one lock file per slot: a Mutex per converter and per
+    # process lets every Redmine process run its own conversions, and a request
+    # for another file does not wait for it at all. A request does not wait for a
+    # free slot either (ConverterLockTimeOut at once): a conversion holds its slot
+    # for up to the time limit, so waiting would only keep the request's thread busy
+    def with_slot
+      # a conversion does not wait for a second slot
+      return yield if Thread.current[:redmine_more_previews_slot]
+      slot = nil
+      directory = File.join( RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, "slots" )
+      FileUtils.mkdir_p( directory )
+      slot = RedmineMorePreviews::Converter.max_conversions.times.lazy.map{ |n| try_slot( directory, n ) }.find(&:itself)
+      raise ConverterLockTimeOut, "no free conversion slot" unless slot
+      Thread.current[:redmine_more_previews_slot] = true
+      yield
+    ensure
+      if slot
+        Thread.current[:redmine_more_previews_slot] = nil
+        slot.flock( File::LOCK_UN ) # see with_cache_lock
+        slot.close
+      end
+    end #def
+    private :with_slot
+    
+    def try_slot( directory, n )
+      file = File.open( File.join( directory, "#{n}.lock" ), File::RDWR | File::CREAT, 0644 )
+      return file if file.flock( File::LOCK_EX | File::LOCK_NB )
+      file.close
+      nil
+    end #def
+    private :try_slot
     
     #-------------------------------------------------------------------------------------
     # convertible?
@@ -189,19 +253,75 @@ module RedmineMorePreviews
       # sourcefile, either direct or copied in a tmp dir from elsewhere 
       begin; self.source = file.path; rescue; raise ConverterBadArgument; end
       
+      # an asset the stored preview does not offer is not converted for: its
+      # name comes from the request, and every new name would convert again
+      # (an asset stored already is served, whatever the list says)
+      listed = asset && (File.file?( assetpath ) ? true : asset_listed)
+      unless reload
+        if listed == false
+          Rails.logger.info "Asset #{asset} of #{file.path} not found in its preview"
+          return nil
+        elsif listed == :beyond
+          raise ConverterTooLarge, "#{asset} lies beyond the limits of #{File.basename(file.path)}"
+        end
+      end
+
+      # a failure is remembered for a while (see Lib::RmpFailures): the same
+      # request fails at once instead of converting again, until a reload. An
+      # asset's failure only if the asset is known to exist: a failure kept for
+      # any name asked for would take a file for each
+      failure = targetpath if !asset || listed == true
+      # an asset of a converter that writes its assets with its preview is
+      # converted with the preview: the preview's failure is the asset's as well
+      whole = File.join( dir, ["index", preview_format].join(".") ) if asset && listed.nil? && !assets_on_demand?
+      # one kept is looked for whatever the name: looking writes no file
+      if reload
+        Lib::RmpFailures.forget( targetpath )
+        Lib::RmpFailures.forget( whole )
+      elsif !stored? && (reason = Lib::RmpFailures.recorded( targetpath ) || Lib::RmpFailures.recorded( whole ))
+        Rails.logger.info "Preview for #{file.path} failed before (#{reason}), not converted again"
+        raise ConverterTooLarge, "#{File.basename(file.path)} failed before" if reason == "too_large"
+        return nil
+      end
+      
       # do conversion
+      # locks are always taken in this order: cache lock, conversion slot, converter
+      # semaphore
       begin
         if unsafe || transient
-          # transient (non-cached) conversion, yielded in block
-          sync { transient_preview( &block ) }
+          # transient (non-cached) conversion, yielded in block. What the block is
+          # given is checked first: it may return from the caller
+          with_slot { sync { transient_preview do |*files|
+            # an asset missing from a preview that was converted is no failure of the
+            # preview's; none at all is
+            @preview_converted = !files[0].nil?
+            Lib::RmpFailures.record( failure || whole_failed( whole ), "empty" ) if (asset ? files[1] : files[0]).nil?
+            block.call( *files )
+          end } }
         else
           # cached conversion, just read from file
-          sync { cached_preview }
+          data = cached_preview
+          data.nil? ? Lib::RmpFailures.record( failure || whole_failed( whole ), "empty" ) : Lib::RmpFailures.forget( failure )
+          data
         end
+      rescue ConverterLockTimeOut => e
+        # answered with 503 by the controller; nothing failed, it may succeed later
+        Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        raise
+      rescue ConverterTooLarge => e
+        # answered with 413 by the controller
+        Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        # the conversion may have listed the asset meanwhile (see store_asset_list);
+        # an asset too large exists, and is the asset's failure, not the preview's
+        failure ||= targetpath if asset && (@asset_too_large || asset_listed == true)
+        Lib::RmpFailures.record( failure || whole_failed( whole ), "too_large" )
+        raise
       rescue Exception => e
         Rails.logger.error "An error occured while generating preview for #{file.path}"
         Rails.logger.error "Exception was: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
+        failure ||= targetpath if asset && asset_listed == true
+        Lib::RmpFailures.record( failure || whole_failed( whole ), "error" )
         return nil
       end
     end #def
@@ -209,7 +329,9 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     # transient_preview
     #-------------------------------------------------------------------------------------
-    def transient_preview( &block )
+    # read: false leaves the converted files in the tmp directory unread, for a
+    # block that only copies them (see cached_preview)
+    def transient_preview( read: true, &block )
       Dir.mktmpdir do |tdir|
         files = []
         self.tmptarget, self.tmpdir,     self.tmpfile,     self.tmpext      = path_set(tdir, ["index", preview_format].join("."))
@@ -221,11 +343,15 @@ module RedmineMorePreviews
         # nothing is written outside the tmp directory anyway
         ensure_within!( tmpdir, tmpasset ) if asset
         tmpassetspaths.each{|ass| ensure_within!( tmpdir, ass.first ) }
+        # one time limit for all the commands of this conversion
+        @deadline = Lib::RmpProcess.now + conversion_timeout
         convert
         debug if RedmineMorePreviews::Converter.debug? # debug will overwrite the result of convert
-        if block_given?
+        if block_given? && !read
+          yield
+        elsif block_given?
           result = [tmptarget, tmpasset, tmpassetspaths.map(&:first)].flatten.compact.map do |f|
-            File.open(f, "rb") {|io| io.read} if regular_file_within?( tmpdir, f )
+            read_limited( f ) if regular_file_within?( tmpdir, f )
           end
           yield *result
         end
@@ -238,24 +364,55 @@ module RedmineMorePreviews
     def cached_preview
       # the converter semaphore is per converter (and per process): requests of
       # two converters for the same file, or two processes, must not interleave
-      # the marker check, the replacement and the read of one cache directory
+      # the marker check, the replacement and the read of one cache directory.
+      # A cached preview is served under this lock alone: a request for it does
+      # not wait for a conversion of another file.
       with_cache_lock do
         # the directory holds the preview and its assets: whatever another
         # converter left there must go before this one writes into it (an asset
         # conversion alone would otherwise mark the other converter's index as ours)
         discard_cache unless cached_by_this_converter?
-        begin; transient_preview{|*files| copy_over}; end if !valid || reload || !cached_by_this_converter?
+        if !valid || reload || !cached_by_this_converter?
+          # a full cache takes no new previews: convert, serve and forget
+          if Lib::RmpCacheSize.full?
+            Rails.logger.warn "Preview cache is full, #{dir} is not stored"
+            # nothing is stored: a converter's limits on what it stores do not apply
+            self.transient = true
+            return with_slot { sync { transient_preview{|target_data, asset_data, *|
+              @preview_converted = !target_data.nil?
+              asset ? asset_data : target_data
+            } } }
+          end
+          # a preview that could not be served is not stored either; the names a
+          # converter listed before it stopped at a limit or failed are, so that
+          # another name is not looked for again
+          begin
+            with_slot { sync { transient_preview( read: false ) { check_output_size; copy_over } } }
+          rescue ConverterLockTimeOut
+            raise
+          rescue StandardError
+            store_asset_list
+            raise
+          end
+        end
         read_safe
       end
     end #def
     
-    # an exclusive advisory lock on <dir>.lock, held across processes
+    # an exclusive advisory lock on <dir>.lock, held across processes. A request
+    # for a preview that is being converted waits no longer than the wait limit
     def with_cache_lock
       return yield unless dir
       FileUtils.mkdir_p( File.dirname( dir ) )
       File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
-        lock.flock( File::LOCK_EX )
-        yield
+        wait_for( "preview #{dir}" ) { lock.flock( File::LOCK_EX | File::LOCK_NB ) }
+        begin
+          yield
+        ensure
+          # closing alone keeps the lock while a child forked meanwhile, by
+          # another request, holds the file (see Lib::RmpProcess.fork)
+          lock.flock( File::LOCK_UN )
+        end
       end
     end #def
     private :with_cache_lock
@@ -266,6 +423,7 @@ module RedmineMorePreviews
       raise ConverterBadArgument unless Lib::RmpFile.within_directory?( RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, dir )
       FileUtils.rm_rf( dir )
       FileUtils.rm_f( marker_path )
+      Lib::RmpAssetList.remove( dir )
     end #def
     private :discard_cache
     
@@ -290,32 +448,84 @@ module RedmineMorePreviews
       File.write( marker_path, id.to_s ) if marker_path
     end #def
     private :write_marker
+
+    #-------------------------------------------------------------------------------------
+    # assets offered by the stored preview
+    #-------------------------------------------------------------------------------------
+    # true for a converter that extracts an asset only when it is asked for, and
+    # lists the names it offers (see list_assets); false for one that writes all
+    # its assets with the preview
+    def assets_on_demand?
+      false
+    end #def
+
+    # a converter that extracts its assets on demand gives the names they may be
+    # asked for while it makes the preview; complete is false if it stopped at a
+    # limit. They are stored with the preview (see Lib::RmpAssetList)
+    def list_assets( names, complete )
+      @listed_assets = [names, complete]
+    end #def
+
+    # whether the asset asked for exists, known from the stored preview of this
+    # converter without converting: true, false (it does not), :beyond (a list
+    # that stopped at a limit has not its name) or nil (not known)
+    def asset_listed
+      return nil unless cached_by_this_converter?
+      if assets_on_demand?
+        Lib::RmpAssetList.lookup( dir, asset )
+      elsif File.file?( File.join( dir, ["index", preview_format].join(".") ) )
+        File.file?( assetpath )
+      end
+    rescue SystemCallError
+      nil
+    end #def
+    private :asset_listed
+    
+    # the preview or asset asked for is stored: it is served whatever failure was
+    # remembered, which a request that failed may write after another stored it
+    def stored?
+      !( unsafe || transient ) && valid && cached_by_this_converter? && File.file?( asset ? assetpath : targetpath )
+    rescue SystemCallError
+      false
+    end #def
+    private :stored?
+    
+    # the key of the preview's failure for an asset that failed with it (see
+    # preview), nil once the preview is converted or stored: then the failure is
+    # the asset's
+    def whole_failed( whole )
+      whole unless whole.nil? || @preview_converted || File.file?( whole )
+    end #def
+    private :whole_failed
     
     #-------------------------------------------------------------------------------------
     # copy over
     #-------------------------------------------------------------------------------------
+    # called under the cache lock (see cached_preview), which guards the directory
     def copy_over
       if File.exist?(tmpdir)
         FileUtils.mkdir_p( dir )
-        if semaphore.owned?
-          # copy all files.
-          # Dir.glob() also produces "." ".."
-          # therefore get files and directories with 
-          # Dir.children() and reassemble paths
-            Dir.children(tmpdir).each do |f|
-              FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
-            end
-            write_marker
-        else 
-          semaphore.synchronize do
-            Dir.children(tmpdir).each do |f|
-              FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
-            end
-            write_marker
-          end
+        # copy all files.
+        # Dir.glob() also produces "." ".."
+        # therefore get files and directories with 
+        # Dir.children() and reassemble paths
+        Dir.children(tmpdir).each do |f|
+          FileUtils.copy_entry(File.join(tmpdir,f), File.join(dir,f), true, false, true)
         end
+        write_marker
+        store_asset_list
       end
     end #def
+    
+    # the names of the assets a converter listed (see list_assets), with the
+    # marker they are taken by
+    def store_asset_list
+      return unless @listed_assets && dir
+      FileUtils.mkdir_p( dir )
+      write_marker
+      Lib::RmpAssetList.write( dir, *@listed_assets )
+    end #def
+    private :store_asset_list
     
     #-------------------------------------------------------------------------------------
     # read safe
@@ -327,13 +537,35 @@ module RedmineMorePreviews
     end #def
     private :regular_file_within?
     
+    # the files to serve of a conversion in the tmp directory, see read_limited
+    def check_output_size
+      [tmptarget, tmpasset].compact.each do |path|
+        next unless File.file?( path ) && File.size( path ) > RedmineMorePreviews::Converter.max_output
+        @asset_too_large = asset && path == tmpasset
+        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
+      end
+    end #def
+    private :check_output_size
+    
+    # a converted file is served from memory: one larger than the limit is not
+    # read (ConverterTooLarge)
+    def read_limited( path )
+      if File.size( path ) > RedmineMorePreviews::Converter.max_output
+        @asset_too_large = asset && [tmpasset, assetpath].include?( path )
+        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
+      end
+      File.open( path, "rb" ) {|io| io.read}
+    end #def
+    private :read_limited
+    
+    # called under the cache lock (see cached_preview), which guards the directory
     def read_safe
       if asset
         # a requested asset that is missing or not servable must not fall back to the preview
         return nil unless regular_file_within?( dir, assetpath )
-        semaphore.owned? ? File.open(assetpath,  "rb") {|io| io.read} : semaphore.synchronize { File.open(assetpath,  "rb") {|io| io.read} }
+        read_limited( assetpath )
       elsif target && File.exist?(targetpath)
-        semaphore.owned? ? File.open(targetpath, "rb") {|io| io.read} : semaphore.synchronize { File.open(targetpath, "rb") {|io| io.read} }
+        read_limited( targetpath )
       else
         nil
       end
@@ -344,6 +576,8 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     def check
       sync{ @status = status }; @status
+    rescue ConverterLockTimeOut, ConverterTimeout
+      nil
     end #def
     
     #-------------------------------------------------------------------------------------
@@ -426,14 +660,42 @@ module RedmineMorePreviews
       Dir.glob(File.join(dir, "*"))
     end #def
     
-    # execute command
+    # execute command, within the time limit of the conversion: a command that
+    # runs out of it is stopped with all the processes it started, and the
+    # conversion fails (ConverterTimeout) even with options[:dontfail]
     def command( cmd, options={})
-      unless system(cmd)
-        Rails.logger.error("Creating preview with #{name} failed (#{$?}):\nCommand: #{cmd}")
+      remaining = @deadline ? @deadline - Lib::RmpProcess.now : conversion_timeout
+      raise ConverterTimeout, "no time left" unless remaining > 0
+      status = Lib::RmpProcess.run( cmd, :timeout => remaining )
+      unless status.success?
+        Rails.logger.error("Creating preview with #{name} failed (#{status}):\nCommand: #{cmd}")
         raise ConverterShellError unless options[:dontfail]
         return false
       end
       true
+    rescue ConverterTimeout
+      Rails.logger.error("Creating preview with #{name} timed out after #{conversion_timeout}s:\nCommand: #{cmd}")
+      raise
+    end #def
+    
+    # runs the block in a child process within the time left for the conversion
+    # and, where it can be bounded, memory bytes (see Lib::RmpProcess.fork): for a
+    # converter that parses the file in Ruby. The block's results must be files
+    def isolated( memory: )
+      remaining = @deadline ? @deadline - Lib::RmpProcess.now : conversion_timeout
+      raise ConverterTimeout, "no time left" unless remaining > 0
+      return true if Lib::RmpProcess.fork( :timeout => remaining, :memory => memory ) { yield }
+      Rails.logger.error("Creating preview with #{name} failed in its child process")
+      raise ConverterShellError
+    rescue ConverterTimeout
+      Rails.logger.error("Creating preview with #{name} timed out after #{conversion_timeout}s")
+      raise
+    end #def
+
+    # seconds all the commands of one conversion may run together: the plugin
+    # setting, or more if the converter needs it (Libre starts slowly)
+    def conversion_timeout
+      [RedmineMorePreviews::Converter.conversion_timeout, converter&.conversion_timeout.to_i].max
     end #def
     
     # create outfile name for programs that create conversions having the same basename

@@ -35,6 +35,20 @@ module RedmineMorePreviews
     false
   end #def
   
+  CONVERT_BIN = (Redmine::Configuration['imagemagick_convert_command'] || 'convert').freeze
+  
+  # bounds of ImageMagick's pixel cache. width, height and disk are hard limits (the
+  # conversion fails): -resample enlarges an image by its own resolution, which the
+  # file sets. They do not bound Ghostscript's rendering of a PDF page, which only
+  # the time limit of the conversion stops (see Conversion#command).
+  IMAGEMAGICK_LIMITS = [["width", "16KP"], ["height", "16KP"], ["area", "128MP"],
+                        ["memory", "256MiB"], ["map", "512MiB"], ["disk", "1GiB"]].freeze
+  
+  # ImageMagick's convert with the limits above, for Maggie and Peek
+  def self.convert_command
+    ([Redmine::Utils::Shell.shell_quote(CONVERT_BIN)] + IMAGEMAGICK_LIMITS.map{|resource, value| "-limit #{resource} #{value}"}).join(" ")
+  end #def
+  
 end
 
 require_relative "redmine_more_previews/constants"

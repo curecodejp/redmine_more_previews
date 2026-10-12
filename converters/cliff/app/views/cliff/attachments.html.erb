@@ -11,3 +11,6 @@
     </div>
   <% end %>
 <% end %>
+<% if omitted.to_i > 0 %>
+  <div style="display:inline-block;"><%= I18n.translate(:"redmine_more_previews.cliff.text_more_attachments", :count => omitted.to_i) %></div>
+<% end %>

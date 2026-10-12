@@ -113,50 +113,39 @@ module RedmineMorePreviews
         private :realpath_lexical
         
         # ------------------------------------------------------------------------------ #
-        # unique_filename( filenames(array), filename(string) )
-        # returns filename, which is unique to filenames-array,
-        # whereby extensions are kept
+        # unique_filename( filenames(array or set), filename(string) )
+        # returns filename, which is unique to filenames,
+        # whereby extensions are kept: name.txt, name.2.txt, name.3.txt, ...
         #
-        def unique_filename( filenames, filename, index=2 )
-        
-          if filenames.any? {|f| f == filename }
-          
-            #######################################################################
-            #  get extension, i.e. '.txt'                                         #
-            #######################################################################
-            extname = File.extname(filename) 
-            
-            #######################################################################
-            #  is extension an index?, i.e. '.2'                                  #
-            #######################################################################
-            if !!(extname =~ /\A\.\d+\z/) # is extension already a number?
-              basname = File.basename(filename, extname) # get the basename 
-              extname = "" # new index will replace index extension
-              
-            elsif extname.blank?
-            #######################################################################
-            #  no extension                                                       #
-            #######################################################################
-              basname = filename
-              extname = "" #extname is already blank
-            else
-            #######################################################################
-            #  extension exists and is NOT an index, i.e. '.2'                    #
-            #######################################################################
-              tmpname = File.basename(filename, extname) # leave a basename with a possible index counter, i.e. 'text.0'
-              indname = File.extname(tmpname) # get secondary extension filename, i.e. '.0' from text.0.txt (if at all)
-              if !!(indname =~ /\A\.\d+\z/) # is secondary extension  a number?
-                basname = File.basename(tmpname, indname) # get the eventual basename, i.e 'text'
-              else
-                basname = tmpname
-              end
-            end #def
-            
-            newname = unique_filename( filenames, "#{basname}.#{index}#{extname}", index + 1 )
-          else
-            return filename
-          end #if 
+        # counters (a Hash kept by the caller across calls) remembers the next index
+        # of each series of names, so that n equal names do not try 2, 3, ... anew
+        # each time; pass a Set as filenames for the same reason. A loop, not a
+        # recursion: many equal names overflowed the stack.
+        #
+        def unique_filename( filenames, filename, index=2, counters: nil )
+          return filename unless filenames.include?( filename )
+          series = unique_filename_series( filename )
+          index  = [index, counters[series].to_i].max if counters
+          index += 1 while filenames.include?( "#{series[0]}.#{index}#{series[1]}" )
+          counters[series] = index + 1 if counters
+          "#{series[0]}.#{index}#{series[1]}"
         end #def
+        
+        # the basename and extension a numbered name is made of: an index already
+        # in the name (text.2.txt, name.2) is replaced, not appended to
+        def unique_filename_series( filename )
+          extname = File.extname( filename )
+          if extname =~ /\A\.\d+\z/            # the extension is an index: name.2
+            [File.basename( filename, extname ), ""]
+          elsif extname.blank?                   # no extension
+            [filename, ""]
+          else                                   # text.txt, or text.2.txt
+            tmpname = File.basename( filename, extname )
+            indname = File.extname( tmpname )
+            [indname =~ /\A\.\d+\z/ ? File.basename( tmpname, indname ) : tmpname, extname]
+          end
+        end #def
+        private :unique_filename_series
         
         # ------------------------------------------------------------------------------ #
         # make_filenames_unique( filenames(array) )

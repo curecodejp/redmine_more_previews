@@ -22,6 +22,8 @@
 
 module RedmineMorePreviews
   module Exceptions
+    # no conversion slot or lock became free within the wait limit: the request is
+    # answered with 503 and can be retried, the conversion is not attempted
     class ConverterLockTimeOut < StandardError; end
   end
 end

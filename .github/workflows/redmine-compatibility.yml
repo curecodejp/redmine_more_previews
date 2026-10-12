@@ -337,13 +337,32 @@ jobs:
           end
           RUBY
 
-      - name: Run plugin test files one by one
+      # parses a 4 MiB header in a child limited to 64 MiB; the memory of the
+      # runner is logged every second
+      - name: Run the Cliff memory limit test alone
         working-directory: redmine
         env:
           RAILS_ENV: test
           RUBYOPT: -r/tmp/rmp-debug.rb
+          RMP_MEMORY_MAX: 3G
         run: |
           bundle exec rake db:migrate
+          vmstat -S M 1 &
+          vmstat_pid=$!
+          ../plugin/.github/scripts/run-watched.sh 90 bundle exec ruby -Itest \
+            plugins/redmine_more_previews/test/unit/cliff_limits_test.rb \
+            -n test_email_is_parsed_in_a_child_with_a_memory_limit -v || status=$?
+          kill "$vmstat_pid"
+          exit ${status:-0}
+
+      - name: Run plugin test files one by one
+        if: always()
+        working-directory: redmine
+        env:
+          RAILS_ENV: test
+          RUBYOPT: -r/tmp/rmp-debug.rb
+          RMP_MEMORY_MAX: 6G
+        run: |
           failed=0
           for file in $(ls plugins/redmine_more_previews/test/{unit,functional,integration}/*_test.rb); do
             echo "::group::$file"
@@ -358,6 +377,7 @@ jobs:
         env:
           RAILS_ENV: test
           RUBYOPT: -r/tmp/rmp-debug.rb
+          RMP_MEMORY_MAX: 6G
         run: |
           ../plugin/.github/scripts/run-watched.sh 420 \
             bundle exec rake redmine:plugins:test NAME=redmine_more_previews TESTOPTS="-v"

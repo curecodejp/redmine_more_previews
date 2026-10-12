@@ -72,7 +72,9 @@ class Cliff < RedmineMorePreviews::Conversion
       LIMITS.each_key {|key| limit( key ) }
       object.to_h["object"].try( :project )
       I18n.translate( :"redmine_more_previews.cliff.text_more_attachments", :count => 0 )
-      isolated( :memory => max_memory ) { eml }
+      # Mail warns of a field it cannot parse with the whole field, twice: a
+      # header line of the size of the email would go to the server's stderr
+      isolated( :memory => max_memory ) { silence_warnings { eml } }
     end
   end #def
   

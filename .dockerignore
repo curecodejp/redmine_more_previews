@@ -2,6 +2,10 @@
 .git
 **/.git
 
+# Ignore local AI assistant/editor configuration.
+.claude
+**/.claude
+
 # Do not copy local credentials or private keys into /src or the image.
 .env
 .env.*

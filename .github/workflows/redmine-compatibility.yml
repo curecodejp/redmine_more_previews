@@ -356,7 +356,7 @@ jobs:
           exit ${status:-0}
 
       - name: Run plugin test files one by one
-        if: always()
+        if: ${{ !cancelled() }}
         working-directory: redmine
         env:
           RAILS_ENV: test
@@ -372,7 +372,7 @@ jobs:
           exit $failed
 
       - name: Run plugin test suite
-        if: always()
+        if: ${{ !cancelled() }}
         working-directory: redmine
         env:
           RAILS_ENV: test

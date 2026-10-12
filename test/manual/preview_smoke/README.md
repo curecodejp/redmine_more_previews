@@ -6,7 +6,7 @@ All five test files, **including the PDF**, are checked into this directory. The
 
 ## Setup
 
-1. Open a test-only issue in a test project on `test-lab`; confirm that `redmine_more_previews` v6.1.1 or later is installed.
+1. Open a test-only issue in a test project on a non-production Redmine instance; confirm that `redmine_more_previews` v6.1.1 or later is installed.
 2. Upload the five files from this directory to that issue as attachments.
 3. Choose `inline` for Markdown and both vCards. For EML, use the `html` preview format (Cliff supports `html` only). Use the `pdf` preview format for the PDF.
 4. Record results in the test report or your project's issue tracker. Include the tested Redmine/plugin versions and preview format. A successful automated test suite alone does not complete the manual visual check.

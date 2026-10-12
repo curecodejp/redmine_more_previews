@@ -1,0 +1,47 @@
+# Keep the OSS Scanner Docker build context free of local VCS metadata.
+.git
+**/.git
+
+# Ignore local AI assistant/editor configuration.
+.claude
+**/.claude
+
+# Do not copy local credentials or private keys into /src or the image.
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+**/*.pem
+*.key
+**/*.key
+*.p12
+**/*.p12
+*.pfx
+**/*.pfx
+id_rsa*
+**/id_rsa*
+id_ed25519*
+**/id_ed25519*
+credentials.json
+**/credentials.json
+
+# Exclude local build outputs, databases, caches, and bulky dependencies.
+.bundle
+**/.bundle
+vendor/bundle
+**/vendor/bundle
+node_modules
+**/node_modules
+coverage
+**/coverage
+tmp
+**/tmp
+log
+**/log
+db/*.sqlite*
+**/db/*.sqlite*
+*.swp
+*.bak
+**/*.swp
+**/*.bak

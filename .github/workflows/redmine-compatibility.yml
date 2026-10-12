@@ -329,9 +329,12 @@ jobs:
           RAILS_ENV: test
         run: |
           bundle exec rake db:migrate
-          # -v names each test as it runs, and timeout stops a hanging test before
-          # the job's limit does, so the log shows which test it was
-          timeout 600 bundle exec rake redmine:plugins:test NAME=redmine_more_previews TESTOPTS="-v"
+          # -v names each test as it runs, unbuffered, and timeout stops a hanging
+          # test before the job's limit does, so the log shows which test it was:
+          # INT makes Ruby print where it was, KILL follows if that does not stop it
+          echo '$stdout.sync = true; $stderr.sync = true' > /tmp/rmp-sync.rb
+          RUBYOPT="-r/tmp/rmp-sync.rb" timeout --signal=INT --kill-after=10s 600s \
+            bundle exec rake redmine:plugins:test NAME=redmine_more_previews TESTOPTS="-v"
 
       - name: Verify Pandoc Markdown conversion
         run: |

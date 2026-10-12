@@ -3,6 +3,7 @@ name: Scanner Docker build test
 on:
   pull_request:
     paths:
+      - '.dockerignore'
       - '.oss-scanner/**'
       - '.github/workflows/scanner-docker-build.yml'
   workflow_dispatch:

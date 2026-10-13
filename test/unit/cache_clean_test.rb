@@ -62,11 +62,14 @@ class CacheCleanTest < ActiveSupport::TestCase
     vanished = preview('repository_previews/3/a/old/preview.html', 31)
     other = preview('attachments/5/preview.html', 31)
     original = File.method(:open)
-    File.stub(:open, proc { |path, *args, &block|
-      raise Errno::ENOENT, path if path.to_s == "#{vanished}.lock"
-      original.call(path, *args, &block)
-    }) do
+    begin
+      File.define_singleton_method(:open) do |path, *args, &block|
+        raise Errno::ENOENT, path if path.to_s == "#{vanished}.lock"
+        original.call(path, *args, &block)
+      end
       assert_equal 1, RmpCacheClean.run(30)
+    ensure
+      File.define_singleton_method(:open, original)
     end
     assert_not File.exist?(other)
     assert File.exist?(vanished)

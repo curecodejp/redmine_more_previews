@@ -36,6 +36,9 @@ module RedmineMorePreviews
       # seconds a stopped command gets to exit after TERM, before KILL
       KILL_GRACE = 3
       POLL       = 0.05
+      # A separate exit status carries a controlled size-limit refusal across
+      # the process boundary (the parent cannot rescue a child's exception).
+      TOO_LARGE_EXIT = 75
       
       # command: a String (run by the shell if it needs one) or an Array (run
       # without a shell). The block, if given, is called right after the spawn,
@@ -94,6 +97,8 @@ module RedmineMorePreviews
             limit_address_space( 2 * memory ) if memory
             yield
             exit!( 0 )
+          rescue Exceptions::ConverterTooLarge
+            exit!( TOO_LARGE_EXIT )
           rescue Exception
             exit!( 1 )
           end
@@ -102,6 +107,9 @@ module RedmineMorePreviews
         Process.setpgid( pid, pid ) rescue nil
         status = watch( pid, now + timeout, memory )
         raise Exceptions::ConverterTimeout, "child timed out after #{timeout}s" if status.nil?
+        if status.is_a?(Process::Status) && status.exitstatus == TOO_LARGE_EXIT
+          raise Exceptions::ConverterTooLarge, "conversion exceeded configured limits"
+        end
         status.is_a?( Process::Status ) && status.success?
       ensure
         stop( pid, status.is_a?( Process::Status ) ? status : nil ) if pid

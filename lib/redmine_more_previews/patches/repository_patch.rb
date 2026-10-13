@@ -28,7 +28,11 @@ module RedmineMorePreviews
       def self.included(base)
         base.class_eval do
           #unloadable
-          
+
+          # Repository IDs scope cached previews. When a repository is deleted,
+          # its cached files must not remain on the server indefinitely.
+          after_destroy :remove_more_preview_cache_on_destroy
+
           ################################################################################
           #
           # preview data functions
@@ -183,6 +187,22 @@ module RedmineMorePreviews
             File.join(previews_storagepath, id.to_s)
           end #def
           
+          # Clear only this repository's cached previews, not the shared
+          # preview root or caches belonging to other repositories. Resolve
+          # existing symlinks before removing anything to avoid deleting a
+          # directory outside the configured plugin storage.
+          def remove_more_preview_cache_on_destroy
+            root = previews_storagepath
+            dir = preview_storagepath
+            return unless File.directory?(dir)
+            return unless RedmineMorePreviews::Lib::RmpFile.within_directory?(root, dir)
+
+            FileUtils.rm_rf(dir, secure: true)
+          rescue SystemCallError => e
+            Rails.logger.warn "Repository preview cache cleanup failed: #{e.class}: #{e.message}"
+          end
+          private :remove_more_preview_cache_on_destroy
+
           # directory containing all preview files and assets
           # per revision and content: the same path holds other content at another
           # revision (and a Filesystem repository has no revision), and a preview

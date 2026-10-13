@@ -40,47 +40,57 @@ module RedmineMorePreviews
           ################################################################################
           # class specific
           def more_preview(path, rev, options={}, &block)
-            if entry(path, rev)
-              Dir.mktmpdir do |tmpdir|
-                filepath = File.join(tmpdir, entry(path, rev).name)
-                File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
-                RedmineMorePreviews::Converter.convert(
-                  filepath,
-                  preview_filepath(path, rev, options),
-                  options.merge(
-                    :object => {:type => :repository, :object => self, :path => path, :rev => rev},
-                    :preview_format => preview_format(path, rev)
-                  ), 
-                  &block
-                )
-              end #Dir
-            elsif block_given?
-              yield nil
-            end #if
+            with_repository_preview_lifecycle_lock do
+              # A request that started before the repository was deleted must
+              # never recreate cached private content after cleanup completes.
+              return nil if File.exist?(preview_destroyed_marker)
+              if entry(path, rev)
+                Dir.mktmpdir do |tmpdir|
+                  filepath = File.join(tmpdir, entry(path, rev).name)
+                  File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
+                  RedmineMorePreviews::Converter.convert(
+                    filepath,
+                    preview_filepath(path, rev, options),
+                    options.merge(
+                      :object => {:type => :repository, :object => self, :path => path, :rev => rev},
+                      :preview_format => preview_format(path, rev)
+                    ), 
+                    &block
+                  )
+                end #Dir
+              elsif block_given?
+                yield nil
+              end #if
+            end
           end #def
           
           # class specific
           def more_asset(path, rev, options={}, &block)
-            if entry(path, rev)
-              Dir.mktmpdir do |tmpdir|
-                filepath = File.join(tmpdir, entry(path, rev).name)
-                File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
-                # the asset path, not the preview path (as in Attachment#more_asset):
-                # with the preview as target a cached listing counted as "valid" and
-                # the asset was never extracted
-                RedmineMorePreviews::Converter.convert(
-                  filepath,
-                  preview_assetpath(path, rev, options),
-                  options.merge(
-                    :object => {:type => :repository, :object => self, :path => path, :rev => rev},
-                    :preview_format => preview_format(path, rev)
-                  ), 
-                  &block
-                )
-              end #Dir
-            elsif block_given?
-              yield nil
-            end #if
+            with_repository_preview_lifecycle_lock do
+              # A request that started before the repository was deleted must
+              # never recreate cached private content after cleanup completes.
+              return nil if File.exist?(preview_destroyed_marker)
+              if entry(path, rev)
+                Dir.mktmpdir do |tmpdir|
+                  filepath = File.join(tmpdir, entry(path, rev).name)
+                  File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
+                  # the asset path, not the preview path (as in Attachment#more_asset):
+                  # with the preview as target a cached listing counted as "valid" and
+                  # the asset was never extracted
+                  RedmineMorePreviews::Converter.convert(
+                    filepath,
+                    preview_assetpath(path, rev, options),
+                    options.merge(
+                      :object => {:type => :repository, :object => self, :path => path, :rev => rev},
+                      :preview_format => preview_format(path, rev)
+                    ), 
+                    &block
+                  )
+                end #Dir
+              elsif block_given?
+                yield nil
+              end #if
+            end
           end #def
           
           # the entry's bytes, read once per repository instance (i.e. per request):
@@ -187,19 +197,45 @@ module RedmineMorePreviews
             File.join(previews_storagepath, id.to_s)
           end #def
           
-          # Clear only this repository's cached previews, not the shared
-          # preview root or caches belonging to other repositories. Resolve
-          # existing symlinks before removing anything to avoid deleting a
-          # directory outside the configured plugin storage.
-          def remove_more_preview_cache_on_destroy
-            root = previews_storagepath
-            dir = preview_storagepath
-            return unless File.directory?(dir)
-            return unless RedmineMorePreviews::Lib::RmpFile.within_directory?(root, dir)
+          # Keep a repository-level lock *outside* its cache subtree. Each
+          # conversion takes this lock before touching the cache; destruction
+          # waits for in-flight conversions before deleting any generated data.
+          def with_repository_preview_lifecycle_lock
+            FileUtils.mkdir_p(previews_storagepath)
+            File.open("#{preview_storagepath}.lifecycle.lock", File::RDWR | File::CREAT, 0644) do |lock|
+              lock.flock(File::LOCK_EX)
+              begin
+                yield
+              ensure
+                lock.flock(File::LOCK_UN)
+              end
+            end
+          end
+          private :with_repository_preview_lifecycle_lock
 
-            FileUtils.rm_rf(dir, secure: true)
-          rescue SystemCallError => e
-            Rails.logger.warn "Repository preview cache cleanup failed: #{e.class}: #{e.message}"
+          # A small persistent marker stops already-started requests that were
+          # waiting for the lifecycle lock from repopulating a removed cache.
+          def preview_destroyed_marker
+            "#{preview_storagepath}.deleted"
+          end
+          private :preview_destroyed_marker
+
+          def remove_more_preview_cache_on_destroy
+            with_repository_preview_lifecycle_lock do
+              # Write before removing: a failure should not let an in-flight
+              # request reuse/rebuild the deleted repository's cache.
+              File.write(preview_destroyed_marker, "deleted\n")
+              root = previews_storagepath
+              dir = preview_storagepath
+              if File.directory?(dir) && RedmineMorePreviews::Lib::RmpFile.within_directory?(root, dir)
+                # Unlike rm_rf, secure removal reports real failures.
+                FileUtils.remove_entry_secure(dir)
+              end
+            end
+          rescue Errno::ENOENT
+            # Another process may have cleaned this directory meanwhile.
+          rescue StandardError => e
+            Rails.logger.error "Repository preview cache cleanup failed: #{e.class}: #{e.message}"
           end
           private :remove_more_preview_cache_on_destroy
 

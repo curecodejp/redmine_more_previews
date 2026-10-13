@@ -91,6 +91,48 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
     assert_no_secrets(cached)
   end
 
+  def test_cached_output_from_before_the_redaction_is_rebuilt
+    RedmineMorePreviews::Converter.stubs(:debug?).returns(true)
+    FileUtils.mkdir_p(File.dirname(@target))
+    File.write(@target, 'PRIVATE_SOURCE_PATH SECRET_SETTING_PASSWORD')
+    # This is the old marker format used before private fields were redacted.
+    File.write("#{File.dirname(@target)}.converter", 'pass')
+
+    safe_result = pass_worker.preview(File.new(@source))
+    assert_includes safe_result, 'Converter debug information'
+    assert_no_secrets(safe_result)
+    assert_equal 'pass:safe-debug-v1:debug', File.read("#{File.dirname(@target)}.converter")
+    assert_equal safe_result, File.read(@target)
+  end
+
+  def test_switching_debug_mode_regenerates_the_cached_preview
+    RedmineMorePreviews::Converter.stubs(:debug?).returns(true)
+    diagnostic = pass_worker.preview(File.new(@source))
+    assert_includes diagnostic, 'Converter debug information'
+    assert_no_secrets(diagnostic)
+
+    RedmineMorePreviews::Converter.unstub(:debug?)
+    RedmineMorePreviews::Converter.stubs(:debug?).returns(false)
+    normal = pass_worker.preview(File.new(@source))
+    assert_equal 'source data', normal
+    assert_equal 'pass:safe-debug-v1:normal', File.read("#{File.dirname(@target)}.converter")
+  end
+
+  def test_etag_changes_between_debug_modes
+    helper = Object.new.extend(RedmineMorePreviews::ControllerHelper)
+    RedmineMorePreviews::Converter.stubs(:responsible).returns(
+      RedmineMorePreviews::Converter.find(:pass)
+    )
+    RedmineMorePreviews::Converter.stubs(:debug?).returns(true)
+    debug_etag = helper.send(:preview_etag, Time.at(0), @source)
+
+    RedmineMorePreviews::Converter.unstub(:debug?)
+    RedmineMorePreviews::Converter.stubs(:debug?).returns(false)
+    normal_etag = helper.send(:preview_etag, Time.at(0), @source)
+    assert_not_equal debug_etag, normal_etag
+    assert_includes debug_etag, RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION
+  end
+
   private
 
   def pass_worker

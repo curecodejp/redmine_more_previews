@@ -58,6 +58,34 @@ class CacheCleanTest < ActiveSupport::TestCase
     assert_not File.exist?(File.join(recent, 'evil.lock'))
   end
 
+  def test_disappeared_repository_marker_does_not_abort_other_cleanup
+    vanished = preview('repository_previews/3/a/old/preview.html', 31)
+    other = preview('attachments/5/preview.html', 31)
+    original = File.method(:open)
+    begin
+      File.define_singleton_method(:open) do |path, *args, &block|
+        raise Errno::ENOENT, path if path.to_s == "#{vanished}.lock"
+        original.call(path, *args, &block)
+      end
+      assert_equal 1, RmpCacheClean.run(30)
+    ensure
+      File.define_singleton_method(:open, original)
+    end
+    assert_not File.exist?(other)
+    assert File.exist?(vanished)
+  end
+
+  def test_deferred_repository_cleanup_is_retried_by_cache_clean
+    orphan = File.join(@storage, 'repository_previews', '99999999')
+    FileUtils.mkdir_p(orphan)
+    File.write(File.join(orphan, 'private.txt'), 'previously cached content')
+    File.write("#{orphan}.cleanup_pending", 'pending')
+
+    assert_equal 0, RmpCacheClean.run(30)
+    assert_not File.exist?(orphan)
+    assert_not File.exist?("#{orphan}.cleanup_pending")
+  end
+
   def test_old_failures_are_removed
     failures = File.join(@storage, 'failures')
     FileUtils.mkdir_p(failures)

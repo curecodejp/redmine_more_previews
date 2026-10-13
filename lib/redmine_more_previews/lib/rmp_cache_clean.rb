@@ -44,14 +44,20 @@ module RedmineMorePreviews
           next if inside_preview?( dir, dirs )
           next unless old?( marker, cutoff )
           next unless RmpFile.within_directory?( storage, dir )
-          File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
-            next unless lock.flock( File::LOCK_EX | File::LOCK_NB )
-            # the preview may have been converted again meanwhile
-            next unless old?( marker, cutoff )
-            FileUtils.rm_rf( dir )
-            FileUtils.rm_f( marker )
-            RmpAssetList.remove( dir )
-            removed += 1
+          begin
+            File.open( "#{dir}.lock", File::RDWR | File::CREAT, 0644 ) do |lock|
+              next unless lock.flock( File::LOCK_EX | File::LOCK_NB )
+              # the preview may have been converted again meanwhile
+              next unless old?( marker, cutoff )
+              FileUtils.rm_rf( dir )
+              FileUtils.rm_f( marker )
+              RmpAssetList.remove( dir )
+              removed += 1
+            end
+          rescue Errno::ENOENT
+            # Repository/attachment deletion may remove this directory after
+            # the initial glob. Continue cleaning the other cached previews.
+            next
           end
         end
         remove_failures

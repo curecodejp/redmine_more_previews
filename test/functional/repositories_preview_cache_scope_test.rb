@@ -68,6 +68,27 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
     assert_response :not_found
   end
 
+  # Cliff uses Repository#asset_link when rendering extracted email attachments.
+  # A cached asset previously raised ArgumentError because Pathname.new was
+  # called with three arguments, causing the attachment listing to disappear.
+  def test_cached_repository_asset_has_a_working_download_link
+    get :more_asset, params: asset_params(PRJ_A, @repo_a, 'dir/secret', 'txt')
+    assert_response :success
+    assert_equal 'secret', response.body
+
+    cached_file = @repo_a.preview_assetpath('a.zip', nil, asset: 'dir/secret.txt')
+    assert File.file?(cached_file), 'the requested asset is cached'
+
+    link = @repo_a.asset_link('a.zip', nil, 'dir/secret.txt')
+    assert_includes link, 'dir/secret.txt'
+    assert_includes link, 'icon-file'
+    assert_includes link, 'text-plain'
+  end
+
+  def test_uncached_repository_asset_link_is_hidden
+    assert_equal '', @repo_a.asset_link('a.zip', nil, 'dir/missing.txt')
+  end
+
   def test_changed_content_is_not_served_from_the_cache
     get :more_preview, params: preview_params(PRJ_A, @repo_a)
     assert_response :success

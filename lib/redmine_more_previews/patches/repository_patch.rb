@@ -220,22 +220,21 @@ module RedmineMorePreviews
                 lock.flock(File::LOCK_UN)
               end
             end
+          ensure
+            if mode == File::LOCK_SH && File.file?("#{preview_storagepath}.cleanup_pending")
+              RedmineMorePreviews::Patches::RepositoryPatch.cleanup_removed_repository_cache(id)
+            end
           end
           private :with_repository_preview_lifecycle_lock
 
           def remove_more_preview_cache_on_destroy
-            with_repository_preview_lifecycle_lock(File::LOCK_EX) do
-              root = previews_storagepath
-              dir = preview_storagepath
-              if File.directory?(dir) && RedmineMorePreviews::Lib::RmpFile.within_directory?(root, dir)
-                # Unlike rm_rf, secure removal reports real failures, including
-                # an ENOENT caused by a concurrent cache-cleaning task.
-                FileUtils.remove_entry_secure(dir)
-              end
-            end
+            # Persist the intent before trying the exclusive lock. An active
+            # conversion may outlive the HTTP request that destroyed the row;
+            # it will retry cleanup when its shared lock is released.
+            FileUtils.mkdir_p(previews_storagepath)
+            File.write("#{preview_storagepath}.cleanup_pending", "pending\n")
+            RedmineMorePreviews::Patches::RepositoryPatch.cleanup_removed_repository_cache(id)
           rescue StandardError => e
-            # Failed cleanup is logged instead of silently leaving private files.
-            # The DB check above still prevents late conversion/repopulation.
             Rails.logger.error "Repository preview cache cleanup failed: #{e.class}: #{e.message}"
           end
           private :remove_more_preview_cache_on_destroy
@@ -287,6 +286,45 @@ module RedmineMorePreviews
         end #base
       end #self
       
+      # Non-blocking cleanup: do not hold a Redmine request open for the entire
+      # conversion timeout. A pending marker survives worker restarts and is
+      # retried by exiting preview requests and the cache-clean rake task.
+      def self.cleanup_removed_repository_cache(repository_id)
+        return false unless repository_id.to_s.match?(/\A[0-9]+\z/)
+        root = previews_storagepath
+        dir = File.join(root, repository_id.to_s)
+        pending = "#{dir}.cleanup_pending"
+        return false unless File.file?(pending)
+
+        File.open("#{dir}.lifecycle.lock", File::RDWR | File::CREAT, 0644) do |lock|
+          return false unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+          begin
+            if Repository.unscoped.exists?(repository_id)
+              # A restored database reused this ID: remove only the stale
+              # cleanup request, never the new repository's previews.
+              File.delete(pending) if File.file?(pending)
+              return true
+            end
+
+            if File.symlink?(dir)
+              File.unlink(dir) # remove the link, not its external target
+            elsif File.directory?(dir)
+              unless RedmineMorePreviews::Lib::RmpFile.within_directory?(root, dir)
+                raise ArgumentError, 'repository cache path is outside storage'
+              end
+              FileUtils.remove_entry_secure(dir)
+            end
+            File.delete(pending) if File.file?(pending)
+            true
+          ensure
+            lock.flock(File::LOCK_UN)
+          end
+        end
+      rescue StandardError => e
+        Rails.logger.error "Repository preview cache cleanup failed: #{e.class}: #{e.message}"
+        false
+      end
+
       def self.previews_storagepath
         File.join(RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, "repository_previews")
       end #def

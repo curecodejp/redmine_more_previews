@@ -137,7 +137,9 @@ module RedmineMorePreviews
             dirname     = File.dirname(path)
             
             assetformat = File.extname(asset)
-            assetname   = File.basename(asset, assetformat)
+            # Preserve the relative subdirectory when removing the extension:
+            # the controller rebuilds the nested cache path from :asset.
+            assetname   = asset.delete_suffix(assetformat)
             
             _link = Rails.application.routes.url_helpers.url_for(
               :controller    => "repositories",
@@ -154,7 +156,7 @@ module RedmineMorePreviews
             
             if asset_available?(path, rev, :asset => asset)
               ApplicationController.helpers.link_to( asset, _link,
-                :class => "icon icon-file #{Marcel::MimeType.for(Pathname.new(path, rev, preview_assetpath(:asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
+                :class => "icon icon-file #{Marcel::MimeType.for(Pathname.new(preview_assetpath(path, rev, :asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
                 :style => "padding-top:2px;padding-bottom:2px;"
               )
             else

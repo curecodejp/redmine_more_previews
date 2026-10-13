@@ -43,9 +43,10 @@ module RedmineMorePreviews
           # class specific
           def more_preview(path, rev, options={}, &block)
             with_repository_preview_lifecycle_lock do
-              # A request that started before the repository was deleted must
-              # never recreate cached private content after cleanup completes.
-              return nil if File.exist?(preview_destroyed_marker)
+              # Check after acquiring the lifecycle lock. Already-started
+              # requests cannot recreate cache after a committed deletion.
+              # Unlike a persistent tombstone, a DB restore may reuse this ID.
+              return nil unless Repository.unscoped.exists?(id)
               if entry(path, rev)
                 Dir.mktmpdir do |tmpdir|
                   filepath = File.join(tmpdir, entry(path, rev).name)
@@ -69,9 +70,10 @@ module RedmineMorePreviews
           # class specific
           def more_asset(path, rev, options={}, &block)
             with_repository_preview_lifecycle_lock do
-              # A request that started before the repository was deleted must
-              # never recreate cached private content after cleanup completes.
-              return nil if File.exist?(preview_destroyed_marker)
+              # Check after acquiring the lifecycle lock. Already-started
+              # requests cannot recreate cache after a committed deletion.
+              # Unlike a persistent tombstone, a DB restore may reuse this ID.
+              return nil unless Repository.unscoped.exists?(id)
               if entry(path, rev)
                 Dir.mktmpdir do |tmpdir|
                   filepath = File.join(tmpdir, entry(path, rev).name)
@@ -199,13 +201,19 @@ module RedmineMorePreviews
             File.join(previews_storagepath, id.to_s)
           end #def
           
-          # Keep a repository-level lock *outside* its cache subtree. Each
-          # conversion takes this lock before touching the cache; destruction
-          # waits for in-flight conversions before deleting any generated data.
-          def with_repository_preview_lifecycle_lock
+          # Shared locks allow concurrent previews. Deletion takes an exclusive
+          # lock, outside the cache tree, to wait for active converters.
+          # Both lock modes have a bounded wait to avoid hanging request threads.
+          def with_repository_preview_lifecycle_lock(mode = File::LOCK_SH)
             FileUtils.mkdir_p(previews_storagepath)
             File.open("#{preview_storagepath}.lifecycle.lock", File::RDWR | File::CREAT, 0644) do |lock|
-              lock.flock(File::LOCK_EX)
+              deadline = RedmineMorePreviews::Lib::RmpProcess.now + RedmineMorePreviews::Converter.lock_timeout
+              until lock.flock(mode | File::LOCK_NB)
+                if RedmineMorePreviews::Lib::RmpProcess.now >= deadline
+                  raise RedmineMorePreviews::Exceptions::ConverterLockTimeOut, "repository preview #{id} is busy"
+                end
+                sleep 0.05
+              end
               begin
                 yield
               ensure
@@ -215,28 +223,19 @@ module RedmineMorePreviews
           end
           private :with_repository_preview_lifecycle_lock
 
-          # A small persistent marker stops already-started requests that were
-          # waiting for the lifecycle lock from repopulating a removed cache.
-          def preview_destroyed_marker
-            "#{preview_storagepath}.deleted"
-          end
-          private :preview_destroyed_marker
-
           def remove_more_preview_cache_on_destroy
-            with_repository_preview_lifecycle_lock do
-              # Write before removing: a failure should not let an in-flight
-              # request reuse/rebuild the deleted repository's cache.
-              File.write(preview_destroyed_marker, "deleted\n")
+            with_repository_preview_lifecycle_lock(File::LOCK_EX) do
               root = previews_storagepath
               dir = preview_storagepath
               if File.directory?(dir) && RedmineMorePreviews::Lib::RmpFile.within_directory?(root, dir)
-                # Unlike rm_rf, secure removal reports real failures.
+                # Unlike rm_rf, secure removal reports real failures, including
+                # an ENOENT caused by a concurrent cache-cleaning task.
                 FileUtils.remove_entry_secure(dir)
               end
             end
-          rescue Errno::ENOENT
-            # Another process may have cleaned this directory meanwhile.
           rescue StandardError => e
+            # Failed cleanup is logged instead of silently leaving private files.
+            # The DB check above still prevents late conversion/repopulation.
             Rails.logger.error "Repository preview cache cleanup failed: #{e.class}: #{e.message}"
           end
           private :remove_more_preview_cache_on_destroy

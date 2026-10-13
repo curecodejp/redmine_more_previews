@@ -200,6 +200,11 @@ Native speakers: please help to improve localizations
 
 ### Change-Log
 
+**Unreleased (planned 6.1.3)**
+
+- Converter debug previews now expose only safe diagnostic metadata. Cache markers and response ETags are versioned so older, potentially sensitive debug previews cannot be served after the update.
+- **Upgrade precaution:** If converter debug mode has ever been enabled, old diagnostic files may still exist on disk even though this version refuses to serve them. Before putting the upgraded Redmine instance back into service, stop Redmine and its preview-conversion workers, identify the plugin's actual cache storage path (default: `<Redmine root>/tmp/more_previews`), and **clear that plugin cache directory's contents**. Verify the directory path before deleting anything, especially on installations with a customized storage location or shared storage. Preview files are regenerated on demand. The normal age-based cache-cleaning task does not promptly remove all legacy debug files.
+
 **6.1.2**
  - Bound the time, number and size of preview conversions (GHSA-mq93-c4mm-98v3): a time limit for every conversion, at most `max_conversions` at the same time (`503` beyond), size limits for repository files, archives, emails, previews and the cache (`413` beyond), failed conversions remembered for a while, `reload` and `unsafe` for administrators only, and a rake task that cleans the cache. See [a note on conversion limits](#a-note-on-conversion-limits).
  - Vince: HTML-escape names, link only known URI schemes and build GEO map links from validated coordinates.

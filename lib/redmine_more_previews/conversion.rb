@@ -25,6 +25,11 @@ require 'fileutils'
 
 module RedmineMorePreviews 
   class Conversion
+    # Change cache identity when debug diagnostics or their exposure policy
+    # changes. Old cache files may contain arbitrary internal instance variables
+    # (including absolute paths) and must never be reused after this fix.
+    CACHE_FORMAT_VERSION = 'safe-debug-v1'.freeze
+
   
     
     #-------------------------------------------------------------------------------------
@@ -440,12 +445,18 @@ module RedmineMorePreviews
     end #def
     private :marker_path
     
-    def cached_by_this_converter?
-      marker_path && File.file?( marker_path ) && File.read( marker_path ).strip == id.to_s
+    def cache_marker
+      mode = RedmineMorePreviews::Converter.debug? ? 'debug' : 'normal'
+      "#{id}:#{CACHE_FORMAT_VERSION}:#{mode}"
     end #def
-    
+    private :cache_marker
+
+    def cached_by_this_converter?
+      marker_path && File.file?( marker_path ) && File.read( marker_path ).strip == cache_marker
+    end #def
+
     def write_marker
-      File.write( marker_path, id.to_s ) if marker_path
+      File.write( marker_path, cache_marker ) if marker_path
     end #def
     private :write_marker
 

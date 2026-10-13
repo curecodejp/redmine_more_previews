@@ -54,10 +54,12 @@ class Libre < RedmineMorePreviews::Conversion
       raise ConverterBadArgument, 'Unsupported LibreOffice output format'
     end
     quoted_format = shell_quote(output_format)
+    # Quote the complete -env argument, not just the path portion: a TMPDIR
+    # containing spaces or shell metacharacters must remain one soffice argument.
     if Redmine::Platform.mswin?
     "#{LIBRE_OFFICE_BIN} --headless --invisible --nodefault --nofirststartwizard --nolockcheck --nologo --norestore --convert-to #{quoted_format} --outdir #{shell_quote tmpdir} #{shell_quote src}"
     else
-    "#{LIBRE_OFFICE_BIN} --headless --invisible --nodefault --nofirststartwizard --nolockcheck --nologo --norestore --convert-to #{quoted_format} --outdir #{shell_quote tmpdir} -env:UserInstallation=file://#{user_installation} #{shell_quote src}"
+    "#{LIBRE_OFFICE_BIN} --headless --invisible --nodefault --nofirststartwizard --nolockcheck --nologo --norestore --convert-to #{quoted_format} --outdir #{shell_quote tmpdir} #{shell_quote("-env:UserInstallation=file://#{user_installation}")} #{shell_quote src}"
     end
   end #def
 

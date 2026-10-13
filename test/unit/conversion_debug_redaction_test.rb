@@ -74,7 +74,7 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
       assert_no_secrets(fields.inspect)
       true
     end.returns('%PDF-SAFE')
-    assert_equal '%PDF-SAFE', render_debug('pdf')
+    assert_equal "%PDF-SAFE\n", render_debug('pdf')
   end
 
   def test_cached_debug_preview_contains_no_private_data

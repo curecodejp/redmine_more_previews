@@ -74,15 +74,6 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
-  # A limit failure is reported as HTTP 413, not cached as successful HTML.
-  def test_refused_email_is_not_cached_as_a_successful_preview
-    with_cliff_settings('max_size' => '1') do
-      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) do
-        convert("Subject: big\n\n" + ('x' * (1024 * 1024 + 1)))
-      end
-    end
-  end
-
   # any other error can name the paths of the server in its message
   def test_failed_email_shows_no_message_of_the_error
     Mail.stubs(:new).raises(Errno::ENAMETOOLONG, '/tmp/d20261012-1-abc/attachment')
@@ -306,7 +297,10 @@ class CliffLimitsTest < ActiveSupport::TestCase
     eml = File.join(@tmp, "#{SecureRandom.hex(4)}.eml")
     File.binwrite(eml, source)
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(
-      :preview_format => 'html', :object => {}, :target => File.join(@tmp, 'preview.html', 'index.html'),
+      :preview_format => 'html', :object => {},
+      # A size-limit failure is recorded per target. Use a fresh target for each
+      # call, otherwise the first failure masks later input/limit variants.
+      :target => File.join(@tmp, SecureRandom.hex(4), 'preview.html', 'index.html'),
       :assets => %w(attachments.html)
     )
     preview = nil

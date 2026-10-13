@@ -46,6 +46,7 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     @repository.destroy!
 
     assert_not File.exist?(target)
+    assert File.file?("#{target}.deleted")
     assert_equal 'another repository', File.read(other_cache)
     assert_equal 'shared storage', File.read(outside)
   end
@@ -61,6 +62,52 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     assert_equal 'keep', File.read(File.join(external, 'secret.txt'))
   ensure
     FileUtils.rm_rf(external) if external
+  end
+
+  def test_cache_cleanup_waits_for_an_inflight_preview
+    target = @repository.preview_storagepath
+    started = Queue.new
+    cleanup = nil
+
+    # Simulate conversion holding the repository-level lock while it writes.
+    @repository.send(:with_repository_preview_lifecycle_lock) do
+      cleanup = Thread.new do
+        started << true
+        @repository.send(:remove_more_preview_cache_on_destroy)
+      end
+      started.pop
+      FileUtils.mkdir_p(target)
+      File.write(File.join(target, 'private.txt'), 'late preview')
+      assert File.file?(File.join(target, 'private.txt'))
+    end
+
+    assert cleanup.join(5), 'deletion should finish once conversion releases its lock'
+    cleanup.value
+    assert_not File.exist?(target), 'cleanup must remove a preview written during an active conversion'
+    assert File.file?("#{target}.deleted")
+  ensure
+    cleanup&.kill if cleanup&.alive?
+  end
+
+  def test_destroyed_marker_blocks_a_delayed_preview_request
+    @repository.send(:remove_more_preview_cache_on_destroy)
+    @repository.expects(:entry).never
+
+    assert_nil @repository.more_preview('a.zip', nil)
+    assert_nil @repository.more_asset('a.zip', nil)
+    assert_not File.exist?(@repository.preview_storagepath)
+  end
+
+  def test_failed_secure_removal_is_logged_and_does_not_reopen_cache
+    target = @repository.preview_storagepath
+    FileUtils.mkdir_p(target)
+    FileUtils.expects(:remove_entry_secure).with(target).raises(ArgumentError, 'insecure directory')
+    Rails.logger.expects(:error).with(/Repository preview cache cleanup failed.*ArgumentError/)
+
+    @repository.send(:remove_more_preview_cache_on_destroy)
+
+    assert File.file?("#{target}.deleted"), 'even a failed cleanup must prevent new previews'
+    assert File.directory?(target), 'the failed deletion must be visible for operator cleanup'
   end
 
   def test_destroy_without_a_cache_directory_still_succeeds

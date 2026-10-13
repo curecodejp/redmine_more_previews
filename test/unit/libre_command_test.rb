@@ -39,7 +39,7 @@ class LibreCommandTest < ActiveSupport::TestCase
     @worker.preview_format = 'pdf'
     [
       "/tmp/redmine's cache/user installation",
-      '/tmp/cache; touch unexpected-file/$HOME \\$(id)',
+      '/tmp/cache; touch unexpected-file/$HOME $(id)',
       "/tmp/first line\nsecond line"
     ].each do |installation|
       arguments = Shellwords.split(@worker.soffice('/tmp/input.docx', installation))

@@ -180,7 +180,7 @@ module RedmineMorePreviews
         #-----------------------------------------------------------------------------------
         def directory( subdir, dir=nil )
           subdir = sanitize_subdir(subdir, dir) if dir
-          FileUtils.mkdir_p subdir if subdir && !File.exists?(subdir)
+          FileUtils.mkdir_p subdir if subdir && !File.exist?(subdir)
           subdir
         end #def
         

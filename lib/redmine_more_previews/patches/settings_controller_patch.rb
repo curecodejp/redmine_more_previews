@@ -9,7 +9,7 @@ module RedmineMorePreviews
         if request.post? && params[:id] == 'redmine_more_previews'
           formats = params.dig(:settings, :converter, :libre, :mime_types)
           if formats.present? && !valid_libre_formats?(formats)
-            flash[:error] = 'Invalid LibreOffice conversion format; settings were not saved.'
+            flash[:error] = l(:error_more_previews_invalid_libre_format)
             return redirect_to(plugin_settings_path(params[:id]))
           end
         end

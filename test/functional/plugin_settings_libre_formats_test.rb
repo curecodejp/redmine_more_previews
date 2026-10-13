@@ -33,8 +33,17 @@ class PluginSettingsLibreFormatsTest < Redmine::ControllerTest
     updated['converter']['libre']['mime_types']['docx']['format'] = 'xml'
     post :plugin, params: {id: 'redmine_more_previews', settings: updated}
     assert_response :redirect
-    assert flash[:error].present?
+    assert_equal I18n.t(:error_more_previews_invalid_libre_format, locale: :en), flash[:error]
     assert_equal @settings, Setting.plugin_redmine_more_previews
+  end
+
+  def test_error_is_shown_in_the_user_language
+    User.find(1).update!(language: 'ja')
+    updated = @settings.deep_dup
+    updated['converter']['libre']['mime_types']['docx']['format'] = 'xml'
+    post :plugin, params: {id: 'redmine_more_previews', settings: updated}
+    assert_equal I18n.t(:error_more_previews_invalid_libre_format, locale: :ja), flash[:error]
+    assert_not_equal I18n.t(:error_more_previews_invalid_libre_format, locale: :en), flash[:error]
   end
 
   def test_format_must_be_supported_by_its_extension

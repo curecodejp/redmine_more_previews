@@ -54,12 +54,14 @@ class Libre < RedmineMorePreviews::Conversion
       raise ConverterBadArgument, 'Unsupported LibreOffice output format'
     end
     quoted_format = shell_quote(output_format)
-    # Quote the complete -env argument, not just the path portion: a TMPDIR
-    # containing spaces or shell metacharacters must remain one soffice argument.
+    # LibreOffice parses UserInstallation as a file URL, not a plain path.
+    # Percent-encode non-unreserved path bytes, except path separators, before
+    # quoting the full shell argument. Otherwise even one space breaks soffice.
+    installation_url = "file://#{URI::DEFAULT_PARSER.escape(user_installation, /[^A-Za-z0-9._~\\/-]/)}"
     if Redmine::Platform.mswin?
     "#{LIBRE_OFFICE_BIN} --headless --invisible --nodefault --nofirststartwizard --nolockcheck --nologo --norestore --convert-to #{quoted_format} --outdir #{shell_quote tmpdir} #{shell_quote src}"
     else
-    "#{LIBRE_OFFICE_BIN} --headless --invisible --nodefault --nofirststartwizard --nolockcheck --nologo --norestore --convert-to #{quoted_format} --outdir #{shell_quote tmpdir} #{shell_quote("-env:UserInstallation=file://#{user_installation}")} #{shell_quote src}"
+    "#{LIBRE_OFFICE_BIN} --headless --invisible --nodefault --nofirststartwizard --nolockcheck --nologo --norestore --convert-to #{quoted_format} --outdir #{shell_quote tmpdir} #{shell_quote("-env:UserInstallation=#{installation_url}")} #{shell_quote src}"
     end
   end #def
 

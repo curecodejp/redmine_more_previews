@@ -68,16 +68,18 @@ class CliffLimitsTest < ActiveSupport::TestCase
   def test_email_larger_than_the_limit_is_not_parsed
     with_cliff_settings('max_size' => '1') do
       Mail.expects(:new).never
-      html = convert("Subject: big\n\n" + ('x' * (1024 * 1024 + 1)))
-      assert_includes html, 'larger than 1 MiB'
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) do
+        convert("Subject: big\n\n" + ('x' * (1024 * 1024 + 1)))
+      end
     end
   end
 
-  # the page of an email that is not previewed says why, not where in the code
-  def test_refused_email_shows_no_backtrace
+  # A limit failure is reported as HTTP 413, not cached as successful HTML.
+  def test_refused_email_is_not_cached_as_a_successful_preview
     with_cliff_settings('max_size' => '1') do
-      html = convert("Subject: big\n\n" + ('x' * (1024 * 1024 + 1)))
-      assert_equal 'the email is larger than 1 MiB', html
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) do
+        convert("Subject: big\n\n" + ('x' * (1024 * 1024 + 1)))
+      end
     end
   end
 
@@ -91,7 +93,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
     source = mail_with_attachments(20)
     with_cliff_settings('max_parts' => '10') do
       Mail.expects(:new).never
-      assert_includes convert(source), 'more than 10 parts'
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { convert(source) }
     end
   end
 
@@ -104,7 +106,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
       assert_equal 20, Mail.new(source).parts.size, "Mail splits the parts (#{param})"
       with_cliff_settings('max_parts' => '10') do
         Mail.expects(:new).never
-        assert_includes convert(source), 'more than 10 parts', param
+        assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge, param) { convert(source) }
         Mail.unstub(:new)
       end
     end
@@ -117,7 +119,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
     assert_operator Mail.new(source).parts.size, :>, 10, 'Mail splits the parts'
     with_cliff_settings('max_parts' => '10') do
       Mail.expects(:new).never
-      assert_includes convert(source), 'more than 10 parts'
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { convert(source) }
     end
   end
 
@@ -138,7 +140,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
       assert_operator depth_of(Mail.new(source)), :>, Cliff::MAX_DEPTH, "Mail nests the parts (#{form})"
       Mail::Message.any_instance.expects(:attachments).never
       Mail::Message.any_instance.expects(:html_part).never
-      assert_includes convert(source), "more than #{Cliff::MAX_DEPTH} nested multipart parts", form
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge, form) { convert(source) }
       Mail::Message.any_instance.unstub(:attachments)
       Mail::Message.any_instance.unstub(:html_part)
     end
@@ -156,7 +158,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
     source = nested(NESTED_FORMS['plain'], 10, 'x' * (700 * 1024))
     with_cliff_settings('max_size' => '1') do
       Mail::Message.any_instance.expects(:attachments).never
-      assert_includes convert(source), "add up to more than #{Cliff::MAX_PARSED} MiB"
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { convert(source) }
     end
   end
 
@@ -166,7 +168,9 @@ class CliffLimitsTest < ActiveSupport::TestCase
     n = 1024 * 1024
     ["From " + ('a' * n), "From" + ("\n" * n) + ":", "From" + (' ' * n), "From \u00e9" + ('a' * n), "From \0" + ('a' * n)].each do |start|
       Mail.expects(:new).never
-      assert_includes convert(start + "\r\nSubject: x\r\n\r\nbody"), "line longer than #{Cliff::MAX_LINE} characters"
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) do
+        convert(start + "\r\nSubject: x\r\n\r\nbody")
+      end
       Mail.unstub(:new)
     end
   end
@@ -222,7 +226,7 @@ class CliffLimitsTest < ActiveSupport::TestCase
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(:preview_format => 'html', :object => {}, :target => File.join(@tmp, 'index.html'))
     GC.disable
     before = GC.stat(:total_allocated_objects)
-    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) { worker.send(:check_parts, text) }
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { worker.send(:check_parts, text) }
     assert_operator GC.stat(:total_allocated_objects) - before, :<, 20_000
   ensure
     GC.enable

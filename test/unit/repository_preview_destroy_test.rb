@@ -111,7 +111,17 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     File.write(File.join(@source, 'readme.txt'), 'present')
     FileUtils.mkdir_p(@repository.previews_storagepath)
     File.write("#{@repository.preview_storagepath}.deleted", 'old tombstone')
+    pending = "#{@repository.preview_storagepath}.cleanup_pending"
+    File.write(pending, 'pending')
+    cache = @repository.preview_storagepath
+    FileUtils.mkdir_p(cache)
+    File.write(File.join(cache, 'new.txt'), 'new repository cache')
 
+    # A pending cleanup for a deleted copy of this ID must not wipe a
+    # repository restored from the database while its cache is retained.
+    RedmineMorePreviews::Patches::RepositoryPatch.cleanup_removed_repository_cache(@repository.id)
+    assert_not File.exist?(pending)
+    assert_equal 'new repository cache', File.read(File.join(cache, 'new.txt'))
     RedmineMorePreviews::Converter.stubs(:convert).returns('ok')
     assert_equal 'ok', @repository.more_preview('readme.txt', nil)
   end

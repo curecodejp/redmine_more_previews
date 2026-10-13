@@ -35,6 +35,7 @@ module RedmineMorePreviews
           alias_method  :read_authorize_for_more_preview,  :read_authorize
           before_action :find_attachment_for_more_preview, :only => [:more_preview, :more_asset]
           before_action :read_authorize_for_more_preview,  :only => [:more_preview, :more_asset]
+          before_action :ensure_more_previews_module_enabled, :only => [:more_preview, :more_asset]
           before_action :find_asset_param,                 :only => [:more_preview, :more_asset]
           rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
           rescue_from   RedmineMorePreviews::Exceptions::ConverterTooLarge,    :with => :render_more_preview_too_large
@@ -89,6 +90,14 @@ module RedmineMorePreviews
           # private
           #
           ################################################################################
+          # The standard attachment permission check still applies. A project
+          # administrator may separately disable preview conversion for a project.
+          # Reject direct preview and asset requests for disabled projects too.
+          def ensure_more_previews_module_enabled
+            render_404 unless @attachment.project&.module_enabled?('redmine_more_previews')
+          end
+          private :ensure_more_previews_module_enabled
+
           def send_more_preview
             apply_preview_security_headers(@attachment.diskfile)
 

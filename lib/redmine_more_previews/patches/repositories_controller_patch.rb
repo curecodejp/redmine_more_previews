@@ -32,6 +32,7 @@ module RedmineMorePreviews
             
           alias_method  :find_project_repository_for_more_preview, :find_project_repository
           before_action :find_project_repository_for_more_preview, :only => [:more_asset, :more_preview ]
+          before_action :ensure_more_previews_module_enabled, :only => [:more_asset, :more_preview ]
           before_action :find_path_param,                          :only => [:more_asset, :more_preview ]
           rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
           rescue_from   RedmineMorePreviews::Exceptions::ConverterTooLarge,    :with => :render_more_preview_too_large
@@ -88,6 +89,13 @@ module RedmineMorePreviews
           # private
           #
           ################################################################################
+          # Reading the underlying repository requires its usual permission,
+          # but the project's module toggle must also disable direct previews.
+          def ensure_more_previews_module_enabled
+            render_404 unless @repository.project.module_enabled?('redmine_more_previews')
+          end
+          private :ensure_more_previews_module_enabled
+
           def send_more_preview
             if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
               # read before the freshness check: the ETag needs the selected converter

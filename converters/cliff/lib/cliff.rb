@@ -91,7 +91,7 @@ class Cliff < RedmineMorePreviews::Conversion
   
     # read eml file
     if File.size(source) > limit('max_size') * 1024 * 1024
-      raise ConverterBadArgument, "the email is larger than #{limit('max_size')} MiB"
+      raise ConverterTooLarge, "the email is larger than #{limit('max_size')} MiB"
     end
     text  = RmpText.to_utf8(File.read(source))
     check_parts( text )
@@ -137,6 +137,13 @@ class Cliff < RedmineMorePreviews::Conversion
     
     File.open(tmptarget, "wb") {|f| f.write html }
     
+  rescue ConverterTooLarge => e
+    # Keep the precise, configured limit in the server log for operators. The
+    # error message here contains only limit constants and numerical settings,
+    # never user-supplied email text or server paths.
+    Rails.logger.warn "Email #{File.basename(source)} not previewed: #{e.message}"
+    # The exception must escape the isolated child and become HTTP 413.
+    raise
   rescue StandardError => e
     # running out of memory or a signal is no error of the email: the child
     # fails (see Conversion#isolated), no error page is stored.
@@ -321,12 +328,12 @@ class Cliff < RedmineMorePreviews::Conversion
   # Mail would parse, and stops at the first one beyond the limit
   def check_parts( text )
     if text.start_with?( "From" ) && text.byteslice( 0, MAX_LINE + 1 ).b[ENVELOPE].bytesize > MAX_LINE
-      raise ConverterBadArgument, "the email starts with a \"From\" line longer than #{MAX_LINE} characters"
+      raise ConverterTooLarge, "the email starts with a \"From\" line longer than #{MAX_LINE} characters"
     end
     count = 0
     text.scan( DELIMITER ) do
       count += 1
-      raise ConverterBadArgument, "the email has more than #{limit('max_parts')} parts" if count > limit('max_parts')
+      raise ConverterTooLarge, "the email has more than #{limit('max_parts')} parts" if count > limit('max_parts')
     end
   end #def
   
@@ -341,10 +348,10 @@ class Cliff < RedmineMorePreviews::Conversion
     until stack.empty?
       part, depth = stack.pop
       next unless part.multipart?
-      raise ConverterBadArgument, "the email has more than #{MAX_DEPTH} nested multipart parts" if depth > MAX_DEPTH
+      raise ConverterTooLarge, "the email has more than #{MAX_DEPTH} nested multipart parts" if depth > MAX_DEPTH
       parsed += part.body.raw_source.to_s.bytesize
       if parsed > budget
-        raise ConverterBadArgument, "the nested multipart parts of the email add up to more than #{MAX_PARSED * limit('max_size')} MiB"
+        raise ConverterTooLarge, "the nested multipart parts of the email add up to more than #{MAX_PARSED * limit('max_size')} MiB"
       end
       part.parts.each {|child| stack.push( [child, depth + 1] ) }
     end

@@ -80,6 +80,13 @@ class RmpProcessTest < ActiveSupport::TestCase
     assert_not RmpProcess.fork(timeout: 5) { raise 'broken' }
   end
 
+  def test_child_limit_refusal_is_raised_in_parent
+    too_large = RedmineMorePreviews::Exceptions::ConverterTooLarge
+    assert_raises(too_large) do
+      RmpProcess.fork(timeout: 5) { raise too_large, 'source private path' }
+    end
+  end
+
   def test_block_is_stopped_at_the_time_limit
     out = File.join(@dir, 'pid')
     elapsed = measure do

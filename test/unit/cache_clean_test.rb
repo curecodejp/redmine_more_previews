@@ -72,6 +72,17 @@ class CacheCleanTest < ActiveSupport::TestCase
     assert File.exist?(vanished)
   end
 
+  def test_deferred_repository_cleanup_is_retried_by_cache_clean
+    orphan = File.join(@storage, 'repository_previews', '99999999')
+    FileUtils.mkdir_p(orphan)
+    File.write(File.join(orphan, 'private.txt'), 'previously cached content')
+    File.write("#{orphan}.cleanup_pending", 'pending')
+
+    assert_equal 0, RmpCacheClean.run(30)
+    assert_not File.exist?(orphan)
+    assert_not File.exist?("#{orphan}.cleanup_pending")
+  end
+
   def test_old_failures_are_removed
     failures = File.join(@storage, 'failures')
     FileUtils.mkdir_p(failures)

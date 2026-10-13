@@ -46,7 +46,7 @@ module RedmineMorePreviews
               # Check after acquiring the lifecycle lock. Already-started
               # requests cannot recreate cache after a committed deletion.
               # Unlike a persistent tombstone, a DB restore may reuse this ID.
-              return nil unless Repository.unscoped.exists?(id)
+              return nil unless Repository.uncached { Repository.unscoped.exists?(id) }
               if entry(path, rev)
                 Dir.mktmpdir do |tmpdir|
                   filepath = File.join(tmpdir, entry(path, rev).name)
@@ -73,7 +73,7 @@ module RedmineMorePreviews
               # Check after acquiring the lifecycle lock. Already-started
               # requests cannot recreate cache after a committed deletion.
               # Unlike a persistent tombstone, a DB restore may reuse this ID.
-              return nil unless Repository.unscoped.exists?(id)
+              return nil unless Repository.uncached { Repository.unscoped.exists?(id) }
               if entry(path, rev)
                 Dir.mktmpdir do |tmpdir|
                   filepath = File.join(tmpdir, entry(path, rev).name)
@@ -299,7 +299,7 @@ module RedmineMorePreviews
         File.open("#{dir}.lifecycle.lock", File::RDWR | File::CREAT, 0644) do |lock|
           return false unless lock.flock(File::LOCK_EX | File::LOCK_NB)
           begin
-            if Repository.unscoped.exists?(repository_id)
+            if Repository.uncached { Repository.unscoped.exists?(repository_id) }
               # A restored database reused this ID: remove only the stale
               # cleanup request, never the new repository's previews.
               File.delete(pending) if File.file?(pending)

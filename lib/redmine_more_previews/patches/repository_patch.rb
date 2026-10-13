@@ -31,7 +31,9 @@ module RedmineMorePreviews
 
           # Repository IDs scope cached previews. When a repository is deleted,
           # its cached files must not remain on the server indefinitely.
-          after_destroy :remove_more_preview_cache_on_destroy
+          # The disk cache is derived data. Do not delete it if the database
+          # transaction rolls back the repository deletion.
+          after_destroy_commit :remove_more_preview_cache_on_destroy
 
           ################################################################################
           #

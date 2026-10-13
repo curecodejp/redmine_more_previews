@@ -68,9 +68,13 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     settings = Setting.plugin_redmine_more_previews.to_h.deep_dup
     settings['converter']['zippy']['mime_types'][ext]['format'] = format
     Setting.plugin_redmine_more_previews = settings
+    # The Setting writer and plugin reader can use symbol/string cache keys.
+    # Clear both when changing formats in the same test request session.
+    Setting.clear_cache
     yield
   ensure
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS
+    Setting.clear_cache
   end
 
   # Turning off the project module must disable direct URLs as well as the UI.

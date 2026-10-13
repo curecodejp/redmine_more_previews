@@ -27,7 +27,7 @@ module RedmineMorePreviews
         # Returns a PDF string for a converter
         def more_prewiew_to_pdf(locals={})
           pdf = Redmine::Export::PDF::ITCPDF.new(::I18n.locale)
-          pdf.set_title("Hello World!")
+          pdf.set_title("Converter diagnostics")
           pdf.alias_nb_pages
           options = {}
           options[:format] = ::Setting.date_format unless ::Setting.date_format.blank?
@@ -35,39 +35,24 @@ module RedmineMorePreviews
           pdf.add_page
           
           pdf.SetFontStyle('B',11)
-          buf = "Hello World!"
+          buf = "Converter diagnostics"
           pdf.RDMMultiCell(190, 5, buf)
           
           pdf.SetFontStyle('',8)
-          buf  = "You were trying to preview the following object: "
-          buf += "#{locals.dig(:@object,'object').try(:class).try(:name)} - #{locals.dig(:@object,'object').try(:id)}"
-          pdf.RDMMultiCell(190, 5, buf)
-          
-          buf  = "The following parameters were available for conversion of the object:"
-          pdf.RDMMultiCell(190, 5, buf)
-          
-          imgfile = "emoji#{rand(1..5)}.png"
-          imgpath = File.join(__dir__, "conversion", imgfile)
-          if File.exist?(imgpath)
-            atta = Attachment.create(
-              :file           =>File.open(imgpath),
-              :filename       =>imgfile, 
-              :author         =>User.current
-            )
-            buf  = "<p>random image <img src='#{imgfile}'></p>"
-            pdf.RDMwriteFormattedCell(190,5,'','', buf, [atta], 0)
-          else
-            buf  = "<p>Debug image not found: #{imgfile}</p>"
-            pdf.RDMMultiCell(190, 5, buf)
-          end
-          
+          # The caller passes only public metadata. Never print arbitrary
+          # conversion instance variables or source identifiers here.
+          pdf.RDMMultiCell(190, 5, "Converter diagnostic fields (internal details omitted):")
+
+          # Defense in depth: this renderer accepts only the same safe fields
+          # emitted by Conversion#debug_fields, even if another caller passes
+          # additional entries.
           locals.each do |key, value|
+            next unless RedmineMorePreviews::Conversion::SAFE_DEBUG_FIELDS.include?(key.to_s)
+
             buf = "#{key}: #{value}"
             pdf.RDMMultiCell(190, 5, buf)
           end
           pdf.output
-        ensure
-          atta.destroy if atta
         end #def
       end #class
     end #module

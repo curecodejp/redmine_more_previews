@@ -119,7 +119,12 @@ module RedmineMorePreviews
     # selected converter is part of the key. file / options as in
     # ControllerHelper.preview_allows_downloads?
     def preview_etag(mtime, file, options = {})
-      [mtime, RedmineMorePreviews::Converter.responsible(file.to_s, options)&.id]
+      # Old browser ETags must not cause a 304 from a preview cached before
+      # debug diagnostics were redacted. Debug/normal modes have distinct cache
+      # representations and must never share an ETag.
+      [mtime, RedmineMorePreviews::Converter.responsible(file.to_s, options)&.id,
+       RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION,
+       RedmineMorePreviews::Converter.debug?]
     end
     private :preview_etag
 

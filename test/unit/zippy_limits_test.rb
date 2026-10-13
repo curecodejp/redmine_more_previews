@@ -120,7 +120,7 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     preview_dir = File.dirname(@target)
     FileUtils.mkdir_p(preview_dir)
     File.binwrite(File.join(preview_dir, 'stored.bin'), 'x' * (1024 * 1024))
-    File.write("#{preview_dir}.converter", 'zippy')
+    File.write("#{preview_dir}.converter", "zippy:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal")
     File.write(@target, '<p>listing</p>')
     with_zippy_limits('max_stored' => '1') do
       worker = zippy_worker(target: File.join(preview_dir, 'small.txt'), asset: 'small.txt')
@@ -137,7 +137,7 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     preview_dir = File.dirname(@target)
     FileUtils.mkdir_p(File.join(preview_dir, 'other'))
     File.binwrite(File.join(preview_dir, 'other', 'stored.bin'), 'x' * (1024 * 1024))
-    File.write("#{preview_dir}.converter", 'zippy')
+    File.write("#{preview_dir}.converter", "zippy:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal")
     File.write(@target, '<p>listing</p>')
     with_zippy_limits('max_stored' => '1') do
       worker = zippy_worker(target: File.join(preview_dir, 'dir', 'small.txt'), asset: 'dir/small.txt')
@@ -150,7 +150,7 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     preview_dir = File.dirname(@target)
     FileUtils.mkdir_p(preview_dir)
     File.binwrite(File.join(preview_dir, 'stored.bin'), 'x' * (1024 * 1024))
-    File.write("#{preview_dir}.converter", 'zippy')
+    File.write("#{preview_dir}.converter", "zippy:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal")
     File.write(@target, '<p>listing</p>')
     RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
     with_zippy_limits('max_stored' => '1') do

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'timeout'
 
 # A repository's cached conversion files must be deleted with the repository,
 # without affecting any other repository or the shared preview storage root.

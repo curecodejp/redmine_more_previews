@@ -79,10 +79,11 @@ module RedmineMorePreviews
       # limited as well, to twice the memory, which also bounds growth between
       # two looks.
       #
-      # Returns whether the block ran to its end (false when it raised, or the
-      # child was killed or stopped for its memory); raises ConverterTimeout when
-      # the time limit passes. Without fork (Windows) the block runs in this
-      # process, with neither limit.
+      # Returns whether the block ran to its end (false for an ordinary
+      # exception or memory termination); propagates ConverterTooLarge from the
+      # child as a parent-side exception, and raises ConverterTimeout when the
+      # deadline passes. Without fork (Windows), the block runs directly and
+      # exceptions propagate normally, with neither timeout nor memory limit.
       def self.fork( timeout:, memory: nil )
         unless Process.respond_to?( :fork )
           yield

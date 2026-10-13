@@ -137,9 +137,12 @@ class Cliff < RedmineMorePreviews::Conversion
     
     File.open(tmptarget, "wb") {|f| f.write html }
     
-  rescue ConverterTooLarge
-    # A limit refusal must escape the isolated child and be reported as 413,
-    # not converted into a successful HTML preview containing an error message.
+  rescue ConverterTooLarge => e
+    # Keep the precise, configured limit in the server log for operators. The
+    # error message here contains only limit constants and numerical settings,
+    # never user-supplied email text or server paths.
+    Rails.logger.warn "Email #{File.basename(source)} not previewed: #{e.message}"
+    # The exception must escape the isolated child and become HTTP 413.
     raise
   rescue StandardError => e
     # running out of memory or a signal is no error of the email: the child

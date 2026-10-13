@@ -77,6 +77,40 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
     assert_equal "%PDF-SAFE\n", render_debug('pdf')
   end
 
+  # Exercise the actual PDF renderer, not only the ERB caller's mock. A future
+  # caller must not be able to add arbitrary diagnostic fields to the output.
+  def test_pdf_renderer_ignores_untrusted_extra_fields
+    written = []
+    pdf = Object.new
+    %i(set_title alias_nb_pages footer_date= add_page SetFontStyle).each do |method|
+      pdf.define_singleton_method(method) { |*| nil }
+    end
+    pdf.define_singleton_method(:RDMMultiCell) do |_, _, value|
+      written << value.to_s
+    end
+    pdf.define_singleton_method(:output) { '%PDF-SAFE' }
+
+    Redmine::Export::PDF::ITCPDF.stubs(:new).returns(pdf)
+    Attachment.expects(:create).never
+
+    fields = @worker.send(:debug_fields).merge(
+      'request' => 'SECRET_REQUEST_TOKEN',
+      '@source' => @source,
+      'password' => 'SECRET_SETTING_PASSWORD'
+    )
+    assert_equal '%PDF-SAFE', RedmineMorePreviews::Lib::RmpPdf.more_prewiew_to_pdf(fields)
+
+    rendered = written.join("\n")
+    assert_includes rendered, 'Converter diagnostics'
+    assert_includes rendered, 'preview_format: txt'
+    assert_includes rendered, 'plugin_version:'
+    assert_no_secrets(rendered)
+    assert_not_includes rendered, 'request:'
+    assert_not_includes rendered, 'password:'
+    assert_not_includes rendered, '@source:'
+    assert_not_includes rendered, 'Debug image not found'
+  end
+
   def test_cached_debug_preview_contains_no_private_data
     RedmineMorePreviews::Converter.stubs(:debug?).returns(true)
     result = pass_worker.preview(File.new(@source))

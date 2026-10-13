@@ -63,12 +63,12 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
   ensure
     FileUtils.rm_rf(external) if external
   end
-  def test_cache_cleanup_waits_for_an_inflight_preview
+  def test_cleanup_is_deferred_until_an_inflight_preview_finishes
     target = @repository.preview_storagepath
     File.write(File.join(@source, 'readme.txt'), 'private source')
     entered = Queue.new
     release = Queue.new
-    preview_thread = cleanup_thread = nil
+    preview_thread = nil
 
     converter = proc do |_input, output, *_args, &_block|
       entered << :converting
@@ -79,25 +79,24 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     end
 
     RedmineMorePreviews::Converter.stub(:convert, converter) do
-      # The real model entry point must own the shared lock.
+      # Exercise the real entry point while the after-commit callback runs.
       preview_thread = Thread.new { @repository.more_preview('readme.txt', nil) }
       assert_equal :converting, Timeout.timeout(5) { entered.pop }
-      cleanup_thread = Thread.new { @repository.send(:remove_more_preview_cache_on_destroy) }
-      sleep 0.1
-      assert cleanup_thread.alive?, 'cleanup waits while conversion owns a shared lock'
+      # Deletion must return promptly even while a conversion holds LOCK_SH.
+      @repository.destroy!
+      assert File.file?("#{target}.cleanup_pending"), 'the deferred deletion survives restart'
       release << true
-      assert preview_thread.join(5), 'conversion must finish'
-      assert cleanup_thread.join(5), 'cleanup must finish after conversion'
+      assert preview_thread.join(5), 'the conversion must finish'
       preview_thread.value
-      cleanup_thread.value
     end
 
-    assert_not File.exist?(target), 'cleanup removes an in-flight converted preview'
+    assert_not File.exist?(target), 'the last conversion removes its private cache'
+    assert_not File.exist?("#{target}.cleanup_pending"), 'completed cleanup removes its marker'
   ensure
     release << true if release && preview_thread&.alive?
     preview_thread&.kill if preview_thread&.alive?
-    cleanup_thread&.kill if cleanup_thread&.alive?
   end
+
   def test_deleted_record_blocks_a_delayed_preview_request
     @repository.destroy!
     @repository.expects(:entry).never
@@ -147,7 +146,8 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     @repository.destroy!
 
     assert File.directory?(target), 'failed cleanup must remain visible to the operator'
-    assert_nil @repository.more_preview('a.zip', nil), 'deleted repository must not recreate previews'
+    assert File.file?("#{target}.cleanup_pending"), 'the error must remain retryable'
+    assert_not Repository.exists?(@repository.id)
   end
 
   def test_partial_cleanup_error_is_logged
@@ -156,6 +156,7 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     FileUtils.expects(:remove_entry_secure).with(target).raises(Errno::ENOENT)
     Rails.logger.expects(:error).with(regexp_matches(/Repository preview cache cleanup failed: Errno::ENOENT/))
     @repository.destroy!
+    assert File.file?("#{target}.cleanup_pending")
   end
 
   def test_rolled_back_destroy_keeps_the_cache

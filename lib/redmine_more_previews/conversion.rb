@@ -29,6 +29,7 @@ module RedmineMorePreviews
     # changes. Old cache files may contain arbitrary internal instance variables
     # (including absolute paths) and must never be reused after this fix.
     CACHE_FORMAT_VERSION = 'safe-debug-v1'.freeze
+    SAFE_DEBUG_FIELDS = %w(converter converter_version plugin_version source_type preview_format).freeze
 
   
     
@@ -846,7 +847,7 @@ module RedmineMorePreviews
         'plugin_version' => plugin_version.to_s,
         'source_type' => object['type'].to_s,
         'preview_format' => preview_format.to_s
-      }
+      }.slice(*SAFE_DEBUG_FIELDS)
     end
     private :debug_fields
 

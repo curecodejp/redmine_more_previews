@@ -204,6 +204,9 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
       get :more_asset, params: {id: a.id, asset: 'ok', assetformat: 'txt'}
       assert_response :not_found
 
+      # unsafe/reload bypasses the normal cache only for admins.
+      @request.session[:user_id] = 1
+      User.current = nil
       get :more_preview, params: {id: a.id, format: 'html', unsafe: '1'}
       assert_response :not_found
 

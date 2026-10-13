@@ -9,7 +9,10 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
     @dir = Dir.mktmpdir('rmp-debug-redaction')
     @source = File.join(@dir, 'PRIVATE_SOURCE_PATH.txt')
     File.write(@source, 'source data')
-    @target = File.join(@dir, 'cache', 'preview.txt', 'index.txt')
+    # Cache invalidation intentionally refuses to delete paths outside the
+    # configured preview storage. Keep this test's cache under that root.
+    @cache_root = Dir.mktmpdir('rmp-debug-cache-', RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH)
+    @target = File.join(@cache_root, 'preview.txt', 'index.txt')
     @object = Struct.new(:project, :id).new(nil, 'SECRET_ATTACHMENT_ID')
     @worker = pass_worker
     @worker.source = @source
@@ -22,6 +25,7 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
   end
 
   def teardown
+    FileUtils.rm_rf(@cache_root)
     FileUtils.rm_rf(@dir)
   end
 

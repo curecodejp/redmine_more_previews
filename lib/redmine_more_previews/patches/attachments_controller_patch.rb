@@ -32,8 +32,12 @@ module RedmineMorePreviews
           prepend ClassMethods
           
           alias_method  :find_attachment_for_more_preview, :find_attachment
+          alias_method  :file_readable_for_more_preview,   :file_readable
           alias_method  :read_authorize_for_more_preview,  :read_authorize
           before_action :find_attachment_for_more_preview, :only => [:more_preview, :more_asset]
+          # Mirror Redmine's show/download filters: a missing or unreadable
+          # attachment must return 404 before any cache/ETag or conversion work.
+          before_action :file_readable_for_more_preview,   :only => [:more_preview, :more_asset]
           before_action :read_authorize_for_more_preview,  :only => [:more_preview, :more_asset]
           before_action :ensure_more_previews_module_enabled, :only => [:more_preview, :more_asset]
           before_action :find_asset_param,                 :only => [:more_preview, :more_asset]

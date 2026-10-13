@@ -184,6 +184,41 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  # Same behavior as Redmine's show/download actions when the disk file has
+  # disappeared after the attachment record was created.
+  def test_missing_disk_file_is_rejected_by_all_preview_endpoints
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'missing.zip'), 'ok.txt' => 'hello'))
+      assert a.readable?
+      File.delete(a.diskfile)
+      assert_not a.readable?
+
+      # No converter should run, including in the uncached path.
+      Zippy.any_instance.expects(:convert).never
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :not_found
+
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'ok.txt'}
+      assert_response :not_found
+
+      get :more_asset, params: {id: a.id, asset: 'ok', assetformat: 'txt'}
+      assert_response :not_found
+
+      # unsafe/reload bypasses the normal cache only for admins.
+      @request.session[:user_id] = 1
+      User.current = nil
+      get :more_preview, params: {id: a.id, format: 'html', unsafe: '1'}
+      assert_response :not_found
+
+      get :more_asset, params: {id: a.id, asset: 'ok', assetformat: 'txt', unsafe: '1'}
+      assert_response :not_found
+
+      # The native attachment action already uses this readable? check.
+      get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+      assert_response :not_found
+    end
+  end
+
   def test_missing_entry_is_answered_with_404
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))

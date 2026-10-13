@@ -29,7 +29,9 @@ class LibreCommandTest < ActiveSupport::TestCase
     installation = '/tmp/redmine temp/lo profile'
     arguments = Shellwords.split(@worker.soffice('/tmp/my document.docx', installation))
 
-    assert_equal ["-env:UserInstallation=file://#{installation}"],
+    # Do not compute the expectation using the method under test. LibreOffice
+    # requires a URL-encoded path in addition to the shell-safe argument.
+    assert_equal ['-env:UserInstallation=file:///tmp/redmine%20temp/lo%20profile'],
                  arguments.grep(/\A-env:UserInstallation=/)
     assert_equal '/tmp/my document.docx', arguments.last
     assert_equal '/tmp/rmp libre', arguments[arguments.index('--outdir') + 1]
@@ -37,15 +39,20 @@ class LibreCommandTest < ActiveSupport::TestCase
 
   def test_user_installation_with_quotes_and_metacharacters_cannot_split_commands
     @worker.preview_format = 'pdf'
-    [
-      "/tmp/redmine's cache/user installation",
-      '/tmp/cache; touch unexpected-file/$HOME $(id)',
-      "/tmp/first line\nsecond line"
-    ].each do |installation|
+    profiles = {
+      "/tmp/redmine's cache/user installation" =>
+        'file:///tmp/redmine%27s%20cache/user%20installation',
+      '/tmp/cache; touch unexpected-file/$HOME $(id)' =>
+        'file:///tmp/cache%3B%20touch%20unexpected-file/%24HOME%20%24%28id%29',
+      "/tmp/first line\nsecond line" =>
+        'file:///tmp/first%20line%0Asecond%20line',
+      '/tmp/hash#query?sign%21/abc' =>
+        'file:///tmp/hash%23query%3Fsign%2521/abc'
+    }
+    profiles.each do |installation, expected_url|
       arguments = Shellwords.split(@worker.soffice('/tmp/input.docx', installation))
-      assert_equal ["-env:UserInstallation=file://#{installation}"],
+      assert_equal ["-env:UserInstallation=#{expected_url}"],
                    arguments.grep(/\A-env:UserInstallation=/)
-      assert_equal 1, arguments.count { |arg| arg.start_with?('-env:UserInstallation=') }
       assert_equal '/tmp/input.docx', arguments.last
     end
   end

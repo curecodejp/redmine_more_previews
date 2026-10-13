@@ -78,7 +78,7 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
       'converted'
     end
 
-    RedmineMorePreviews::Converter.stub(:convert, converter) do
+    with_stubbed_conversion(converter) do
       # Exercise the real entry point while the after-commit callback runs.
       preview_thread = Thread.new { @repository.more_preview('readme.txt', nil) }
       assert_equal :converting, Timeout.timeout(5) { entered.pop }
@@ -99,7 +99,7 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
 
   def test_deleted_record_blocks_a_delayed_preview_request
     @repository.destroy!
-    @repository.expects(:entry).never
+    assert_not Repository.exists?(@repository.id)
 
     assert_nil @repository.more_preview('a.zip', nil)
     assert_nil @repository.more_asset('a.zip', nil)
@@ -127,7 +127,7 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
       'ok'
     end
 
-    RedmineMorePreviews::Converter.stub(:convert, converter) do
+    with_stubbed_conversion(converter) do
       %w(a.txt b.txt).each { |path| threads << Thread.new { @repository.more_preview(path, nil) } }
       2.times { assert Timeout.timeout(5) { entered.pop } }
       2.times { release << true }
@@ -193,5 +193,16 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
   def test_destroy_without_a_cache_directory_still_succeeds
     assert_not File.exist?(@repository.preview_storagepath)
     assert_difference('Repository.count', -1) { @repository.destroy! }
+  end
+
+  private
+
+  def with_stubbed_conversion(handler)
+    converter = RedmineMorePreviews::Converter
+    original = converter.method(:convert)
+    converter.define_singleton_method(:convert, &handler)
+    yield
+  ensure
+    converter.define_singleton_method(:convert, original) if converter && original
   end
 end

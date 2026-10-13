@@ -27,11 +27,21 @@ class CliffLimitResponseTest < Redmine::ControllerTest
     EnabledModule.find_or_create_by!(project_id: 1, name: 'redmine_more_previews')
     @request.session[:user_id] = 2
     @dir = Dir.mktmpdir('rmp-cliff-http')
+    # Test fixtures reuse attachment IDs across transactions. Use an isolated
+    # preview cache per test so prior 413 failures and cached HTML cannot leak
+    # into a different test's expected response.
+    @storage = Dir.mktmpdir('rmp-cliff-http-cache')
+    @old_storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @storage)
   end
 
   def teardown
     Setting.plugin_redmine_more_previews = @old_settings
     Setting.clear_cache
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @old_storage)
+    FileUtils.rm_rf(@storage)
     FileUtils.rm_rf(@dir)
   end
 
@@ -51,7 +61,7 @@ class CliffLimitResponseTest < Redmine::ControllerTest
   end
 
   def test_email_within_limits_is_still_previewed
-    attachment = attach("From: a@example.test\r\nSubject: short\r\n\r\nhello\r\n", 'ok.eml')
+    attachment = attach("From: a@example.test\r\nTo: b@example.test\r\nSubject: short\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nhello\r\n", 'ok.eml')
 
     get :more_preview, params: {id: attachment.id, format: 'html'}
     assert_response :success

@@ -39,6 +39,7 @@ class VinceUriImageTest < ActiveSupport::TestCase
       html = Array(card("#{field.upcase};VALUE=uri:https://example.com/p.png").send(field).webalize).join
 
       assert_includes html, %(src="https://example.com/p.png")
+      assert_includes html, %(alt="#{I18n.with_locale(Setting.default_language) { I18n.t(:"vcard.#{field.upcase}") }}")
     end
 
     define_method("test_#{field}_scheme_merely_containing_https_is_dropped") do
@@ -51,6 +52,7 @@ class VinceUriImageTest < ActiveSupport::TestCase
       html = Array(card("#{field.upcase}:data:image/png;base64,#{PNG_BASE64}").send(field).webalize).join
 
       assert_includes html, %(src="data:image/png;base64,#{PNG_BASE64}")
+      assert_includes html, %(alt="#{I18n.with_locale(Setting.default_language) { I18n.t(:"vcard.#{field.upcase}") }}")
     end
 
     define_method("test_#{field}_vcard3_inline_base64_is_kept") do

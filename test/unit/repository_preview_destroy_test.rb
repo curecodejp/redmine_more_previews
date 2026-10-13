@@ -44,6 +44,9 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     File.write(outside, 'shared storage')
 
     @repository.destroy!
+    # Transactional fixtures delay after_destroy_commit until the test's
+    # outer transaction ends. Invoke the cleanup explicitly to test its effect.
+    @repository.send(:remove_more_preview_cache_on_destroy)
 
     assert_not File.exist?(target)
     assert File.file?("#{target}.deleted")
@@ -59,6 +62,7 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     File.symlink(external, @repository.preview_storagepath)
 
     @repository.destroy!
+    @repository.send(:remove_more_preview_cache_on_destroy)
     assert_equal 'keep', File.read(File.join(external, 'secret.txt'))
   ensure
     FileUtils.rm_rf(external) if external
@@ -102,12 +106,19 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     target = @repository.preview_storagepath
     FileUtils.mkdir_p(target)
     FileUtils.expects(:remove_entry_secure).with(target).raises(ArgumentError, 'insecure directory')
-    Rails.logger.expects(:error).with(/Repository preview cache cleanup failed.*ArgumentError/)
+    Rails.logger.expects(:error).with('Repository preview cache cleanup failed: ArgumentError: insecure directory')
 
     @repository.send(:remove_more_preview_cache_on_destroy)
 
     assert File.file?("#{target}.deleted"), 'even a failed cleanup must prevent new previews'
     assert File.directory?(target), 'the failed deletion must be visible for operator cleanup'
+  end
+
+  def test_cleanup_is_registered_only_after_committed_destroy
+    callbacks = Repository._commit_callbacks.select do |callback|
+      callback.kind == :after && callback.filter == :remove_more_preview_cache_on_destroy
+    end
+    assert_not_empty callbacks
   end
 
   def test_destroy_without_a_cache_directory_still_succeeds

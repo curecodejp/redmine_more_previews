@@ -69,8 +69,8 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
   end
 
   # Cliff uses Repository#asset_link when rendering extracted email attachments.
-  # A cached asset previously raised ArgumentError because Pathname.new was
-  # called with three arguments, causing the attachment listing to disappear.
+  # A cached asset previously raised ArgumentError because preview_assetpath was
+  # called without the entry path and revision, causing Cliff to show an error page.
   def test_cached_repository_asset_has_a_working_download_link
     get :more_asset, params: asset_params(PRJ_A, @repo_a, 'dir/secret', 'txt')
     assert_response :success
@@ -81,6 +81,12 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
 
     link = @repo_a.asset_link('a.zip', nil, 'dir/secret.txt')
     assert_includes link, 'dir/secret.txt'
+    # The label can look correct while the URL silently drops "dir/". Check
+    # the actual encoded href, not just the visible link text.
+    href = Nokogiri::HTML.fragment(link).at_css('a')['href']
+    assert_includes CGI.unescapeHTML(CGI.unescape(href)), 'dir/secret.txt'
+    assert_equal 'dir/secret', Rails.application.routes.recognize_path(href, method: :get)[:asset].then { |a| Array(a).join('/') }
+
     assert_includes link, 'icon-file'
     assert_includes link, 'text-plain'
   end

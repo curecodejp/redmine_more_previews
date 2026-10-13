@@ -1,16 +1,11 @@
-<h2>Hello World!</h2>
-<p>You were trying to preview the following object: <%= @object["object"].class.name %></p>
-<p>The following parameters were available for conversion of the object:</p>
+<h2>Converter debug information</h2>
+<p>Only non-sensitive converter metadata is shown. Internal paths, request data, settings, and objects are omitted.</p>
 <table>
   <tbody>
-    <tr>
-      <td>random image</td>
-      <td><img src="<%= @emoji  %>" width="50"></td>
-    </tr>
-    <% instance_variables.each do |ivar| %>
+    <% details.each do |key, value| %>
       <tr>
-        <td><%= ivar %></td>
-        <td><%= CGI.escapeHTML(instance_variable_get(ivar).to_s) %></td>
+        <td><%= CGI.escapeHTML(key) %></td>
+        <td><%= CGI.escapeHTML(value) %></td>
       </tr>
     <% end %>
   </tbody>

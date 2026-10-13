@@ -1,8 +1,6 @@
-Hello World!
+Converter debug information
 
-You were trying to preview the following object: <%= @object["object"].class.name %>
-
-The following parameters were available for conversion of the object:
-<% instance_variables.each do |ivar| %>
-<%= ivar.to_s.ljust(20, " ") %><%= instance_variable_get(ivar).to_s.html_safe %>
+Only non-sensitive converter metadata is shown. Internal paths, request data, settings, and objects are omitted.
+<% details.each do |key, value| %>
+<%= key.ljust(20, " ") %><%= value %>
 <% end %>

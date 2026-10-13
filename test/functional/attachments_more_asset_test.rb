@@ -73,6 +73,30 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS
   end
 
+  # Turning off the project module must disable direct URLs as well as the UI.
+  # Keep the normal attachment authorization path in place.
+  def test_disabled_project_module_blocks_previews_and_assets
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'module.zip'), 'file.txt' => 'hello'))
+      EnabledModule.where(project_id: 1, name: 'redmine_more_previews').delete_all
+
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :not_found
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'file.txt'}
+      assert_response :not_found
+      get :more_asset, params: {id: a.id, asset: 'file', assetformat: 'txt'}
+      assert_response :not_found
+
+      EnabledModule.create!(project_id: 1, name: 'redmine_more_previews')
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_includes response.body, 'file.txt'
+      get :more_asset, params: {id: a.id, asset: 'file', assetformat: 'txt'}
+      assert_response :success
+      assert_equal 'hello', response.body
+    end
+  end
+
   def test_regular_entry_is_served_as_attachment
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'ok.zip'), 'dir/file.txt' => 'hello'))

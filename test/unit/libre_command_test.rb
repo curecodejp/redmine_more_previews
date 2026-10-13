@@ -29,8 +29,8 @@ class LibreCommandTest < ActiveSupport::TestCase
     installation = '/tmp/redmine temp/lo profile'
     arguments = Shellwords.split(@worker.soffice('/tmp/my document.docx', installation))
 
-    assert_equal "-env:UserInstallation=file://#{installation}",
-                 arguments.grep(/\\A-env:UserInstallation=/).sole
+    assert_equal ["-env:UserInstallation=file://#{installation}"],
+                 arguments.grep(/\A-env:UserInstallation=/)
     assert_equal '/tmp/my document.docx', arguments.last
     assert_equal '/tmp/rmp libre', arguments[arguments.index('--outdir') + 1]
   end
@@ -40,11 +40,11 @@ class LibreCommandTest < ActiveSupport::TestCase
     [
       "/tmp/redmine's cache/user installation",
       '/tmp/cache; touch unexpected-file/$HOME \\$(id)',
-      "/tmp/first line\\nsecond line"
+      "/tmp/first line\nsecond line"
     ].each do |installation|
       arguments = Shellwords.split(@worker.soffice('/tmp/input.docx', installation))
-      assert_equal "-env:UserInstallation=file://#{installation}",
-                   arguments.grep(/\\A-env:UserInstallation=/).sole
+      assert_equal ["-env:UserInstallation=file://#{installation}"],
+                   arguments.grep(/\A-env:UserInstallation=/)
       assert_equal 1, arguments.count { |arg| arg.start_with?('-env:UserInstallation=') }
       assert_equal '/tmp/input.docx', arguments.last
     end

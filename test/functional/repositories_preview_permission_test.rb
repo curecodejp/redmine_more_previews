@@ -75,6 +75,26 @@ class RepositoriesPreviewPermissionTest < Redmine::ControllerTest
     assert_equal 'hello', response.body
   end
 
+  # Browse permission alone must not override an administrator's decision
+  # to turn off preview conversion for this project.
+  def test_disabled_project_module_blocks_preview_and_asset
+    grant(:browse_repository)
+    EnabledModule.where(project_id: PRJ_ID, name: 'redmine_more_previews').delete_all
+
+    get :more_preview, params: preview_params
+    assert_response :not_found
+    get :more_asset, params: asset_params
+    assert_response :not_found
+
+    EnabledModule.create!(project_id: PRJ_ID, name: 'redmine_more_previews')
+    get :more_preview, params: preview_params
+    assert_response :success
+    assert_includes response.body, 'file.txt'
+    get :more_asset, params: asset_params
+    assert_response :success
+    assert_equal 'hello', response.body
+  end
+
   def test_actions_are_registered_under_browse_repository_only
     %w(repositories/more_preview repositories/more_asset).each do |action|
       assert_includes Redmine::AccessControl.permission(:browse_repository).actions, action

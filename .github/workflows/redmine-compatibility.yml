@@ -15,6 +15,8 @@ jobs:
     # pinned: ubuntu-latest moves to a new release on its own schedule
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    env:
+      RMP_LIBRE_REQUIRE_SANDBOX: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -47,7 +49,7 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsqlite3-dev pandoc imagemagick fonts-liberation
+          sudo apt-get install -y libsqlite3-dev pandoc imagemagick fonts-liberation bubblewrap libreoffice-writer poppler-utils
 
       - name: Configure Redmine and install plugin
         run: |

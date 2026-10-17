@@ -15,7 +15,9 @@ class LibreSandboxIntegrationTest < ActiveSupport::TestCase
   def test_external_file_image_is_inaccessible_but_document_converts
     worker = Libre.allocate
     unless worker.send(:sandbox_available?) && system('command -v pdfimages >/dev/null 2>&1')
-      skip 'working bwrap/soffice namespace and pdfimages are required'
+      message = 'working bwrap/soffice namespace and pdfimages are required'
+      flunk message if ENV['RMP_LIBRE_REQUIRE_SANDBOX'] == '1'
+      skip message
     end
 
     Dir.mktmpdir('rmp-libre-integration') do |root|

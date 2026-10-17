@@ -578,7 +578,7 @@ module RedmineMorePreviews
         # a requested asset that is missing or not servable must not fall back to the preview
         return nil unless regular_file_within?( dir, assetpath )
         read_limited( assetpath )
-      elsif target && File.exist?(targetpath)
+      elsif target && regular_file_within?( dir, targetpath )
         read_limited( targetpath )
       else
         nil

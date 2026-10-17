@@ -17,14 +17,58 @@ Pull requests run automated smoke tests against Redmine 6.0.11 and 6.1.5 with Ru
 
 ---
 
+## Libre converter sandbox
+
+> **Upgrade warning:** The hardened Libre converter is **Linux-only** and requires a
+> working `bubblewrap` (`/usr/bin/bwrap`) with unprivileged user, mount, PID,
+> network, IPC and UTS namespaces. It **does not fall back** to an unsandboxed
+> LibreOffice when isolation is unavailable. Windows Libre conversions are
+> unavailable until an equivalent OS-level sandbox is implemented.
+>
+> Install a distribution-packaged LibreOffice exposing `/usr/bin/soffice` and
+> `/usr/bin/env`, plus the `bwrap` package. This version does **not** support the
+> FORK NOTES installation of TDF `.deb` files in `/opt/libreoffice25.8` via
+> PATH alone. Migrate to a supported system package before enabling Libre.
+>
+> The sandbox mounts only the input file, a per-conversion writable output and
+> Libre profile, plus known read-only system paths: `/usr/bin`, `/usr/lib`,
+> `/usr/lib64` when present, selected `/usr/share` resources, `/etc/fonts`,
+> `/etc/ld.so.cache`, optional `/etc/libreoffice` and `/etc/alternatives`, and
+> `/bin`, `/sbin`, `/lib`, `/lib64` according to the host's merged-usr layout.
+> It does not mount `/` or `/etc` as a whole. Installations with different
+> filesystem layouts or extra LibreOffice dependencies must be tested and may
+> fail closed. User namespaces can be unavailable in Docker despite `bwrap`
+> being installed (for example, due to container seccomp restrictions).
+
+Check sandbox support as the actual Redmine service user before enabling the
+Libre converter. Run a benign conversion in a disposable staging environment;
+the status check runs a bounded namespace probe, but is not a substitute for
+end-to-end conversion testing. Verify with at least ODT/DOCX to PDF/HTML and
+check that external file references are not embedded in the output.
+
+The cache identity is deliberately changed because old PDFs may contain data
+loaded from the host. Old caches are no longer served, but their on-disk files
+remain until they are encountered or a cache-clean task removes them. For a
+planned maintenance-window purge of all preview caches, use the deliberately
+opt-in command below, which skips previews locked by active requests:
+
+```bash
+cd /path/to/redmine
+bundle exec rake redmine_more_previews:cache:clean RAILS_ENV=production DAYS=0 CONFIRM_PURGE_ALL=1
+```
+
+**Warning:** This purges all eligible preview caches, not only old Libre PDFs.
+Subsequent previews must be regenerated. The normal `DAYS=30` cleanup remains
+unchanged.
+
 ## FORK NOTES (JVsup fork, 6.0.5)
 
 - Most pull requests from upstream and outside fixes have been integrated.
 - Bulk actions in libre to enable/disable all mime types and group conversion selector.
 - The plugin is confirmed to work in Redmine 6.0.5 container (based on https://github.com/sameersbn/docker-redmine ).
-- LibreOffice must be installed in the container (I am using oficial deb packages https://ftp.bme.hu/pub/mirrors/tdf/libreoffice/stable/25.8.5/deb/x86_64/LibreOffice_25.8.5_Linux_x86-64_deb.tar.gz ).
+- Historical setup note, **not supported by the hardened Libre 1.1.4 converter**: LibreOffice was installed from the TDF `.deb` archive at https://ftp.bme.hu/pub/mirrors/tdf/libreoffice/stable/25.8.5/deb/x86_64/LibreOffice_25.8.5_Linux_x86-64_deb.tar.gz.
 - The following critical libraries and binaries must also be added to the image: `imagemagick pandoc libxinerama1 libnss3 libfontconfig1 libxrender1 libxext6 libcairo2 libcups2 libdbus-1-3 libsm6 libice6 libx11-xcb1 libssl3`
-- Edit `/home/redmine/redmine/config/environment.rb` to include the LibreOffice path so Redmine can find the soffice binary (adjust the path to match your specific version): `ENV['PATH'] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/libreoffice25.8/program"`
+- Historical setup note, **not supported by the hardened Libre 1.1.4 converter**: Edit `/home/redmine/redmine/config/environment.rb` to include the LibreOffice path so Redmine can find the soffice binary (adjust the path to match your specific version): `ENV['PATH'] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/libreoffice25.8/program"`
 - Plugin version set to 6.0.5 to match corresponding redmine release
 
 ---
@@ -46,13 +90,13 @@ Currently, there exist the following plugins:
 
 ![Libre](doc/libre/logo.png "Libre")
 
-This plugin requires LibreOffice to be installed on your system. LibreOffice must be reachable with "soffice" to the user, the redmine service is executed by.
+The hardened Libre 1.1.4 converter requires Linux, `/usr/bin/soffice`, `/usr/bin/bwrap` and permission to create unprivileged namespaces as the Redmine service user. See [Libre converter sandbox](#libre-converter-sandbox).
 
 Libre uses LibreOffice to do the conversion. Libre converts almost everything LibreOffice can convert:
 
 .csv , .doc , .docm , .docx , .dotm , .dotx , .fodg , .fodp , .fods , .fodt , .odb , .odc , .odf , .odg , .odi , .odm , .odp , .ods , .odt , .otg , .oth , .otp , .ots , .ott , .oxt , .potm , .potx , .ppt , .pptm , .pptx , .rtf , .sda , .sdc , .sdd , .sdp , .sds , .sdw , .sgl , .smf , .stc , .std , .sti , .stw , .sxc , .sxd , .sxg , .sxi , .sxm , .sxw , .vor , .xls , .xlsm , .xlsx , .xltm , .xltx 
 
-to either pdf, html, inline, png, jpg or gif.
+The hardened Libre converter supports `pdf`, `html`, `txt`, `png` and `jpg` conversion outputs (subject to each input format).
 
 Please note, that not all conversions have been thoroughly tested yet. Please send files for a conversion test to me, if you are uncertain if your files get converted an can be viewed in a browser. Further, please note that the conversion accuracy strongly depends on the availability of installed fonts. Please consult the LibreOffice portals to see how to install fonts.
 
@@ -202,6 +246,7 @@ Native speakers: please help to improve localizations
 
 **Unreleased (planned 6.1.3)**
 
+- Libre 1.1.4: run document conversions in a bubblewrap sandbox on supported Linux systems, fail closed when isolation is unavailable, validate generated files before caching, and invalidate pre-update preview caches.
 - Converter debug previews now expose only safe diagnostic metadata. Cache markers and response ETags are versioned so older, potentially sensitive debug previews cannot be served after the update.
 - **Upgrade precaution:** If converter debug mode has ever been enabled, old diagnostic files may still exist on disk even though this version refuses to serve them. Before putting the upgraded Redmine instance back into service, stop Redmine and its preview-conversion workers, identify the plugin's actual cache storage path (default: `<Redmine root>/tmp/more_previews`), and **clear that plugin cache directory's contents**. Verify the directory path before deleting anything, especially on installations with a customized storage location or shared storage. Preview files are regenerated on demand. The normal age-based cache-cleaning task does not promptly remove all legacy debug files.
 

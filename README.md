@@ -9,7 +9,7 @@
 > - License: GNU GPL v2.0 or later, inherited from the upstream project
 > - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
-> The plugin version is `6.1.2`: Redmine 6.1 compatibility has been verified, and Redmine 6.0 remains supported. Generic fixes should be contributed back upstream when practical.
+> The plugin version is `6.1.3` (security release): Redmine 6.1 compatibility was verified in previous releases, and Redmine 6.0 remains supported. The hardened Libre converter now requires a functioning Linux bubblewrap sandbox; read the upgrade warning below. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
@@ -244,7 +244,7 @@ Native speakers: please help to improve localizations
 
 ### Change-Log
 
-**Unreleased (planned 6.1.3)**
+**6.1.3 (pending release)**
 
 - Libre 1.1.4: run document conversions in a bubblewrap sandbox on supported Linux systems, fail closed when isolation is unavailable, validate generated files before caching, and invalidate pre-update preview caches.
 - Converter debug previews now expose only safe diagnostic metadata. Cache markers and response ETags are versioned so older, potentially sensitive debug previews cannot be served after the update.

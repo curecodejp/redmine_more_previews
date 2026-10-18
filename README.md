@@ -98,9 +98,9 @@ Libre uses LibreOffice to do the conversion. Libre converts almost everything Li
 
 The hardened Libre converter supports `pdf`, `html`, `txt`, `png` and `jpg` conversion outputs (subject to each input format).
 
-Please note, that not all conversions have been thoroughly tested yet. Please send files for a conversion test to me, if you are uncertain if your files get converted an can be viewed in a browser. Further, please note that the conversion accuracy strongly depends on the availability of installed fonts. Please consult the LibreOffice portals to see how to install fonts.
+Not all LibreOffice input/output format combinations have been tested for this release. Test the document formats and output types used by your installation before enabling Libre. Conversion fidelity depends on the LibreOffice build, available import/export filters, and installed fonts.
 
-Currently, thoroughly tested are: .csv, .doc, .docx, .ppt, .pptx, .xls, .xlsx, .oddt, .rtf
+Historically reported as tested in the upstream project (not independently re-verified for this release): .csv, .doc, .docx, .ppt, .pptx, .xls, .xlsx, .odt, .rtf.
 
 ---
 
@@ -168,7 +168,7 @@ Vince lets you preview .vcf (vCard) files.
 
 ![NilText](doc/nil_text/logo.png "NilText") *DO NOT USE IN PRODUCTION* 
 
-NilText lets you see, which data are available for a file conversion. NilText not suited for production use. You can peruse this plugin to learn about the plugin functionality. Please note, that this plugin may reveal a password of a repository. Like all other plugins, **this plugin is deactivated by default**.
+NilText is a development and diagnostics converter for understanding the plugin's conversion interface; **do not enable it in production**. Current debug previews expose only the allowlisted metadata fields `converter`, `converter_version`, `plugin_version`, `source_type` and `preview_format`, rather than arbitrary internal objects or repository credentials. Even limited diagnostic metadata should not be exposed to end users. NilText is **disabled by default**. If diagnostic previews were enabled on older versions, legacy cache files can remain on disk: follow the cache-removal upgrade precaution in the [6.1.3 Change-Log](#change-log).
 
 ---
 

@@ -244,7 +244,7 @@ Native speakers: please help to improve localizations
 
 ### Change-Log
 
-**6.1.3 (pending release)**
+**6.1.3**
 
 - Libre 1.1.4: run document conversions in a bubblewrap sandbox on supported Linux systems, fail closed when isolation is unavailable, validate generated files before caching, and invalidate pre-update preview caches.
 - Converter debug previews now expose only safe diagnostic metadata. Cache markers and response ETags are versioned so older, potentially sensitive debug previews cannot be served after the update.

@@ -28,7 +28,9 @@ module RedmineMorePreviews
     # Change cache identity when debug diagnostics or their exposure policy
     # changes. Old cache files may contain arbitrary internal instance variables
     # (including absolute paths) and must never be reused after this fix.
-    CACHE_FORMAT_VERSION = 'safe-debug-v1'.freeze
+    # Evict cached previews created before LibreOffice filesystem isolation.
+    # Even a fixed converter must not serve a previously generated unsafe PDF.
+    CACHE_FORMAT_VERSION = 'libre-sandbox-v2'.freeze
     SAFE_DEBUG_FIELDS = %w(converter converter_version plugin_version source_type preview_format).freeze
 
   
@@ -576,7 +578,7 @@ module RedmineMorePreviews
         # a requested asset that is missing or not servable must not fall back to the preview
         return nil unless regular_file_within?( dir, assetpath )
         read_limited( assetpath )
-      elsif target && File.exist?(targetpath)
+      elsif target && regular_file_within?( dir, targetpath )
         read_limited( targetpath )
       else
         nil

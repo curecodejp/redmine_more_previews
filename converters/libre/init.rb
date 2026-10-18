@@ -32,6 +32,8 @@
 #       - fixed the image path rewrite for non-ASCII file names (regex range, File.exist?)
 # 1.1.3
 #       - time limit of at least 120 seconds; soffice and its child processes are stopped at the limit
+# 1.1.4 (unreleased)
+#       - bubblewrap sandbox with read-only input, no network, and validated output
 ##
 
 require_relative 'lib/libre'
@@ -40,7 +42,7 @@ RedmineMorePreviews::Converter.register :libre do
   name           'Libre'
   author         'Stephan Wenzel'
   description    'Preview office files with LibreOffice'
-  version        '1.1.3'
+  version        '1.1.4'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_libre'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_libre'
                  

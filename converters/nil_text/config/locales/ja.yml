@@ -22,7 +22,7 @@
 ja:
   label_example:                                   "例"
   text_nil_program_available:                      "例題プログラムあり"
-  text_warning_do_not_use_in_production:           "内部データが漏れるので、本番モードでは使わないでください!"
+  text_warning_do_not_use_in_production:           "NilTextは開発・診断用です。本番環境では有効にしないでください。"
   redmine_more_previews:
     nil_text:
       text_explanation:                            "独自のプラグインを書くための機能を探求するためのサンプルプラグインです。"

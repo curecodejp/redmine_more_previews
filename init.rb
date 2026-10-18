@@ -138,6 +138,10 @@
 #       - Bound the time, number and size of preview conversions (GHSA-mq93-c4mm-98v3)
 #       - Vince: escape names and restrict links to known URI schemes
 #       - Cliff: keep Mail's warnings of unparsable header fields out of stderr
+# 6.1.3
+#       - Sandbox LibreOffice conversions with bubblewrap (filesystem and network isolation)
+#       - Validate conversion output, invalidate old caches, and redact debug metadata
+#       - Fail closed on unsupported/unsandboxed platforms (Libre conversion is Linux-only)
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -145,7 +149,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.2'
+  version      '6.1.3'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

@@ -139,7 +139,7 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
     safe_result = pass_worker.preview(File.new(@source))
     assert_includes safe_result, 'Converter debug information'
     assert_no_secrets(safe_result)
-    assert_equal 'pass:safe-debug-v1:debug', File.read("#{File.dirname(@target)}.converter")
+    assert_equal "pass:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:debug", File.read("#{File.dirname(@target)}.converter")
     assert_equal safe_result, File.read(@target)
   end
 
@@ -153,7 +153,7 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
     RedmineMorePreviews::Converter.stubs(:debug?).returns(false)
     normal = pass_worker.preview(File.new(@source))
     assert_equal 'source data', normal
-    assert_equal 'pass:safe-debug-v1:normal', File.read("#{File.dirname(@target)}.converter")
+    assert_equal "pass:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal", File.read("#{File.dirname(@target)}.converter")
   end
 
   def test_etag_changes_between_debug_modes

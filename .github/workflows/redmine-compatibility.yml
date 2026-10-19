@@ -51,6 +51,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev pandoc imagemagick fonts-liberation bubblewrap libreoffice-writer poppler-utils
 
+      - name: Allow bubblewrap user namespaces on ephemeral CI runner
+        run: |
+          # Ubuntu 24.04's AppArmor setting may prohibit unprivileged user
+          # namespaces even after bubblewrap has been installed. Change only
+          # this disposable GitHub-hosted runner, not the plugin's fail-closed
+          # behavior or the required LibreOffice sandbox integration test.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            current=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns)
+            echo "AppArmor restrict_unprivileged_userns: $current"
+            if [ "$current" = "1" ]; then
+              sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            fi
+          fi
+          bwrap --version
+
       - name: Configure Redmine and install plugin
         run: |
           cat > redmine/config/database.yml <<'YAML'

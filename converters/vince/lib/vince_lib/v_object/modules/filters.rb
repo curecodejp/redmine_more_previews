@@ -133,7 +133,7 @@ module VObject
               arr -= [[k1,v1]] if k1 == k2 && v2.to_s =~ v1
             end
           else
-            arr -= [[k2,v2]]
+            arr -= [[k1, v1]] if a2.include?([k1, v1])
           end
         end
         arr

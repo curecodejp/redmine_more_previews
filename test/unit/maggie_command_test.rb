@@ -46,6 +46,29 @@ class MaggieCommandTest < ActiveSupport::TestCase
     assert_equal './out.png', move[1]
   end
 
+  def test_pdf_without_ghostscript_does_not_copy_pdf_as_raster_preview
+    Redmine::Thumbnail.stubs(:gs_available?).returns(false)
+
+    %w(png jpg gif).each do |format|
+      worker = worker_for('doc.pdf', PDF)
+      worker.preview_format = format
+      worker.tmptarget = File.join(worker.tmpdir, "index.#{format}")
+
+      worker.expects(:command).never
+      assert_nil worker.convert
+      assert_not File.exist?(worker.tmptarget), "PDF must not be served as #{format}"
+    end
+  end
+
+  def test_regular_image_conversion_does_not_require_ghostscript
+    Redmine::Thumbnail.stubs(:gs_available?).returns(false)
+    worker = worker_for('a.png', PNG)
+
+    convert, move = commands(worker)
+    assert_includes convert, "png:#{worker.source}"
+    assert_equal './out.png', move[1]
+  end
+
   def test_images_are_read_with_their_coder
     {'a.png' => [PNG, 'png'], 'a.jpg' => [JPEG, 'jpeg'], 'a.gif' => [GIF, 'gif'], 'a.bmp' => [BMP, 'bmp']}.
       each do |name, (bytes, coder)|

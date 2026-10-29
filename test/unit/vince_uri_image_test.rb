@@ -58,7 +58,7 @@ class VinceUriImageTest < ActiveSupport::TestCase
     define_method("test_#{field}_vcard3_inline_type_is_canonicalized") do
       {'jpg' => 'image/jpeg', 'JPEG' => 'image/jpeg', 'PnG' => 'image/png',
        'gif' => 'image/gif', 'bmp' => 'image/bmp', 'TIFF' => 'image/tiff',
-       'SVG+XML' => 'image/svg+xml'}.each do |type, expected_mime|
+       'SVG+XML' => 'image/svg+xml', '"JPEG"' => 'image/jpeg'}.each do |type, expected_mime|
         html = Array(card("#{field.upcase};ENCODING=b;TYPE=#{type}:#{PNG_BASE64}", version: '3.0').
                      public_send(field).webalize).join
 
@@ -67,7 +67,7 @@ class VinceUriImageTest < ActiveSupport::TestCase
     end
 
     define_method("test_#{field}_vcard3_unrecognized_inline_type_is_not_used_as_mime") do
-      ['notpng', 'jpg-extra', 'svg+xml-evil', 'png<script'].each do |type|
+      ['notpng', 'jpg-extra', 'svg+xml-evil', 'png<script', 'jpeg2000'].each do |type|
         html = Array(card("#{field.upcase};ENCODING=b;TYPE=#{type}:#{PNG_BASE64}", version: '3.0').
                      public_send(field).webalize).join
 

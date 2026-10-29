@@ -224,6 +224,15 @@ module VObject
     #                            / mediatype-param / pref-param / pid-param / any-param
     #                PHOTO-value = URI
     ######################################################################################
+    # vCard 3.0 inline image TYPE values are not MIME types. Only allow
+    # exact known values and normalize the JPEG alias before constructing data URLs.
+    IMAGE_MIME_TYPES = {
+      'jpeg' => 'image/jpeg', 'jpg' => 'image/jpeg',
+      'png' => 'image/png', 'bmp' => 'image/bmp',
+      'gif' => 'image/gif', 'tiff' => 'image/tiff',
+      'svg+xml' => 'image/svg+xml'
+    }.freeze
+
     PHOTO_WEBALIZE_PROC = Proc.new do |hash|
       url = case hash[:fields][:scheme]
       when /\A(?:data|https?)\z/i
@@ -231,12 +240,8 @@ module VObject
         hash[:fields][:full]
       when nil
         # this is a vcard 3.0 notation
-        mime = case hash[:attributes][:TYPE].to_a.first
-        when /jpeg/i, /jpg/i, /png/i, /bmp/i, /gif/i, /svg+xml/i, /tiff/i
-          "image/#{hash[:attributes][:TYPE].to_a.first}"
-        else
-          "application/octet-stream"
-        end
+        type = hash[:attributes][:TYPE].to_a.first.to_s.downcase
+        mime = IMAGE_MIME_TYPES.fetch(type, 'application/octet-stream')
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end
       # file: and any other scheme are not rendered: the path comes from the uploaded
@@ -549,12 +554,8 @@ module VObject
         hash[:fields][:full]
       when nil
         # this is a vcard 3.0 notation
-        mime = case hash[:attributes][:TYPE].to_a.first
-        when /jpeg/i, /jpg/i, /png/i, /bmp/i, /gif/i, /svg+xml/i, /tiff/i
-          "image/#{hash[:attributes][:TYPE].to_a.first}"
-        else
-          "application/octet-stream"
-        end
+        type = hash[:attributes][:TYPE].to_a.first.to_s.downcase
+        mime = IMAGE_MIME_TYPES.fetch(type, 'application/octet-stream')
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end
       # file: and any other scheme are not rendered: the path comes from the uploaded

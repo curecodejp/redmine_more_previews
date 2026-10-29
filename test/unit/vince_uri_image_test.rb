@@ -23,6 +23,27 @@ class VinceUriImageTest < ActiveSupport::TestCase
   end
 
   %w(photo logo).each do |field|
+    {
+      'jpg' => 'image/jpeg',
+      'JPEG' => 'image/jpeg',
+      'PNG' => 'image/png',
+      'gif' => 'image/gif',
+      'bmp' => 'image/bmp',
+      'tiff' => 'image/tiff',
+      'svg+xml' => 'image/svg+xml',
+      'notpng' => 'application/octet-stream',
+      'png-extra' => 'application/octet-stream',
+      'jpeg2000' => 'application/octet-stream'
+    }.each do |raw_type, mime|
+      define_method("test_#{field}_inline_type_#{raw_type.gsub(/[^a-z0-9]/i, '_')}_is_normalized") do
+        html = Array(card("#{field.upcase};ENCODING=b;TYPE=#{raw_type}:#{PNG_BASE64}", version: '3.0').send(field).webalize).join
+
+        assert_includes html, %(src="data:#{mime};base64,#{PNG_BASE64}")
+      end
+    end
+  end
+
+  %w(photo logo).each do |field|
     define_method("test_#{field}_file_uri_does_not_read_local_file") do
       html = nil
       assert_nothing_raised do

@@ -52,6 +52,19 @@ module VObject
     VERSION = "4.0"
     
     PRODID  = "-//HBLVOBJECT//DE"
+
+    # Legacy vCard 3.0 inline images: never derive a data URI MIME type from
+    # an arbitrary TYPE parameter. Match whole tokens and use canonical types.
+    INLINE_IMAGE_MIME_TYPES = {
+      'jpeg' => 'image/jpeg',
+      'jpg' => 'image/jpeg',
+      'png' => 'image/png',
+      'bmp' => 'image/bmp',
+      'gif' => 'image/gif',
+      'svg+xml' => 'image/svg+xml',
+      'tiff' => 'image/tiff'
+    }.freeze
+
     
     FIELDS  = [
       :version           ,   # MUST
@@ -231,12 +244,9 @@ module VObject
         hash[:fields][:full]
       when nil
         # this is a vcard 3.0 notation
-        mime = case hash[:attributes][:TYPE].to_a.first
-        when /jpeg/i, /jpg/i, /png/i, /bmp/i, /gif/i, /svg+xml/i, /tiff/i
-          "image/#{hash[:attributes][:TYPE].to_a.first}"
-        else
-          "application/octet-stream"
-        end
+        mime = INLINE_IMAGE_MIME_TYPES.fetch(
+          hash[:attributes][:TYPE].to_a.first.to_s.sub(/\A"(.*)"\z/, '\1').downcase, 'application/octet-stream'
+        )
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end
       # file: and any other scheme are not rendered: the path comes from the uploaded
@@ -549,12 +559,9 @@ module VObject
         hash[:fields][:full]
       when nil
         # this is a vcard 3.0 notation
-        mime = case hash[:attributes][:TYPE].to_a.first
-        when /jpeg/i, /jpg/i, /png/i, /bmp/i, /gif/i, /svg+xml/i, /tiff/i
-          "image/#{hash[:attributes][:TYPE].to_a.first}"
-        else
-          "application/octet-stream"
-        end
+        mime = INLINE_IMAGE_MIME_TYPES.fetch(
+          hash[:attributes][:TYPE].to_a.first.to_s.sub(/\A"(.*)"\z/, '\1').downcase, 'application/octet-stream'
+        )
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end
       # file: and any other scheme are not rendered: the path comes from the uploaded

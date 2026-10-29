@@ -142,6 +142,11 @@
 #       - Sandbox LibreOffice conversions with bubblewrap (filesystem and network isolation)
 #       - Validate conversion output, invalidate old caches, and redact debug metadata
 #       - Fail closed on unsupported/unsandboxed platforms (Libre conversion is Linux-only)
+# 6.1.4
+#       - Fix Vince humanization and inline image MIME types
+#       - Fix Maggie PDF raster previews without Ghostscript
+#       - Fix Libre image links for Unicode filenames containing dots and spaces
+#       - Add nested repository asset regression coverage and remove obsolete jp locales
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -149,7 +154,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.3'
+  version      '6.1.4'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

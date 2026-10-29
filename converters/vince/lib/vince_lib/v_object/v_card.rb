@@ -245,7 +245,7 @@ module VObject
       when nil
         # this is a vcard 3.0 notation
         mime = INLINE_IMAGE_MIME_TYPES.fetch(
-          hash[:attributes][:TYPE].to_a.first.to_s.downcase, 'application/octet-stream'
+          hash[:attributes][:TYPE].to_a.first.to_s.sub(/\A"(.*)"\z/, '\1').downcase, 'application/octet-stream'
         )
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end
@@ -560,7 +560,7 @@ module VObject
       when nil
         # this is a vcard 3.0 notation
         mime = INLINE_IMAGE_MIME_TYPES.fetch(
-          hash[:attributes][:TYPE].to_a.first.to_s.downcase, 'application/octet-stream'
+          hash[:attributes][:TYPE].to_a.first.to_s.sub(/\A"(.*)"\z/, '\1').downcase, 'application/octet-stream'
         )
         "data:#{mime};base64,#{hash[:fields][:path]}"
       end

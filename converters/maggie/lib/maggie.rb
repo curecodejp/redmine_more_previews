@@ -52,13 +52,10 @@ class Maggie < RedmineMorePreviews::Conversion
       "#{convert_command} -density 72x72 #{shell_quote "#{CODERS[mime_type]}:#{source}"} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
     
     when "application/pdf"
-      # see RedmineMorePreviews.valid_pdf_magic?
-      if !RedmineMorePreviews.valid_pdf_magic?(source)
-        nil
-      elsif Redmine::Thumbnail.gs_available?
+      # Without Ghostscript a PDF cannot be rasterized. Never copy the
+      # source PDF under a PNG/JPEG/GIF preview filename.
+      if RedmineMorePreviews.valid_pdf_magic?(source) && Redmine::Thumbnail.gs_available?
         "#{convert_command} -density #{get_density} #{shell_quote "pdf:#{source}[0]"} #{shell_quote "#{preview_format}:#{output}"}"
-      else
-        copy( source, output )
       end
     end
     command( cd + join + cmd + join + move(output)) if cmd

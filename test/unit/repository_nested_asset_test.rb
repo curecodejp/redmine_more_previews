@@ -4,7 +4,7 @@ require File.expand_path('../../test_helper', __FILE__)
 
 class RepositoryNestedAssetTest < ActiveSupport::TestCase
   def setup
-    @repository = Repository.allocate
+    @repository = Repository.new
     @repository.stubs(:preview_dirname).returns('/tmp/rmp-nested-preview')
     @repository.stubs(:preview_format).returns('html')
   end

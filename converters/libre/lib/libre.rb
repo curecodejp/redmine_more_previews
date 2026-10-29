@@ -181,7 +181,7 @@ class Libre < RedmineMorePreviews::Conversion
   def fix_image_path
     filepath = Dir[tmpdir + '/*.html'][0]
     return if filepath.nil?
-    basefilename = filepath.split('/')[-1].split('.')[0]
+    basefilename = File.basename(filepath, '.html')
     return if basefilename.ascii_only?
     if File.exist?(filepath)
       text = File.read(filepath)

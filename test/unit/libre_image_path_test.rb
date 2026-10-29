@@ -56,9 +56,11 @@ class LibreImagePathTest < ActiveSupport::TestCase
   def test_image_sources_with_paths_or_external_urls_are_not_rewritten
     Dir.mktmpdir('rmp-libre-image-path') do |dir|
       path = File.join(dir, '議事録.v2.html')
-      original = '<img src="assets/source_html_image.png">' \\
-                 '<img src="https://example.invalid/source_html_image.png">' \\
-                 '<img src="source.v2_html_image.png">'
+      original = [
+        '<img src="assets/source_html_image.png">',
+        '<img src="https://example.invalid/source_html_image.png">',
+        '<img src="source.v2_html_image.png">'
+      ].join
       File.write(path, original)
 
       worker = Libre.allocate

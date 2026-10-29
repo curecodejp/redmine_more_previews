@@ -30,7 +30,9 @@ module RedmineMorePreviews
     # (including absolute paths) and must never be reused after this fix.
     # Evict cached previews created before LibreOffice filesystem isolation.
     # Even a fixed converter must not serve a previously generated unsafe PDF.
-    CACHE_FORMAT_VERSION = 'libre-sandbox-v2'.freeze
+    # Invalidate previous Vince and Libre rendering and Maggie PDF raster results
+    # so upgrades to 6.1.4 regenerate previews using the corrected converters.
+    CACHE_FORMAT_VERSION = 'maintenance-6.1.4-v1'.freeze
     SAFE_DEBUG_FIELDS = %w(converter converter_version plugin_version source_type preview_format).freeze
 
   

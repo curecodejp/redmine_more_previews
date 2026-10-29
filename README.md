@@ -9,7 +9,7 @@
 > - License: GNU GPL v2.0 or later, inherited from the upstream project
 > - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
-> The plugin version is `6.1.3` (security release): Redmine 6.1 compatibility was verified in previous releases, and Redmine 6.0 remains supported. The hardened Libre converter now requires a functioning Linux bubblewrap sandbox; read the upgrade warning below. Generic fixes should be contributed back upstream when practical.
+> The plugin version is `6.1.4` (maintenance release): Redmine 6.1 compatibility was verified in previous releases, and Redmine 6.0 remains supported. The hardened Libre converter now requires a functioning Linux bubblewrap sandbox; read the upgrade warning below. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
@@ -243,6 +243,16 @@ You can enable to any **existing** project from /projects/[any-project]/settings
 Native speakers: please help to improve localizations
 
 ### Change-Log
+
+**6.1.4**
+
+- Vince: fix text humanizer callback arguments and normalize legacy PHOTO/LOGO inline image MIME types with an exact allowlist.
+- Maggie: avoid caching raw PDF data under image extensions when Ghostscript is unavailable.
+- Libre: fix HTML preview image links for Unicode filenames containing dots, hyphens and spaces; encode spaces as `%20`.
+- Add regression tests for nested repository preview asset paths.
+- Remove obsolete `jp.yml` locale files; Japanese translations continue to use `ja.yml`.
+- Bump the preview cache format marker so existing cached previews are regenerated with these fixes; older cache files may remain on disk until cache cleanup.
+- The LibreOffice bubblewrap sandbox requirements from 6.1.3 remain unchanged. Existing mislabelled raster caches created by earlier versions are no longer reused; review the cache-purge instructions above before purging shared or customized cache locations.
 
 **6.1.3**
 

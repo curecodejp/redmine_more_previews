@@ -54,12 +54,6 @@ class CliffHeadersTest < ActiveSupport::TestCase
                  cc_cell(render_headers(['one@example.test', 'two@example.test']))
   end
 
-  def test_bundled_template_copy_is_in_sync
-    app = File.expand_path('../../converters/cliff/app/views/cliff/headers.html.erb', __dir__)
-    lib = File.expand_path('../../converters/cliff/lib/cliff/headers.html.erb', __dir__)
-    assert_equal File.read(app), File.read(lib)
-  end
-
   # Mail#cc returns a String when the header cannot be parsed as an address list.
   def test_unparseable_cc_of_a_real_message_is_shown_as_is
     @mail = Mail.new("From: sender@example.test\nTo: to@example.test\nCc: not an address <<\nSubject: Subject\n\nbody\n")
@@ -120,12 +114,6 @@ class CliffHeadersTest < ActiveSupport::TestCase
     assert_not_includes html, '<b>'
     assert_not_includes html, '<a href'
     assert_equal 2, html.scan('&lt;b&gt;bold&lt;/b&gt;').size, 'both the name and the value must be escaped'
-  end
-
-  def test_bundled_fields_template_copy_is_in_sync
-    app = File.expand_path('../../converters/cliff/app/views/cliff/fields.html.erb', __dir__)
-    lib = File.expand_path('../../converters/cliff/lib/cliff/fields.html.erb', __dir__)
-    assert_equal File.read(app), File.read(lib)
   end
 
   # --- labels --------------------------------------------------------------------------

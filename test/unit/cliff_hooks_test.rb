@@ -63,6 +63,18 @@ class CliffHooksTest < ActiveSupport::TestCase
     end
   end
 
+  # Keep only one canonical version of each template. Cliff#eml, #save_headers,
+  # #save_fields and #list resolve them through Converter#views (app/views),
+  # not through the former lib/cliff copies.
+  def test_cliff_erb_templates_exist_only_in_app_views
+    root = File.expand_path('../../converters/cliff', __dir__)
+    %w(pre.html.erb headers.html.erb fields.html.erb attachments.html.erb).each do |name|
+      assert File.file?(File.join(root, 'app/views/cliff', name))
+      refute File.file?(File.join(root, 'lib/cliff', name)),
+             "obsolete library copy of #{name} must not shadow the canonical view"
+    end
+  end
+
   private
 
   def listeners_for_cliff(hook)

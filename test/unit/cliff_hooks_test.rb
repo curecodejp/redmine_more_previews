@@ -71,7 +71,7 @@ class CliffHooksTest < ActiveSupport::TestCase
     %w(pre.html.erb headers.html.erb fields.html.erb attachments.html.erb).each do |name|
       assert File.file?(File.join(root, 'app/views/cliff', name))
       refute File.file?(File.join(root, 'lib/cliff', name)),
-             "obsolete library copy of #{name} must not shadow the canonical view"
+             "obsolete library copy of #{name} should not be maintained alongside the canonical view"
     end
   end
 

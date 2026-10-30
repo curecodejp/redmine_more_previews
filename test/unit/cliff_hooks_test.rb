@@ -67,7 +67,7 @@ class CliffHooksTest < ActiveSupport::TestCase
 
   def listeners_for_cliff(hook)
     Redmine::Hook.hook_listeners(hook).select do |listener|
-      listener.class.name.to_s.match?(/(?:\\A|::)CliffEml(?:Top|Contextual)Hook\\z/)
+      %w[CliffEmlTopHook CliffEmlContextualHook].include?(listener.class.name.to_s.split('::').last)
     end
   end
 end

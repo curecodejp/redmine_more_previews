@@ -2,10 +2,10 @@
   <% attachments.each do |key, val| %>
     <div style="display:inline-block;">
       <% if    object["type"] == :attachment %>
-        <%= object["object"].try(:asset_link, val[:filename] ) %>
+        <%= object["object"].try(:asset_link, val[:filename], true ) %>
         
       <% elsif object["type"] == :repository %>
-        <%= object["object"].try(:asset_link, object["path"], object["rev"], val[:filename] ) %>
+        <%= object["object"].try(:asset_link, object["path"], object["rev"], val[:filename], true ) %>
         
       <% end %>
     </div>

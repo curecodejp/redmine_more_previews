@@ -36,10 +36,12 @@ RedmineApp::Application.routes.draw do
     :action      => 'more_preview',
     :constraints => {:id => /\d+/, :format => /[^.]+/}
   
+  # Valid asset extensions can contain '+', '_', '~', '-' or Unicode;
+  # reject slash and the dot delimiter rather than restricting to ASCII letters.
   get 'attachments/more_preview/:id/(*asset).:assetformat', 
     :controller  => 'attachments',
     :action      => 'more_asset',
-    :constraints => {:id => /\d+/, :asset => /.*/, :format => /[^.]+/},
+    :constraints => {:id => /\d+/, :asset => /.*/, :assetformat => /[^.\/]+/},
     :as          => "more_asset"
     
   #
@@ -58,11 +60,11 @@ RedmineApp::Application.routes.draw do
   get "projects/:id/repository/:repository_id/preview(/*path).:baseformat@(*asset).:assetformat",
     :controller  => 'repositories',
     :action      => "more_asset",
-    :constraints => {:path => /.*?/, :asset => /.*/, :baseformat => /[A-Za-z0-9]+/, :assetformat => /[A-Za-z0-9]+/}
+    :constraints => {:path => /.*?/, :asset => /.*/, :baseformat => /[A-Za-z0-9]+/, :assetformat => /[^.\/]+/}
     
   get "projects/:id/repository/:repository_id/:rev/preview(/*path).:baseformat@(*asset).:assetformat",
     :controller  => 'repositories',
     :action      => "more_asset",
-    :constraints => {:rev => /[a-z0-9\.\-_]+/, :path => /.*?/, :baseformat => /[A-Za-z0-9]+/, :asset => /.*/, :assetformat => /[A-Za-z0-9]+/}
+    :constraints => {:rev => /[a-z0-9\.\-_]+/, :path => /.*?/, :baseformat => /[A-Za-z0-9]+/, :asset => /.*/, :assetformat => /[^.\/]+/}
     
 end

@@ -148,13 +148,17 @@ module RedmineMorePreviews
           # path functions
           #
           ################################################################################
-          def asset_link( path, rev, asset )
-          
+          # generated is used only while Cliff writes its freshly extracted
+          # attachments.html; public links otherwise require a stored asset.
+          def asset_link( path, rev, asset, generated = false )
+            # Both repository asset routes require an extension as well.
+            assetformat = File.extname(asset)
+            return ERB::Util.html_escape(asset.to_s) if assetformat.length <= 1
+
             extname     = File.extname( path)
             basename    = File.basename(path, extname)
             dirname     = File.dirname(path)
             
-            assetformat = File.extname(asset)
             # Preserve the relative subdirectory when removing the extension:
             # the controller rebuilds the nested cache path from :asset.
             assetname   = asset.delete_suffix(assetformat)
@@ -172,9 +176,9 @@ module RedmineMorePreviews
               :only_path     => true
             )
             
-            if asset_available?(path, rev, :asset => asset)
+            if generated || asset_available?(path, rev, :asset => asset)
               ApplicationController.helpers.link_to( asset, _link,
-                :class => "icon icon-file #{Marcel::MimeType.for(Pathname.new(preview_assetpath(path, rev, :asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
+                :class => "icon icon-file #{Marcel::MimeType.for(generated ? nil : Pathname.new(preview_assetpath(path, rev, :asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
                 :style => "padding-top:2px;padding-bottom:2px;"
               )
             else

@@ -63,7 +63,9 @@ class Cliff < RedmineMorePreviews::Conversion
   # Cached headers contain translated labels and localized date strings.
   # A fragment generated for another viewer's locale must not be reused.
   def self.cache_locale_matches?(preview_path, locale)
-    marker = File.join(File.dirname(preview_path), LOCALE_MARKER)
+    # The locale belongs to cached conversion metadata, not to extracted
+    # mail attachments. Store it beside the converter marker.
+    marker = "#{File.dirname(preview_path)}#{LOCALE_MARKER}"
     File.file?(marker) && !File.symlink?(marker) && File.read(marker).strip == locale.to_s
   rescue SystemCallError
     false
@@ -82,16 +84,21 @@ class Cliff < RedmineMorePreviews::Conversion
       LIMITS.each_key {|key| limit( key ) }
       object.to_h["object"].try( :project )
       I18n.translate( :"redmine_more_previews.cliff.text_more_attachments", :count => 0 )
-      # The converter renders locale-sensitive headers and omitted-attachment
-      # labels. Keep the generating locale next to its cached fragments.
-      # This is written before the parser forks so it uses the request locale.
-      File.write(File.join(tmpdir, LOCALE_MARKER), I18n.locale.to_s)
       # Mail warns of a field it cannot parse with the whole field, twice: a
       # header line of the size of the email would go to the server's stderr
       isolated( :memory => max_memory ) { silence_warnings { eml } }
     end
   end #def
-  
+
+  # Called in the parent process with the cache lock held. The metadata
+  # lives outside the converted output directory and cannot collide with an
+  # attachment, count toward the attachment limit, or be served as an asset.
+  def write_marker
+    File.write("#{dir}#{LOCALE_MARKER}", I18n.locale.to_s) if dir
+    super
+  end
+  private :write_marker
+
   ########################################################################################
   #
   # helpers

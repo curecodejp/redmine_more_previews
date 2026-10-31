@@ -136,8 +136,10 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
   def test_locale_mismatch_does_not_reuse_cached_headers
     get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
     assert_response :success
-    locale_file = File.join(@attachment.preview_dirname, Cliff::LOCALE_MARKER)
+    locale_file = "#{@attachment.preview_dirname}#{Cliff::LOCALE_MARKER}"
     assert_equal I18n.locale.to_s, File.read(locale_file)
+    assert_not File.exist?(File.join(@attachment.preview_dirname, Cliff::LOCALE_MARKER)),
+               'locale metadata must not appear in extracted mail assets'
 
     # The cached representation came from a different language. Even when the
     # index and version marker are valid, show the current viewer's headers.

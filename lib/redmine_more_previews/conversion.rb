@@ -436,6 +436,9 @@ module RedmineMorePreviews
       raise ConverterBadArgument unless Lib::RmpFile.within_directory?( RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, dir )
       FileUtils.rm_rf( dir )
       FileUtils.rm_f( marker_path )
+      # Cliff stores its output locale beside the converter marker; remove it
+      # whenever an obsolete preview directory is discarded.
+      FileUtils.rm_f( "#{dir}.cliff_locale" )
       Lib::RmpAssetList.remove( dir )
     end #def
     private :discard_cache

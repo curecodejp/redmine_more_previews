@@ -84,8 +84,9 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
     get :entry, params: entry
     assert_response :success
 
-    locale_file = File.join(@repository.preview_dirname('cached.eml', nil), Cliff::LOCALE_MARKER)
+    locale_file = "#{@repository.preview_dirname('cached.eml', nil)}#{Cliff::LOCALE_MARKER}"
     assert_equal I18n.locale.to_s, File.read(locale_file)
+    assert_not File.exist?(File.join(@repository.preview_dirname('cached.eml', nil), Cliff::LOCALE_MARKER))
     File.write(locale_file, 'other-locale')
     File.write(@repository.preview_assetpath('cached.eml', nil, asset: 'headers.html'), 'wrong-repo-language-header')
 

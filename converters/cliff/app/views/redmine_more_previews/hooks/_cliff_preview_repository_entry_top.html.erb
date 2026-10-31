@@ -14,7 +14,20 @@
     toggler << link_to_function(" x", js, :id => "#{html_id}-hide", :class => 'collapsible', :style => 'display:none;')
   %>
   
-  <%- repository.more_asset( path, rev, :assets => ["headers.html", "fields.html", "attachments.html"] ) do |html, asset, email_headers, email_fields, email_attachments| %>
+  <%# Fetch the generated header fragments from the same persistent cache as
+      the email body. A block argument to more_asset forces a full temporary
+      conversion even when the preview is already cached. %>
+  <% names = %w(headers.html fields.html attachments.html)
+     if RedmineMorePreviews::Converter.cache_previews? &&
+        !RedmineMorePreviews::Lib::RmpCacheSize.full?
+       fragments = repository.more_preview(path, rev) ? names.map { |name| repository.more_asset(path, rev, :asset => name) } : []
+     else
+       # With caching disabled or full, convert once and render the fragments
+       # immediately instead of attempting three more uncached conversions.
+       fragments = repository.more_asset(path, rev, :assets => names) { |_html, _asset, *data| data }
+     end
+     email_headers, email_fields, email_attachments = fragments || []
+  %>
   
     <% if email_headers %>
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_headers) ) %></div>
@@ -29,6 +42,4 @@
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_attachments) ) %></div>
     <%- end %>
     
-  <%- end %>
-  
 <% end %>

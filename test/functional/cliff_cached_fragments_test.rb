@@ -1,0 +1,84 @@
+# frozen_string_literal: true
+
+require File.expand_path('../../test_helper', __FILE__)
+
+# The top-of-page Cliff hook must reuse the stored email conversion instead of
+# running a fresh transient conversion whenever somebody opens the page.
+class CliffCachedFragmentsTest < Redmine::ControllerTest
+  include RedmineMorePreviews::TestHelper
+  tests AttachmentsController
+
+  fixtures :users, :email_addresses, :projects, :roles, :members, :member_roles,
+           :enabled_modules, :issues, :trackers, :issue_statuses, :enumerations,
+           :projects_trackers, :attachments
+
+  SOURCE = "From: writer@example.test\r\nTo: reader@example.test\r\nSubject: cached-mail-subject\r\n" \
+           "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\ncached mail body\r\n"
+
+  def setup
+    set_tmp_attachments_directory
+    @old_settings = Setting.plugin_redmine_more_previews
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['cliff'] = {
+      'active' => '1', 'mime_types' => {'eml' => {'active' => '1', 'format' => 'html'}}
+    }
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+    EnabledModule.find_or_create_by!(project_id: 1, name: 'redmine_more_previews')
+    @request.session[:user_id] = 2
+    @tmp = Dir.mktmpdir('rmp-cliff-cache')
+    @storage = Dir.mktmpdir('rmp-cliff-cache-storage')
+    @old_storage = RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @storage)
+    path = File.join(@tmp, 'cached.eml')
+    File.binwrite(path, SOURCE)
+    upload = Rack::Test::UploadedFile.new(path, 'message/rfc822', true)
+    @attachment = Attachment.new(container: Issue.find(1), file: upload, author: User.find(2))
+    assert @attachment.save
+  end
+
+  def teardown
+    Setting.plugin_redmine_more_previews = @old_settings
+    Setting.clear_cache
+    RedmineMorePreviews::Constants::Defaults.send(:remove_const, :MORE_PREVIEWS_STORAGE_PATH)
+    RedmineMorePreviews::Constants::Defaults.const_set(:MORE_PREVIEWS_STORAGE_PATH, @old_storage)
+    FileUtils.rm_rf(@storage)
+    FileUtils.rm_rf(@tmp)
+  end
+
+  def test_repeat_attachment_page_reuses_cached_header_and_fields
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert File.file?(@attachment.preview_filepath)
+    assert File.file?(@attachment.preview_assetpath(asset: 'headers.html'))
+
+    # If a second visit tries to run a fresh converter, the child will fail;
+    # a successful header proves it is now read from the cache.
+    Cliff.any_instance.stubs(:convert).raises('unexpected second conversion')
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+  end
+
+  def test_disabling_cache_keeps_transient_header_rendering
+    settings = Setting.plugin_redmine_more_previews.deep_dup
+    settings['cache_previews'] = '0'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert_not File.file?(@attachment.preview_filepath)
+  end
+
+  def test_full_cache_still_renders_headers_without_repeated_conversions
+    RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert_not File.file?(@attachment.preview_filepath)
+  end
+end

@@ -13,6 +13,7 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
   PROJECT_ID = 3
 
   def setup
+    super
     User.current = nil
     @old_enabled_scm = Setting.enabled_scm.dup
     Setting.enabled_scm = @old_enabled_scm + ['Filesystem'] unless @old_enabled_scm.include?('Filesystem')
@@ -37,6 +38,7 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
   end
 
   def teardown
+    super
     Setting.enabled_scm = @old_enabled_scm
     Setting.plugin_redmine_more_previews = @old_settings
     Setting.clear_cache

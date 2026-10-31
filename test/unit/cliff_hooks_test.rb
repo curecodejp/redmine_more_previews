@@ -64,8 +64,8 @@ class CliffHooksTest < ActiveSupport::TestCase
   end
 
   # Keep only one canonical version of each template. Cliff#eml, #save_headers,
-  # #save_fields and #list resolve them through Converter#views (app/views),
-  # not through the former lib/cliff copies.
+  # #save_fields and #list resolve them through Conversion#views
+  # (PluginPath#views -> app/views), not through the former lib/cliff copies.
   def test_cliff_erb_templates_exist_only_in_app_views
     root = File.expand_path('../../converters/cliff', __dir__)
     %w(pre.html.erb headers.html.erb fields.html.erb attachments.html.erb).each do |name|

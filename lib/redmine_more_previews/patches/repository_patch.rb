@@ -178,7 +178,7 @@ module RedmineMorePreviews
             
             if generated || asset_available?(path, rev, :asset => asset)
               ApplicationController.helpers.link_to( asset, _link,
-                :class => "icon icon-file #{Marcel::MimeType.for(Pathname.new(preview_assetpath(path, rev, :asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
+                :class => "icon icon-file #{Marcel::MimeType.for(generated ? nil : Pathname.new(preview_assetpath(path, rev, :asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
                 :style => "padding-top:2px;padding-bottom:2px;"
               )
             else

@@ -89,18 +89,23 @@ module RedmineMorePreviews
           # path functions
           #
           ################################################################################
-          def asset_link( asset )
-          
-            extname  = File.extname( asset )
-            basename = File.basename( asset, extname )
-            
+          # The Cliff converter calls this while generating its attachment list,
+          # before the extracted files have been copied to the preview cache.
+          # Only that known-extracted path may bypass the cache existence check.
+          def asset_link( asset, generated = false )
+            extname = File.extname(asset)
+            # The route requires an extension. Keep extensionless attachments
+            # visible as escaped text rather than making the entire email fail.
+            return ERB::Util.html_escape(asset.to_s) if extname.length <= 1
+
+            basename = File.basename(asset, extname)
             _link = Rails.application.routes.url_helpers.more_asset_path(
               self, basename, extname[1..-1]
             )
-            
-            if asset_available?(:asset => asset)
+
+            if generated || asset_available?(:asset => asset)
               ApplicationController.helpers.link_to( asset, _link,
-               :class => "icon icon-file #{Marcel::MimeType.for(Pathname.new(preview_assetpath(:asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
+               :class => "icon icon-file #{Marcel::MimeType.for(generated ? nil : Pathname.new(preview_assetpath(:asset => asset)), name: File.basename(asset))&.tr('/', '-')}",
                :style => "padding-top:2px;padding-bottom:2px;"
               )
             else

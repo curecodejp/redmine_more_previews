@@ -32,7 +32,10 @@ module RedmineMorePreviews
     # Even a fixed converter must not serve a previously generated unsafe PDF.
     # Invalidate previous Vince and Libre rendering and Maggie PDF raster results
     # so upgrades to 6.1.4 regenerate previews using the corrected converters.
-    CACHE_FORMAT_VERSION = 'maintenance-6.1.4-v1'.freeze
+    # The Cliff attachment-list output previously omitted initial asset links
+    # and cached error pages for extensionless names. Rebuild old previews so
+    # the persistent Cliff fragment hooks never serve those old fragments.
+    CACHE_FORMAT_VERSION = 'maintenance-6.1.5-v1'.freeze
     SAFE_DEBUG_FIELDS = %w(converter converter_version plugin_version source_type preview_format).freeze
 
   
@@ -433,6 +436,9 @@ module RedmineMorePreviews
       raise ConverterBadArgument unless Lib::RmpFile.within_directory?( RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, dir )
       FileUtils.rm_rf( dir )
       FileUtils.rm_f( marker_path )
+      # Cliff stores its output locale beside the converter marker; remove it
+      # whenever an obsolete preview directory is discarded.
+      FileUtils.rm_f( "#{dir}.cliff_locale" )
       Lib::RmpAssetList.remove( dir )
     end #def
     private :discard_cache
@@ -450,9 +456,27 @@ module RedmineMorePreviews
     end #def
     private :marker_path
     
-    def cache_marker
+    # Shared cache identity for both the stored-preview reader and the hook's
+    # full-cache fast path. Do not infer validity from index.html alone: a
+    # marker from an older release must force a single transient conversion.
+    def self.cache_marker_for(converter_id)
       mode = RedmineMorePreviews::Converter.debug? ? 'debug' : 'normal'
-      "#{id}:#{CACHE_FORMAT_VERSION}:#{mode}"
+      "#{converter_id}:#{CACHE_FORMAT_VERSION}:#{mode}"
+    end
+
+    # Best-effort pre-check outside the cache lock, only to choose between a
+    # cached asset lookup and one transient conversion. The worker validates
+    # the marker again under the cache lock before serving any bytes.
+    def self.current_cached_preview?(preview_path, converter_id)
+      marker = "#{File.dirname(preview_path)}.converter"
+      File.file?(preview_path) && !File.symlink?(preview_path) &&
+        File.file?(marker) && File.read(marker).strip == cache_marker_for(converter_id)
+    rescue SystemCallError
+      false
+    end
+
+    def cache_marker
+      self.class.cache_marker_for(id)
     end #def
     private :cache_marker
 

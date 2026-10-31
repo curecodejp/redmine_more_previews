@@ -14,7 +14,30 @@
     toggler << link_to_function(" x", js, :id => "#{html_id}-hide", :class => 'collapsible', :style => 'display:none;')
   %>
   
-  <%- attachment.more_asset( :assets => ["headers.html", "fields.html", "attachments.html"] ) do |html, asset, email_headers, email_fields, email_attachments| %>
+  <%# Fetch the generated header fragments from the same persistent cache as
+      the email body. A block argument to more_asset forces a full temporary
+      conversion even when the preview is already cached. %>
+  <% names = %w(headers.html fields.html attachments.html)
+     # An administrator's explicit reload must refresh the header fragments as
+     # well as the body; unsafe also keeps its existing transient behavior.
+     reload = params[:reload].present? && User.current.admin?
+     unsafe = params[:unsafe].present? && User.current.admin?
+     cache_enabled = RedmineMorePreviews::Converter.cache_previews?
+     current = cache_enabled &&
+       RedmineMorePreviews::Conversion.current_cached_preview?(attachment.preview_filepath, :cliff)
+     same_locale = current && Cliff.cache_locale_matches?(attachment.preview_filepath, I18n.locale)
+     if cache_enabled && !reload && !unsafe &&
+        (same_locale || (!current && !RedmineMorePreviews::Lib::RmpCacheSize.full?))
+       # The first asset lookup generates the preview when it is not cached.
+       fragments = names.map { |name| attachment.more_asset(:asset => name) }
+     else
+       # Explicit reload, locale mismatch, disabled/full cache, or an old marker:
+       # convert all three fragments together. The first result is the body;
+       # headers, fields and attachments immediately follow (no asset slot).
+       fragments = attachment.more_asset(:assets => names, :reload => reload) { |_html, *data| data }
+     end
+     email_headers, email_fields, email_attachments = fragments || []
+  %>
   
     <% if email_headers %>
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_headers) ) %></div>
@@ -29,7 +52,5 @@
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_attachments) ) %></div>
     <%- end %>
     
-  <%- end %>
-  
 <% end %>
 

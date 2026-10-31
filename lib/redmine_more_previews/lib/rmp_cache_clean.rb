@@ -51,6 +51,7 @@ module RedmineMorePreviews
               next unless old?( marker, cutoff )
               FileUtils.rm_rf( dir )
               FileUtils.rm_f( marker )
+              FileUtils.rm_f( "#{dir}.cliff_locale" )
               RmpAssetList.remove( dir )
               removed += 1
             end

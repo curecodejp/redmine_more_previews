@@ -24,11 +24,13 @@ class CacheCleanTest < ActiveSupport::TestCase
 
   def test_previews_older_than_the_days_are_removed
     old = preview('attachments/1/preview.html', 31)
+    File.write("#{old}.cliff_locale", 'ja')
     recent = preview('attachments/2/preview.html', 29)
     repository = preview('repository_previews/3/doc/abc/preview.pdf', 40)
     assert_equal 2, RmpCacheClean.run(30)
     assert_not File.exist?(old)
     assert_not File.exist?("#{old}.converter")
+    assert_not File.exist?("#{old}.cliff_locale"), 'Cliff locale metadata is removed with its cached preview'
     assert_not File.exist?("#{old}.assets"), 'the list of its assets goes with it'
     assert File.exist?("#{old}.lock"), 'lock files stay'
     assert File.exist?(File.join(recent, 'index.html'))

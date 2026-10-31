@@ -14,7 +14,28 @@
     toggler << link_to_function(" x", js, :id => "#{html_id}-hide", :class => 'collapsible', :style => 'display:none;')
   %>
   
-  <%- repository.more_asset( path, rev, :assets => ["headers.html", "fields.html", "attachments.html"] ) do |html, asset, email_headers, email_fields, email_attachments| %>
+  <%# Fetch the generated header fragments from the same persistent cache as
+      the email body. A block argument to more_asset forces a full temporary
+      conversion even when the preview is already cached. %>
+  <% names = %w(headers.html fields.html attachments.html)
+     reload = params[:reload].present? && User.current.admin?
+     unsafe = params[:unsafe].present? && User.current.admin?
+     cache_enabled = RedmineMorePreviews::Converter.cache_previews?
+     current = cache_enabled &&
+       RedmineMorePreviews::Conversion.current_cached_preview?(repository.preview_filepath(path, rev), :cliff)
+     same_locale = current && Cliff.cache_locale_matches?(repository.preview_filepath(path, rev), I18n.locale)
+     if cache_enabled && !reload && !unsafe &&
+        (same_locale || (!current && !RedmineMorePreviews::Lib::RmpCacheSize.full?))
+       # Read cached fragments; a missing preview is converted only once.
+       fragments = names.map { |name| repository.more_asset(path, rev, :asset => name) }
+     else
+       # The admin requested a fresh preview, the locale differs, or no current cache can be
+       # stored/read: generate all three fragments in one transient conversion.
+       # The first result is the body, followed by the three fragments.
+       fragments = repository.more_asset(path, rev, :assets => names, :reload => reload) { |_html, *data| data }
+     end
+     email_headers, email_fields, email_attachments = fragments || []
+  %>
   
     <% if email_headers %>
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_headers) ) %></div>
@@ -29,6 +50,4 @@
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_attachments) ) %></div>
     <%- end %>
     
-  <%- end %>
-  
 <% end %>

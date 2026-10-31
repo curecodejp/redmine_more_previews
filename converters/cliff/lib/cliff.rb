@@ -58,6 +58,18 @@ class Cliff < RedmineMorePreviews::Conversion
   # email is parsed in a child process with this much memory (see
   # Conversion#isolated)
   MAX_MEMORY     = 1024 * 1024 * 1024
+  LOCALE_MARKER  = '.cliff_locale'.freeze
+
+  # Cached headers contain translated labels and localized date strings.
+  # A fragment generated for another viewer's locale must not be reused.
+  def self.cache_locale_matches?(preview_path, locale)
+    # The locale belongs to cached conversion metadata, not to extracted
+    # mail attachments. Store it beside the converter marker.
+    marker = "#{File.dirname(preview_path)}#{LOCALE_MARKER}"
+    File.file?(marker) && !File.symlink?(marker) && File.read(marker).strip == locale.to_s
+  rescue SystemCallError
+    false
+  end
   
   ########################################################################################
   #
@@ -77,7 +89,16 @@ class Cliff < RedmineMorePreviews::Conversion
       isolated( :memory => max_memory ) { silence_warnings { eml } }
     end
   end #def
-  
+
+  # Called in the parent process with the cache lock held. The metadata
+  # lives outside the converted output directory and cannot collide with an
+  # attachment, count toward the attachment limit, or be served as an asset.
+  def write_marker
+    File.write("#{dir}#{LOCALE_MARKER}", I18n.locale.to_s) if dir
+    super
+  end
+  private :write_marker
+
   ########################################################################################
   #
   # helpers

@@ -39,7 +39,7 @@ RedmineApp::Application.routes.draw do
   get 'attachments/more_preview/:id/(*asset).:assetformat', 
     :controller  => 'attachments',
     :action      => 'more_asset',
-    :constraints => {:id => /\d+/, :asset => /.*/, :format => /[^.]+/},
+    :constraints => {:id => /\d+/, :asset => /.*/, :assetformat => /[A-Za-z0-9]+/},
     :as          => "more_asset"
     
   #

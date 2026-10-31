@@ -131,4 +131,42 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     get :entry, params: entry_params(asset: 'nope.txt')
     assert_response :not_found
   end
+
+  # A freshly converted email lists extensionless names as text, while its
+  # extracted .txt assets already have links before the preview is cached.
+  def test_cliff_extensionless_attachment_keeps_repository_email_readable
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['cliff'] = {
+      'active' => '1',
+      'mime_types' => {'eml' => {'active' => '1', 'format' => 'html'}}
+    }
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    mail = Mail.new do
+      from 'author@example.test'
+      to 'reader@example.test'
+      subject 'repository attachments'
+      text_part { body 'repository body survives' }
+    end
+    mail.add_file(filename: 'Makefile', content: 'all: test')
+    mail.add_file(filename: 'notes.txt', content: 'repository note')
+    File.binwrite(File.join(@repo_dir, 'mail.eml'), mail.to_s)
+
+    params = entry_params(path: repository_path_hash(['mail.eml'])[:param], format: 'html')
+    get :more_preview, params: params
+    assert_response :success
+    assert_includes response.body, 'repository body survives'
+
+    list = File.binread(@repository.preview_assetpath('mail.eml', nil, asset: 'attachments.html'))
+    document = Nokogiri::HTML.fragment(list)
+    assert_includes document.text, 'Makefile'
+    assert_not_includes document.css('a').map(&:text), 'Makefile'
+    assert_includes document.css('a').map(&:text), 'notes.txt'
+    assert_equal 'README&lt;script&gt;', @repository.asset_link('mail.eml', nil, 'README<script>', true)
+
+    get :more_preview, params: params
+    assert_response :success
+    assert_includes response.body, 'repository body survives'
+  end
 end

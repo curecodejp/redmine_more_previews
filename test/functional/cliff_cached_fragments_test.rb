@@ -94,6 +94,37 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_includes response.body, 'cached-mail-subject'
   end
 
+  def test_admin_reload_does_not_display_stale_cached_headers
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    File.write(@attachment.preview_assetpath(asset: 'headers.html'), 'stale cache header')
+
+    @request.session[:user_id] = 1 # administrator
+    User.current = nil
+    get :show, params: {id: @attachment.id, filename: @attachment.filename,
+                        format: 'html', reload: '1'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert_not_includes response.body, 'stale cache header'
+  end
+
+  def test_full_cache_does_not_accept_an_older_marker
+    cache_dir = @attachment.preview_dirname
+    FileUtils.mkdir_p(cache_dir)
+    File.write(@attachment.preview_filepath, 'old cached mail body')
+    File.write(@attachment.preview_assetpath(asset: 'headers.html'), 'old header')
+    File.write("#{cache_dir}.converter", 'cliff:maintenance-6.1.4-v1:normal')
+    assert_not RedmineMorePreviews::Conversion.current_cached_preview?(@attachment.preview_filepath, :cliff)
+
+    RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert_not_includes response.body, 'old header'
+    # Cache is full: the transient conversion must not overwrite the old marker.
+    assert_equal 'cliff:maintenance-6.1.4-v1:normal', File.read("#{cache_dir}.converter")
+  end
+
   def test_older_cliff_cache_marker_is_invalidated
     cache_dir = @attachment.preview_dirname
     FileUtils.mkdir_p(cache_dir)

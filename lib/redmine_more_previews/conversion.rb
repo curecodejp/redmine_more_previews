@@ -453,9 +453,27 @@ module RedmineMorePreviews
     end #def
     private :marker_path
     
-    def cache_marker
+    # Shared cache identity for both the stored-preview reader and the hook's
+    # full-cache fast path. Do not infer validity from index.html alone: a
+    # marker from an older release must force a single transient conversion.
+    def self.cache_marker_for(converter_id)
       mode = RedmineMorePreviews::Converter.debug? ? 'debug' : 'normal'
-      "#{id}:#{CACHE_FORMAT_VERSION}:#{mode}"
+      "#{converter_id}:#{CACHE_FORMAT_VERSION}:#{mode}"
+    end
+
+    # Best-effort pre-check outside the cache lock, only to choose between a
+    # cached asset lookup and one transient conversion. The worker validates
+    # the marker again under the cache lock before serving any bytes.
+    def self.current_cached_preview?(preview_path, converter_id)
+      marker = "#{File.dirname(preview_path)}.converter"
+      File.file?(preview_path) && !File.symlink?(preview_path) &&
+        File.file?(marker) && File.read(marker).strip == cache_marker_for(converter_id)
+    rescue SystemCallError
+      false
+    end
+
+    def cache_marker
+      self.class.cache_marker_for(id)
     end #def
     private :cache_marker
 

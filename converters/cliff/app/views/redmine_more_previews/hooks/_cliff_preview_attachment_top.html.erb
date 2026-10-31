@@ -18,15 +18,19 @@
       the email body. A block argument to more_asset forces a full temporary
       conversion even when the preview is already cached. %>
   <% names = %w(headers.html fields.html attachments.html)
-     if RedmineMorePreviews::Converter.cache_previews? &&
-        (!RedmineMorePreviews::Lib::RmpCacheSize.full? || attachment.preview_available?)
-       # A cached asset lookup generates the preview on the first visit and
-       # does not need a separate read of the entire index.html.
+     # An administrator's explicit reload must refresh the header fragments as
+     # well as the body; unsafe also keeps its existing transient behavior.
+     reload = params[:reload].present? && User.current.admin?
+     unsafe = params[:unsafe].present? && User.current.admin?
+     if RedmineMorePreviews::Converter.cache_previews? && !reload && !unsafe &&
+        (!RedmineMorePreviews::Lib::RmpCacheSize.full? ||
+         RedmineMorePreviews::Conversion.current_cached_preview?(attachment.preview_filepath, :cliff))
+       # The first asset lookup generates the preview when it is not cached.
        fragments = names.map { |name| attachment.more_asset(:asset => name) }
      else
-       # With caching disabled or full, convert once and render the fragments
-       # immediately instead of attempting three more uncached conversions.
-       fragments = attachment.more_asset(:assets => names) { |_html, _asset, *data| data }
+       # Explicit reload, disabled/full cache, or an obsolete cache marker:
+       # convert all three fragments together, never once per fragment.
+       fragments = attachment.more_asset(:assets => names, :reload => reload) { |_html, _asset, *data| data }
      end
      email_headers, email_fields, email_attachments = fragments || []
   %>

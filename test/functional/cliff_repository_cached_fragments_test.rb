@@ -63,6 +63,19 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
     assert_includes response.body, 'repo-cache-subject'
   end
 
+  def test_admin_reload_does_not_display_stale_repository_headers
+    entry = {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
+             path: repository_path_hash(['cached.eml'])[:param]}
+    get :entry, params: entry
+    assert_response :success
+    File.write(@repository.preview_assetpath('cached.eml', nil, asset: 'headers.html'), 'stale repository header')
+
+    get :entry, params: entry.merge(reload: '1')
+    assert_response :success
+    assert_includes response.body, 'repo-cache-subject'
+    assert_not_includes response.body, 'stale repository header'
+  end
+
   def test_full_cache_reuses_stored_repository_fragments
     entry = {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
              path: repository_path_hash(['cached.eml'])[:param]}

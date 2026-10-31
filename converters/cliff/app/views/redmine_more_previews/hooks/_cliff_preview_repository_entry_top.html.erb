@@ -20,13 +20,16 @@
   <% names = %w(headers.html fields.html attachments.html)
      reload = params[:reload].present? && User.current.admin?
      unsafe = params[:unsafe].present? && User.current.admin?
-     if RedmineMorePreviews::Converter.cache_previews? && !reload && !unsafe &&
-        (!RedmineMorePreviews::Lib::RmpCacheSize.full? ||
-         RedmineMorePreviews::Conversion.current_cached_preview?(repository.preview_filepath(path, rev), :cliff))
+     cache_enabled = RedmineMorePreviews::Converter.cache_previews?
+     current = cache_enabled &&
+       RedmineMorePreviews::Conversion.current_cached_preview?(repository.preview_filepath(path, rev), :cliff)
+     same_locale = current && Cliff.cache_locale_matches?(repository.preview_filepath(path, rev), I18n.locale)
+     if cache_enabled && !reload && !unsafe &&
+        (same_locale || (!current && !RedmineMorePreviews::Lib::RmpCacheSize.full?))
        # Read cached fragments; a missing preview is converted only once.
        fragments = names.map { |name| repository.more_asset(path, rev, :asset => name) }
      else
-       # The admin requested a fresh preview, or no current cache can be
+       # The admin requested a fresh preview, the locale differs, or no current cache can be
        # stored/read: generate all three fragments in one transient conversion.
        # The first result is the body, followed by the three fragments.
        fragments = repository.more_asset(path, rev, :assets => names, :reload => reload) { |_html, *data| data }

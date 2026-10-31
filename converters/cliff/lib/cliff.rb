@@ -58,6 +58,16 @@ class Cliff < RedmineMorePreviews::Conversion
   # email is parsed in a child process with this much memory (see
   # Conversion#isolated)
   MAX_MEMORY     = 1024 * 1024 * 1024
+  LOCALE_MARKER  = '.cliff_locale'.freeze
+
+  # Cached headers contain translated labels and localized date strings.
+  # A fragment generated for another viewer's locale must not be reused.
+  def self.cache_locale_matches?(preview_path, locale)
+    marker = File.join(File.dirname(preview_path), LOCALE_MARKER)
+    File.file?(marker) && !File.symlink?(marker) && File.read(marker).strip == locale.to_s
+  rescue SystemCallError
+    false
+  end
   
   ########################################################################################
   #
@@ -72,6 +82,10 @@ class Cliff < RedmineMorePreviews::Conversion
       LIMITS.each_key {|key| limit( key ) }
       object.to_h["object"].try( :project )
       I18n.translate( :"redmine_more_previews.cliff.text_more_attachments", :count => 0 )
+      # The converter renders locale-sensitive headers and omitted-attachment
+      # labels. Keep the generating locale next to its cached fragments.
+      # This is written before the parser forks so it uses the request locale.
+      File.write(File.join(tmpdir, LOCALE_MARKER), I18n.locale.to_s)
       # Mail warns of a field it cannot parse with the whole field, twice: a
       # header line of the size of the email would go to the server's stderr
       isolated( :memory => max_memory ) { silence_warnings { eml } }

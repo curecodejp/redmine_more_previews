@@ -22,13 +22,16 @@
      # well as the body; unsafe also keeps its existing transient behavior.
      reload = params[:reload].present? && User.current.admin?
      unsafe = params[:unsafe].present? && User.current.admin?
-     if RedmineMorePreviews::Converter.cache_previews? && !reload && !unsafe &&
-        (!RedmineMorePreviews::Lib::RmpCacheSize.full? ||
-         RedmineMorePreviews::Conversion.current_cached_preview?(attachment.preview_filepath, :cliff))
+     cache_enabled = RedmineMorePreviews::Converter.cache_previews?
+     current = cache_enabled &&
+       RedmineMorePreviews::Conversion.current_cached_preview?(attachment.preview_filepath, :cliff)
+     same_locale = current && Cliff.cache_locale_matches?(attachment.preview_filepath, I18n.locale)
+     if cache_enabled && !reload && !unsafe &&
+        (same_locale || (!current && !RedmineMorePreviews::Lib::RmpCacheSize.full?))
        # The first asset lookup generates the preview when it is not cached.
        fragments = names.map { |name| attachment.more_asset(:asset => name) }
      else
-       # Explicit reload, disabled/full cache, or an obsolete cache marker:
+       # Explicit reload, locale mismatch, disabled/full cache, or an old marker:
        # convert all three fragments together. The first result is the body;
        # headers, fields and attachments immediately follow (no asset slot).
        fragments = attachment.more_asset(:assets => names, :reload => reload) { |_html, *data| data }

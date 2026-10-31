@@ -133,6 +133,23 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_equal 'cliff:maintenance-6.1.4-v1:normal', File.read("#{cache_dir}.converter")
   end
 
+  def test_locale_mismatch_does_not_reuse_cached_headers
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    locale_file = File.join(@attachment.preview_dirname, Cliff::LOCALE_MARKER)
+    assert_equal I18n.locale.to_s, File.read(locale_file)
+
+    # The cached representation came from a different language. Even when the
+    # index and version marker are valid, show the current viewer's headers.
+    File.write(locale_file, 'other-locale')
+    File.write(@attachment.preview_assetpath(asset: 'headers.html'), 'wrong-language-header')
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert_not_includes response.body, 'wrong-language-header'
+    assert_equal 'other-locale', File.read(locale_file), 'the fallback must not overwrite shared cache'
+  end
+
   def test_older_cliff_cache_marker_is_invalidated
     cache_dir = @attachment.preview_dirname
     FileUtils.mkdir_p(cache_dir)

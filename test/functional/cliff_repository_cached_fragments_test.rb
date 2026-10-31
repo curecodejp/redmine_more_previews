@@ -78,6 +78,23 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
     assert_select '#preview_repository_entry_top table.email.header_fields'
   end
 
+  def test_locale_mismatch_does_not_reuse_repository_headers
+    entry = {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
+             path: repository_path_hash(['cached.eml'])[:param]}
+    get :entry, params: entry
+    assert_response :success
+
+    locale_file = File.join(@repository.preview_dirname('cached.eml', nil), Cliff::LOCALE_MARKER)
+    assert_equal I18n.locale.to_s, File.read(locale_file)
+    File.write(locale_file, 'other-locale')
+    File.write(@repository.preview_assetpath('cached.eml', nil, asset: 'headers.html'), 'wrong-repo-language-header')
+
+    get :entry, params: entry
+    assert_response :success
+    assert_includes response.body, 'repo-cache-subject'
+    assert_not_includes response.body, 'wrong-repo-language-header'
+  end
+
   def test_full_cache_reuses_stored_repository_fragments
     entry = {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
              path: repository_path_hash(['cached.eml'])[:param]}

@@ -28,7 +28,8 @@
      else
        # The admin requested a fresh preview, or no current cache can be
        # stored/read: generate all three fragments in one transient conversion.
-       fragments = repository.more_asset(path, rev, :assets => names, :reload => reload) { |_html, _asset, *data| data }
+       # The first result is the body, followed by the three fragments.
+       fragments = repository.more_asset(path, rev, :assets => names, :reload => reload) { |_html, *data| data }
      end
      email_headers, email_fields, email_attachments = fragments || []
   %>

@@ -72,6 +72,8 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'cached-mail-subject'
     assert_not File.file?(@attachment.preview_filepath)
+    assert_select '#preview_repository_entry_top table.white'
+    assert_select '#preview_repository_entry_top table.email.header_fields'
   end
 
   def test_full_cache_still_renders_headers_without_repeated_conversions
@@ -80,6 +82,8 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'cached-mail-subject'
     assert_not File.file?(@attachment.preview_filepath)
+    assert_select '#preview_repository_entry_top table.white'
+    assert_select '#preview_repository_entry_top table.email.header_fields'
   end
 
   def test_full_cache_reuses_an_existing_preview_without_reconversion
@@ -106,6 +110,8 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'cached-mail-subject'
     assert_not_includes response.body, 'stale cache header'
+    assert_select '#preview_repository_entry_top table.white'
+    assert_select '#preview_repository_entry_top table.email.header_fields'
   end
 
   def test_full_cache_does_not_accept_an_older_marker
@@ -121,6 +127,8 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'cached-mail-subject'
     assert_not_includes response.body, 'old header'
+    assert_select '#preview_repository_entry_top table.white'
+    assert_select '#preview_repository_entry_top table.email.header_fields'
     # Cache is full: the transient conversion must not overwrite the old marker.
     assert_equal 'cliff:maintenance-6.1.4-v1:normal', File.read("#{cache_dir}.converter")
   end

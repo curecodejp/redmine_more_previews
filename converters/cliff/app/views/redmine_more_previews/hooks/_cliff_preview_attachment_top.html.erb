@@ -29,8 +29,9 @@
        fragments = names.map { |name| attachment.more_asset(:asset => name) }
      else
        # Explicit reload, disabled/full cache, or an obsolete cache marker:
-       # convert all three fragments together, never once per fragment.
-       fragments = attachment.more_asset(:assets => names, :reload => reload) { |_html, _asset, *data| data }
+       # convert all three fragments together. The first result is the body;
+       # headers, fields and attachments immediately follow (no asset slot).
+       fragments = attachment.more_asset(:assets => names, :reload => reload) { |_html, *data| data }
      end
      email_headers, email_fields, email_attachments = fragments || []
   %>

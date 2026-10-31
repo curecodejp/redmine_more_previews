@@ -74,6 +74,8 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'repo-cache-subject'
     assert_not_includes response.body, 'stale repository header'
+    assert_select '#preview_repository_entry_top table.white'
+    assert_select '#preview_repository_entry_top table.email.header_fields'
   end
 
   def test_full_cache_reuses_stored_repository_fragments

@@ -81,4 +81,30 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_includes response.body, 'cached-mail-subject'
     assert_not File.file?(@attachment.preview_filepath)
   end
+
+  def test_full_cache_reuses_an_existing_preview_without_reconversion
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert File.file?(@attachment.preview_assetpath(asset: 'headers.html'))
+
+    RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
+    Cliff.any_instance.stubs(:convert).raises('cached preview must not be reconverted')
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+  end
+
+  def test_older_cliff_cache_marker_is_invalidated
+    cache_dir = @attachment.preview_dirname
+    FileUtils.mkdir_p(cache_dir)
+    File.write(@attachment.preview_filepath, 'old cached mail body')
+    File.write(@attachment.preview_assetpath(asset: 'headers.html'), 'old header')
+    File.write("#{cache_dir}.converter", 'cliff:maintenance-6.1.4-v1:normal')
+
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert_not_includes response.body, 'old header'
+    assert_equal 'cliff:maintenance-6.1.5-v1:normal', File.read("#{cache_dir}.converter")
+  end
 end

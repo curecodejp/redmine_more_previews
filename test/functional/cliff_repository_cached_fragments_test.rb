@@ -49,7 +49,7 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
   end
 
   def test_repeat_repository_entry_page_uses_cached_header
-    entry = {id: PROJECT_ID, repository_id: @repository.id,
+    entry = {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
              path: repository_path_hash(['cached.eml'])[:param]}
     get :entry, params: entry
     assert_response :success
@@ -58,6 +58,20 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
     assert File.file?(@repository.preview_assetpath('cached.eml', nil, asset: 'headers.html'))
 
     Cliff.any_instance.stubs(:convert).raises('unexpected repository conversion')
+    get :entry, params: entry
+    assert_response :success
+    assert_includes response.body, 'repo-cache-subject'
+  end
+
+  def test_full_cache_reuses_stored_repository_fragments
+    entry = {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
+             path: repository_path_hash(['cached.eml'])[:param]}
+    get :entry, params: entry
+    assert_response :success
+    assert File.file?(@repository.preview_assetpath('cached.eml', nil, asset: 'headers.html'))
+
+    RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
+    Cliff.any_instance.stubs(:convert).raises('cached repository preview must not be reconverted')
     get :entry, params: entry
     assert_response :success
     assert_includes response.body, 'repo-cache-subject'

@@ -19,8 +19,10 @@
       conversion even when the preview is already cached. %>
   <% names = %w(headers.html fields.html attachments.html)
      if RedmineMorePreviews::Converter.cache_previews? &&
-        !RedmineMorePreviews::Lib::RmpCacheSize.full?
-       fragments = attachment.more_preview ? names.map { |name| attachment.more_asset(:asset => name) } : []
+        (!RedmineMorePreviews::Lib::RmpCacheSize.full? || attachment.preview_available?)
+       # A cached asset lookup generates the preview on the first visit and
+       # does not need a separate read of the entire index.html.
+       fragments = names.map { |name| attachment.more_asset(:asset => name) }
      else
        # With caching disabled or full, convert once and render the fragments
        # immediately instead of attempting three more uncached conversions.

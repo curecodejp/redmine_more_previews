@@ -32,7 +32,10 @@ module RedmineMorePreviews
     # Even a fixed converter must not serve a previously generated unsafe PDF.
     # Invalidate previous Vince and Libre rendering and Maggie PDF raster results
     # so upgrades to 6.1.4 regenerate previews using the corrected converters.
-    CACHE_FORMAT_VERSION = 'maintenance-6.1.4-v1'.freeze
+    # The Cliff attachment-list output previously omitted initial asset links
+    # and cached error pages for extensionless names. Rebuild old previews so
+    # the persistent Cliff fragment hooks never serve those old fragments.
+    CACHE_FORMAT_VERSION = 'maintenance-6.1.5-v1'.freeze
     SAFE_DEBUG_FIELDS = %w(converter converter_version plugin_version source_type preview_format).freeze
 
   

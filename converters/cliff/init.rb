@@ -37,6 +37,10 @@
 #       - bound the size, delimiter lines and nesting of emails; parse them in a child process with a time and memory limit
 #       - show why an email is not previewed without the backtrace
 #       - keep Mail's warnings of unparsable header fields out of stderr
+# 1.1.4
+#       - preview emails attached without a file extension
+#       - reuse the cached email headers on attachment and repository pages
+#       - remove the unused legacy hooks and duplicate templates
 #
 
 require_relative 'lib/cliff'
@@ -46,7 +50,7 @@ RedmineMorePreviews::Converter.register :cliff do
   name           'Cliff'
   author         'Stephan Wenzel'
   description    'Preview email files in preview pane'
-  version        '1.1.3'
+  version        '1.1.4'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
                  

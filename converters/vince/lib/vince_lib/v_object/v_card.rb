@@ -251,7 +251,7 @@ module VObject
       end
       # file: and any other scheme are not rendered: the path comes from the uploaded
       # vCard, so reading it would disclose files on the Redmine server
-      url.present? ? tag(:img, src: url, alt: I18n.with_locale(Setting.default_language) { I18n.t(:"vcard.PHOTO") }, :class => "vcard photo box") : ""
+      url.present? ? tag(:img, src: url, alt: I18n.with_locale(Modules::Localization.global_lang) { I18n.t(:"vcard.PHOTO") }, :class => "vcard photo box") : ""
     end #def
     
     PHOTO_HUMANIZE_PROC = Proc.new{|hash| ":-)"}
@@ -566,7 +566,7 @@ module VObject
       end
       # file: and any other scheme are not rendered: the path comes from the uploaded
       # vCard, so reading it would disclose files on the Redmine server
-      url.present? ? tag(:img, src: url, alt: I18n.with_locale(Setting.default_language) { I18n.t(:"vcard.LOGO") }, :class => "vcard logo box") : ""
+      url.present? ? tag(:img, src: url, alt: I18n.with_locale(Modules::Localization.global_lang) { I18n.t(:"vcard.LOGO") }, :class => "vcard logo box") : ""
     end #def
     
     LOGO_HUMANIZE_PROC = Proc.new{|hash| "|/|"}

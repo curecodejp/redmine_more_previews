@@ -35,6 +35,7 @@ module RedmineMorePreviews
     # The Cliff attachment-list output previously omitted initial asset links
     # and cached error pages for extensionless names. Rebuild old previews so
     # the persistent Cliff fragment hooks never serve those old fragments.
+    # Vince previews also ended the logo with a stray '%>'.
     CACHE_FORMAT_VERSION = 'maintenance-6.1.5-v1'.freeze
     SAFE_DEBUG_FIELDS = %w(converter converter_version plugin_version source_type preview_format).freeze
 

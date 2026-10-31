@@ -9,7 +9,7 @@
 > - License: GNU GPL v2.0 or later, inherited from the upstream project
 > - Current compatibility work: Redmine 6.0.x and 6.1.x with Ruby 3.3.x
 >
-> The plugin version is `6.1.4` (maintenance release): Redmine 6.1 compatibility was verified in previous releases, and Redmine 6.0 remains supported. The hardened Libre converter now requires a functioning Linux bubblewrap sandbox; read the upgrade warning below. Generic fixes should be contributed back upstream when practical.
+> The plugin version is `6.1.5` (maintenance release): Redmine 6.1 compatibility was verified in previous releases, and Redmine 6.0 remains supported. The hardened Libre converter now requires a functioning Linux bubblewrap sandbox; read the upgrade warning below. Generic fixes should be contributed back upstream when practical.
 
 ## Compatibility testing
 
@@ -164,6 +164,8 @@ Pass lets you pass through html.
 
 Vince lets you preview .vcf (vCard) files.
 
+A vCard larger than 20 MiB is not previewed (`413`). Vince parses and renders a vCard in a child process, within the time limit and with at most 512 MiB of memory beyond what the process starts with; on platforms without `fork`, Vince previews are not available.
+
 ---
 
 ![NilText](doc/nil_text/logo.png "NilText") *DO NOT USE IN PRODUCTION* 
@@ -243,6 +245,15 @@ You can enable to any **existing** project from /projects/[any-project]/settings
 Native speakers: please help to improve localizations
 
 ### Change-Log
+
+**6.1.5**
+
+- Vince: parse and render vCards in a child process with the conversion time limit and a memory limit, and refuse vCards larger than 20 MiB (`413`) (GHSA-hm82-jvvw-hmg4). Remove a stray `%>` shown after the logo.
+- Cliff: preview emails attached without a file extension, and reuse the cached email headers on attachment and repository pages instead of converting the email again.
+- Preview asset routes of attachments and repositories accept asset extensions with characters other than ASCII letters and digits.
+- Cliff: remove the unused legacy hook loader, hook classes and duplicate templates; namespace the top hook to match its Zeitwerk path.
+- Bump the preview cache format marker so existing cached previews are regenerated; older cache files may remain on disk until cache cleanup.
+- Cliff 1.1.4 and Vince 1.1.3.
 
 **6.1.4**
 

@@ -28,6 +28,9 @@
 #       - PHOTO / LOGO accept only data:, http: and https: URIs
 # 1.1.2
 #       - HTML-escape names; links only for known URI schemes; GEO map links from validated coordinates
+# 1.1.3
+#       - parse and render vCards in a child process with a time and memory limit; refuse vCards larger than 20 MiB
+#       - remove a stray '%>' after the logo
 #
 
 require_relative 'lib/vince_lib/v_object'
@@ -37,7 +40,7 @@ RedmineMorePreviews::Converter.register :vince do
   name           'Vince'
   author         'Stephan Wenzel'
   description    'Preview VCF in preview pane'
-  version        '1.1.2'
+  version        '1.1.3'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_vince'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_vince'
                  

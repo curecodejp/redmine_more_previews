@@ -147,6 +147,10 @@
 #       - Fix Maggie PDF raster previews without Ghostscript
 #       - Fix Libre image links for Unicode filenames containing dots and spaces
 #       - Add nested repository asset regression coverage and remove obsolete jp locales
+# 6.1.5
+#       - Parse and render vCards in a child process with a time and memory limit (GHSA-hm82-jvvw-hmg4)
+#       - Fix Cliff previews of extensionless mail attachments and reuse cached Cliff headers
+#       - Remove the unused legacy Cliff hooks and duplicate templates
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -154,7 +158,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.4'
+  version      '6.1.5'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

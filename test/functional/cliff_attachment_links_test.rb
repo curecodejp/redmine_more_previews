@@ -50,6 +50,9 @@ class CliffAttachmentLinksTest < Redmine::ControllerTest
     end
     mail.add_file(filename: 'Makefile', content: 'all: test')
     mail.add_file(filename: 'notes.txt', content: 'attachment note')
+    mail.add_file(filename: 'source.c++', content: 'source code')
+    mail.add_file(filename: 'notes.v_2', content: 'v2 data')
+    mail.add_file(filename: 'backup.txt~', content: 'backup data')
     attachment = attach(mail.to_s)
 
     get :more_preview, params: {id: attachment.id, format: 'html'}
@@ -64,6 +67,13 @@ class CliffAttachmentLinksTest < Redmine::ControllerTest
     assert_includes document.text, 'Makefile'
     assert_not_includes document.css('a').map(&:text), 'Makefile'
     assert_includes document.css('a').map(&:text), 'notes.txt'
+    %w(source.c++ notes.v_2 backup.txt~).each do |name|
+      link = document.css('a').find { |a| a.text == name }
+      assert link, "Expected downloadable link for #{name}"
+      recognized = Rails.application.routes.recognize_path(CGI.unescapeHTML(link['href']), method: :get)
+      assert_equal 'more_asset', recognized[:action], name
+      assert_equal name, "#{recognized[:asset]}.#{recognized[:assetformat]}", name
+    end
 
     get :more_asset, params: {id: attachment.id, asset: 'notes', assetformat: 'txt'}
     assert_response :success

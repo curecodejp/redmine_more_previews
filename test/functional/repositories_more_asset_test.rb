@@ -151,6 +151,9 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     end
     mail.add_file(filename: 'Makefile', content: 'all: test')
     mail.add_file(filename: 'notes.txt', content: 'repository note')
+    mail.add_file(filename: 'source.c++', content: 'source code')
+    mail.add_file(filename: 'notes.v_2', content: 'v2 data')
+    mail.add_file(filename: 'backup.txt~', content: 'backup data')
     File.binwrite(File.join(@repo_dir, 'mail.eml'), mail.to_s)
 
     params = entry_params(path: repository_path_hash(['mail.eml'])[:param], format: 'html')
@@ -163,6 +166,13 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes document.text, 'Makefile'
     assert_not_includes document.css('a').map(&:text), 'Makefile'
     assert_includes document.css('a').map(&:text), 'notes.txt'
+    %w(source.c++ notes.v_2 backup.txt~).each do |name|
+      link = document.css('a').find { |a| a.text == name }
+      assert link, "Expected downloadable repository link for #{name}"
+      recognized = Rails.application.routes.recognize_path(CGI.unescapeHTML(link['href']), method: :get)
+      assert_equal 'more_asset', recognized[:action], name
+      assert_equal name, "#{recognized[:asset]}.#{recognized[:assetformat]}", name
+    end
     assert_equal 'README&lt;script&gt;', @repository.asset_link('mail.eml', nil, 'README<script>', true)
 
     get :more_preview, params: params

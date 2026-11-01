@@ -162,6 +162,41 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     assert link
   end
 
+  def test_inline_preview_accepts_input_at_byte_limit
+    max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    html = '<p>' + ('a' * (max - 7)) + '</p>'
+
+    output = sanitize(html)
+
+    assert_equal html, output
+  end
+
+  def test_inline_preview_rejects_oversized_html_without_parsing_it
+    max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    html = '<script>alert(1)</script>' + ('x' * max)
+    output = sanitize(html)
+
+    assert_includes output, 'exceeds the size limit'
+    assert_not_includes output, 'alert(1)'
+    assert_not_includes output, '<script>'
+    assert output.html_safe?
+  end
+
+  def test_inline_preview_counts_bytes_not_characters
+    max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    output = sanitize('あ' * ((max / 3) + 1))
+
+    assert_includes output, 'exceeds the size limit'
+  end
+
+  def test_inline_preview_still_strips_scripts_below_limit
+    output = sanitize('<p>safe</p><script>alert(1)</script>')
+
+    assert_includes output, '<p>safe</p>'
+    assert_not_includes output, '<script>'
+    assert_not_includes output, 'alert(1)'
+  end
+
   private
 
   def sanitize(html)

@@ -24,6 +24,10 @@ module RedmineMorePreviews
   module Patches 
     module ApplicationHelperPatch
 
+      # Sanitization runs in the Rails worker, outside converter subprocess limits.
+      # Provisional threshold pending representative load tests.
+      MAX_INLINE_PREVIEW_HTML_BYTES = 256 * 1024
+
       # Allow-list scrubber for converter output that is embedded directly
       # into the Redmine page (preview_format = inline). Converter input is
       # attacker controlled, so script-capable markup must never reach the

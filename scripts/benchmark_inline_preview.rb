@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
-# Run from the Redmine root (test/staging only):
-#   RAILS_ENV=test bundle exec rails runner plugins/redmine_more_previews/scripts/benchmark_inline_preview.rb
+# Run each case in a separate Rails process on an isolated test/staging host:
+#   for n in 1000 5000 20000; do
+#     RMP_BENCH_REPETITIONS="$n" RAILS_ENV=test bundle exec rails runner \
+#       plugins/redmine_more_previews/scripts/benchmark_inline_preview.rb
+#   done
 #
-# Benchmark synthetic, locally generated HTML only. Do not run under production
-# load, and do not use untrusted or customer data as benchmark input.
+# Synthetic HTML only; never run on a production server or with customer data.
 require 'benchmark'
 require 'json'
 
@@ -17,34 +19,44 @@ unless helper.respond_to?(:sanitize_inline_preview)
   abort 'Redmine More Previews sanitizer is not loaded.'
 end
 
-def rss_kib
+# /proc/self/status VmHWM records the process high-water RSS, including
+# temporary allocations that can disappear before sanitization returns.
+# The absolute value also includes Rails startup; never treat the difference
+# as an exact per-operation peak when startup had a higher high-water mark.
+def process_memory_kib(field)
   status = '/proc/self/status'
   return nil unless File.readable?(status)
 
-  value = File.read(status)[/^VmRSS:\s+(\d+)\s+kB$/, 1]
-  value&.to_i
+  File.read(status)[/^#{Regexp.escape(field)}:\s+(\d+)\s+kB$/, 1]&.to_i
 end
 
-sizes = [1_000, 5_000, 20_000]
-puts JSON.generate(event: 'inline_sanitizer_benchmark', ruby: RUBY_VERSION,
-                   rails: Rails.version, rss_supported: !rss_kib.nil?)
+repetitions = Integer(ENV.fetch('RMP_BENCH_REPETITIONS', '1000'), 10)
+abort 'RMP_BENCH_REPETITIONS must be between 1 and 20000' unless (1..20_000).cover?(repetitions)
 
-sizes.each do |nodes|
-  # Include attributes and a non-allowed element to exercise parsing and
-  # scrubbing, without introducing external resources or executable content.
-  html = '<div>' + ('<span class="entry"><b>sample</b></span><script>ignored</script>' * nodes) + '</div>'
-  before = rss_kib
-  output = nil
-  seconds = Benchmark.realtime { output = helper.sanitize_inline_preview(html) }
-  after = rss_kib
+# Each repetition has three elements (span, b, script) and three text nodes
+# (sample, ignored, and the surrounding markup has no text). The div wrapper
+# contributes one element. Report the actual markup-node count explicitly.
+html = '<div>' + ('<span class="entry"><b>sample</b></span><script>ignored</script>' * repetitions) + '</div>'
+expected_elements = 1 + 3 * repetitions
+expected_text_nodes = 2 * repetitions
+rss_before = process_memory_kib('VmRSS')
+hwm_before = process_memory_kib('VmHWM')
+output = nil
+seconds = Benchmark.realtime { output = helper.sanitize_inline_preview(html) }
+rss_after = process_memory_kib('VmRSS')
+hwm_after = process_memory_kib('VmHWM')
 
-  puts JSON.generate(
-    nodes: nodes,
-    input_bytes: html.bytesize,
-    output_bytes: output.bytesize,
-    seconds: seconds.round(4),
-    rss_before_kib: before,
-    rss_after_kib: after,
-    rss_delta_kib: before && after ? after - before : nil
-  )
-end
+puts JSON.generate(
+  repetitions: repetitions,
+  input_element_nodes: expected_elements,
+  input_text_nodes: expected_text_nodes,
+  input_dom_nodes: expected_elements + expected_text_nodes,
+  input_bytes: html.bytesize,
+  output_bytes: output.bytesize,
+  seconds: seconds.round(4),
+  rss_before_kib: rss_before,
+  rss_after_kib: rss_after,
+  process_peak_rss_before_kib: hwm_before,
+  process_peak_rss_after_kib: hwm_after,
+  peak_includes_rails_startup: true
+)

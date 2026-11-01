@@ -16,7 +16,7 @@ Preview files directly from **Redmine issue attachments, documents, files, and r
 | **Mark** | Markdown, Textile, HTML | [Pandoc](https://pandoc.org/) |
 | **Zippy** | ZIP, TAR, TGZ archives | Browse archive listings and download individual entries |
 | **Maggie / Peek** | Images and PDF previews | ImageMagick; Ghostscript for PDF rendering |
-| **Vince** | vCard (`.vcf`) | Requires Ruby `fork`; bounded parsing and rendering |
+| **Vince** | vCard (`.vcf`) | Requires Ruby `fork`. Child-process timeout; 512 MiB additional-memory budget is enforced only on supported Linux hosts |
 | **Pass** | HTML passthrough | Optional converter |
 | **Teddie** | Plain text (`.txt`) | Text preview |
 | **NilText** | Diagnostic output | **Development only. Do not enable in production.** |
@@ -30,7 +30,7 @@ Select which converters, file types, and output formats to enable in the plugin 
 | **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5**. For PDF previews with Maggie / Peek, use **6.0.10 / 6.1.3 or later**; see [Converter details](#converter-details) |
 | **Ruby** | 3.3.x verified (CI: **3.3.8**); other Ruby versions have not been verified |
 | **Plugin release** | **6.1.5** |
-| **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork` |
+| **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork`, and its memory monitoring needs Linux `/proc` support |
 
 Redmine 7 is **not yet verified** by this fork. Support for a Redmine release does not imply that every optional converter is available on every operating system.
 
@@ -89,7 +89,7 @@ Remove the `plugins/redmine_more_previews` directory during a maintenance window
 
 ## Security and operational notes
 
-Security advisories and their fixed versions are published under [Security](https://github.com/curecodejp/redmine_more_previews/security/advisories). In **v6.1.5**, Vince vCard parsing and rendering run in a time- and memory-bounded child process; inputs larger than 20 MiB are rejected, and previews fail closed on platforms without `fork`. See [GHSA-hm82-jvvw-hmg4](https://github.com/curecodejp/redmine_more_previews/security/advisories/GHSA-hm82-jvvw-hmg4).
+Security advisories and their fixed versions are published under [Security](https://github.com/curecodejp/redmine_more_previews/security/advisories). In **v6.1.5**, Vince vCard parsing and rendering run in an isolated child process with a timeout; the **512 MiB additional-memory limit is enforced only on supported Linux hosts** with the required `/proc` facilities. Inputs larger than 20 MiB are rejected, and previews fail closed on platforms without `fork`. On fork-capable non-Linux platforms, a child process and timeout are available but this memory limit is not enforced. See [GHSA-hm82-jvvw-hmg4](https://github.com/curecodejp/redmine_more_previews/security/advisories/GHSA-hm82-jvvw-hmg4).
 
 > [!IMPORTANT]
 > The **Libre** converter requires an operational **Linux `bubblewrap` sandbox** and a supported system LibreOffice installation. It does not fall back to unsandboxed conversion. Test sandbox availability as the Redmine service user before enabling Libre. **Never enable NilText in production.**
@@ -233,7 +233,7 @@ Pass lets you pass through html.
 
 Vince lets you preview .vcf (vCard) files.
 
-A vCard larger than 20 MiB is not previewed (`413`). Vince parses and renders a vCard in a child process, within the time limit and with at most 512 MiB of memory beyond what the process starts with; on platforms without `fork`, Vince previews are not available.
+A vCard larger than 20 MiB is not previewed (`413`). On platforms with Ruby `fork`, Vince parses and renders a vCard in a child process under the conversion timeout. On supported Linux hosts, the additional-memory budget is 512 MiB (using `/proc` monitoring and an address-space limit); on other fork-capable platforms, that memory budget is not enforced. On platforms without `fork`, Vince previews are unavailable.
 
 ---
 
@@ -261,7 +261,7 @@ Native speakers: please help to improve localizations
 
 **6.1.5**
 
-- Vince: parse and render vCards in a child process with the conversion time limit and a memory limit, and refuse vCards larger than 20 MiB (`413`) (GHSA-hm82-jvvw-hmg4). Remove a stray `%>` shown after the logo.
+- Vince: parse and render vCards in a child process with the conversion time limit and a **Linux-enforced** memory budget, and refuse vCards larger than 20 MiB (`413`) (GHSA-hm82-jvvw-hmg4). Remove a stray `%>` shown after the logo.
 - Cliff: preview emails attached without a file extension, and reuse the cached email headers on attachment and repository pages instead of converting the email again.
 - Preview asset routes of attachments and repositories accept asset extensions with characters other than ASCII letters and digits.
 - Cliff: remove the unused legacy hook loader, hook classes and duplicate templates; namespace the top hook to match its Zeitwerk path.

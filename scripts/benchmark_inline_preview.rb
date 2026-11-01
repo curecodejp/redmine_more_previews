@@ -14,6 +14,10 @@ unless defined?(Rails) && defined?(ApplicationController)
   abort 'Run this script with rails runner from the Redmine root.'
 end
 
+unless Rails.env.test? || Rails.env.staging?
+  abort 'Benchmark only permitted in test or staging environments.'
+end
+
 helper = ApplicationController.helpers
 unless helper.respond_to?(:sanitize_inline_preview)
   abort 'Redmine More Previews sanitizer is not loaded.'

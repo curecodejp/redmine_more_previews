@@ -22,4 +22,4 @@
 ja:
   redmine_more_previews:
     teddie:
-      text_explanation:          "テキストファイルの閲覧・編集"
+      text_explanation:          "プレーンテキストファイルのプレビュー"

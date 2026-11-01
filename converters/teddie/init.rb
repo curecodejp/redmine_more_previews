@@ -26,7 +26,7 @@ require_relative 'lib/teddie'
 RedmineMorePreviews::Converter.register :teddie do
   name           'Teddie'
   author         'Stephan Wenzel'
-  description    'View and edit textfiles'
+  description    'Preview plain text files'
   version        '1.0.0'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_teddie'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_teddie'

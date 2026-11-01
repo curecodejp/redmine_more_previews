@@ -50,18 +50,31 @@ Install the external programs needed by the **converters you intend to enable** 
 
 ### Upgrade an existing installation
 
-Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.5` tag, so its checkout has a **detached HEAD**, not a `main` branch. To upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.4):
+Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.5` tag, so its checkout has a **detached HEAD**, not a `main` branch.
+
+**Before fetching**, check which repository `origin` points to:
 
 ```bash
 cd /path/to/redmine
 git -C plugins/redmine_more_previews status -sb
 git -C plugins/redmine_more_previews remote -v
+```
+
+If migrating from the original upstream or JVsup fork, change `origin` **before** fetching:
+
+```bash
+git -C plugins/redmine_more_previews remote set-url origin https://github.com/curecodejp/redmine_more_previews.git
+```
+
+Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.4):
+
+```bash
 git -C plugins/redmine_more_previews fetch --tags origin
 git -C plugins/redmine_more_previews switch --detach v6.1.5
 bundle install
 ```
 
-Confirm that `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`. If migrating from the original upstream or JVsup fork, first set the correct URL with `git -C plugins/redmine_more_previews remote set-url origin https://github.com/curecodejp/redmine_more_previews.git`, then fetch the tags. Do not run `git pull origin main` from a tag checkout: that moves the detached checkout to the development branch's tip.
+Do not run `git pull origin main` from a tag checkout: that moves the detached checkout to the development branch's tip.
 
 **If your installation intentionally tracks `main`:** With `main` checked out, run `git -C plugins/redmine_more_previews pull --ff-only origin main` in place of the fetch/switch commands, then run `bundle install`.
 
@@ -465,7 +478,7 @@ This plugin ideally works together with
 > These companion plugins are recommended by the original upstream. They have not been verified with this maintained fork on Redmine 6.0 / 6.1.
  
 ## A note on caching
-This plugin caches converted previews in the Rails temporary directory. For large repositories, cached previews can use substantial disk space. Run the cache cleanup rake task documented below regularly, or configure a dedicated storage location with sufficient capacity. Avoid manually deleting live preview files while Redmine is serving or converting them.
+This plugin caches converted previews in the Rails temporary directory (`<Redmine root>/tmp/more_previews`). For large repositories, cached previews can use substantial disk space. Run the cache cleanup rake task documented below regularly, or place `tmp/more_previews` on storage with sufficient capacity (for example, a mount point or symlink). The cache location is **not** configurable through the plugin settings. Avoid manually deleting live preview files while Redmine is serving or converting them.
 
 Repository previews are cached per repository, revision and file content (`tmp/more_previews/repository_previews/<repository id>/<path>/<digest>/`), so that a preview is never served for another project or another version of the file. A new directory is added for each revision and content that is previewed, and older ones are not removed by the plugin itself: remove them with the task below. To find its cache directory, a preview or asset request reads the whole file from the repository and computes its SHA-256 digest, also when the preview is already cached. A repository file larger than 50 MiB (a setting) is not read: its preview is answered with `413`, and its page is shown as Redmine shows it. So is a file whose size the repository does not report (Bazaar, CVS): it could only be checked after it has been read whole. The previews cached by 6.1.0 and earlier (`tmp/more_previews/repository/`) are removed on start.
 

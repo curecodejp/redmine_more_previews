@@ -183,7 +183,14 @@ module RedmineMorePreviews
 
           def sanitize_inline_preview(html)
             html = html.to_s
-            return ''.html_safe if html.blank?
+            return ''.html_safe if html.empty?
+
+            # Never parse oversized converter output in the Rails process.
+            # Do not truncate: partial markup could change sanitizer semantics.
+            if html.bytesize > RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+              return ERB::Util.html_escape('Inline preview exceeds the size limit. Download the file to view it.').html_safe
+            end
+
             sanitizer = defined?(Rails::HTML5::SafeListSanitizer) ? Rails::HTML5::SafeListSanitizer : Rails::HTML::SafeListSanitizer
             sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s.html_safe
           end #def

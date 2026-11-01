@@ -68,6 +68,8 @@ For a deployment pinned to a release tag, use `git fetch --tags` and select `v6.
 
 For Vince, `html` is a reasonable initial preview format. The `inline` option embeds converter HTML in Redmine pages and is sanitized before display. On large or untrusted input, prefer the isolated HTML preview while reviewing [resource limits](#a-note-on-conversion-limits).
 
+Project-module screenshots: [defaults for new projects](https://github.com/user-attachments/assets/91832e0c-e5ba-4780-a99d-ca36f218ac72) · [settings for existing projects](https://github.com/user-attachments/assets/1d4b2299-34ab-413d-8f58-1ae368eaf94b)
+
 ### Uninstall
 
 Remove the `plugins/redmine_more_previews` directory during a maintenance window and restart the Redmine application. Review cached preview storage separately before deleting it.
@@ -133,12 +135,7 @@ unchanged.
 
 ## Converter details
 
-Converter output can be configured as
- - pdf
- - png, jpg or gif
- - html or inline html
- - text, or
- - xml
+Depending on the converter and input type, output can be configured as PDF, PNG/JPG/GIF, HTML, inline HTML, text, or XML.
  
 The appropriate conversion type(s) is/are up to the plugin developer. The available conversion option can be chosen on the plugin configuration page. 
 The plugin was developed with thread safety in mind. With caching enabled, it should stand even higher loads.
@@ -428,6 +425,8 @@ Native speakers: please help to improve localizations
 
 ## Historical JVsup fork notes (6.0.5)
 
+These notes describe an older fork and are **not current installation instructions**.
+
 - Most pull requests from upstream and outside fixes have been integrated.
 - Bulk actions in libre to enable/disable all mime types and group conversion selector.
 - The plugin is confirmed to work in Redmine 6.0.5 container (based on https://github.com/sameersbn/docker-redmine ).
@@ -435,8 +434,6 @@ Native speakers: please help to improve localizations
 - The following critical libraries and binaries must also be added to the image: `imagemagick pandoc libxinerama1 libnss3 libfontconfig1 libxrender1 libxext6 libcairo2 libcups2 libdbus-1-3 libsm6 libice6 libx11-xcb1 libssl3`
 - Historical setup note, **not supported by the hardened Libre 1.1.4 converter**: Edit `/home/redmine/redmine/config/environment.rb` to include the LibreOffice path so Redmine can find the soffice binary (adjust the path to match your specific version): `ENV['PATH'] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/libreoffice25.8/program"`
 - Plugin version set to 6.0.5 to match corresponding redmine release
-
----
 
 ---
 

@@ -33,8 +33,8 @@ end
 repetitions = Integer(ENV.fetch('RMP_BENCH_REPETITIONS', '1000'), 10)
 abort 'RMP_BENCH_REPETITIONS must be between 1 and 20000' unless (1..20_000).cover?(repetitions)
 
-# Each repetition has three elements (span, b, script) and three text nodes
-# (sample, ignored, and the surrounding markup has no text). The div wrapper
+# Each repetition has three elements (span, b, script) and two text nodes
+# (sample and ignored). The div wrapper
 # contributes one element. Report the actual markup-node count explicitly.
 html = '<div>' + ('<span class="entry"><b>sample</b></span><script>ignored</script>' * repetitions) + '</div>'
 expected_elements = 1 + 3 * repetitions

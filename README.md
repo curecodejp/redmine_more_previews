@@ -12,12 +12,13 @@ Preview files directly from **Redmine issue attachments, documents, files, and r
 | Converter | Preview content | Requirements / notes |
 | --- | --- | --- |
 | **Libre** | Office documents, spreadsheets, presentations, CSV | LibreOffice with a Linux `bubblewrap` sandbox; see [the requirements](#libre-converter-sandbox) |
-| **Cliff** | Email (`.eml`, `.mime`) and attachments | Mail headers, body, and attachments; bounded parsing |
+| **Cliff** | Email (`.eml`, `.mime`) and attachments | Mail headers, body, and attachments. Time and memory bounds require process isolation; without Ruby `fork`, these bounds do not apply. See [Converter details](#converter-details) |
 | **Mark** | Markdown, Textile, HTML | [Pandoc](https://pandoc.org/) |
 | **Zippy** | ZIP, TAR, TGZ archives | Browse archive listings and download individual entries |
 | **Maggie / Peek** | Images and PDF previews | ImageMagick; Ghostscript for PDF rendering |
 | **Vince** | vCard (`.vcf`) | Requires Ruby `fork`; bounded parsing and rendering |
 | **Pass** | HTML passthrough | Optional converter |
+| **Teddie** | Plain text (`.txt`) | Text preview |
 | **NilText** | Diagnostic output | **Development only. Do not enable in production.** |
 
 Select which converters, file types, and output formats to enable in the plugin settings. Some converters support multiple formats such as HTML, inline HTML, text, PDF, and images. [Converter details](#converter-details) explain dependencies and limitations.
@@ -26,8 +27,8 @@ Select which converters, file types, and output formats to enable in the plugin 
 
 | Component | Supported / verified |
 | --- | --- |
-| **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5** |
-| **Ruby** | 3.3.x; CI uses **3.3.8** |
+| **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5**. For PDF previews with Maggie / Peek, use **6.0.10 / 6.1.3 or later**; see [Converter details](#converter-details) |
+| **Ruby** | 3.3.x verified (CI: **3.3.8**); other Ruby versions have not been verified |
 | **Plugin release** | **6.1.5** |
 | **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork` |
 
@@ -49,22 +50,34 @@ Install the external programs needed by the **converters you intend to enable** 
 
 ### Upgrade an existing installation
 
-Back up your Redmine configuration and check for local plugin changes before updating. For an installation that tracks the `main` branch:
+Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.5` tag, so its checkout has a **detached HEAD**, not a `main` branch. To upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.4):
 
 ```bash
 cd /path/to/redmine
 git -C plugins/redmine_more_previews status -sb
-git -C plugins/redmine_more_previews pull --ff-only origin main
-touch tmp/restart.txt  # Passenger deployments; otherwise restart Redmine normally
+git -C plugins/redmine_more_previews remote -v
+git -C plugins/redmine_more_previews fetch --tags origin
+git -C plugins/redmine_more_previews switch --detach v6.1.5
+bundle install
 ```
 
-For a deployment pinned to a release tag, use `git fetch --tags` and select `v6.1.5` instead of pulling `main`. Confirm that **Redmine More Previews 6.1.5** appears under *Administration → Plugins* after restart. Existing preview caches are versioned and regenerated as needed; a full purge is **not** normally required for this upgrade.
+Confirm that `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`. If migrating from the original upstream or JVsup fork, first set the correct URL with `git -C plugins/redmine_more_previews remote set-url origin https://github.com/curecodejp/redmine_more_previews.git`, then fetch the tags. Do not run `git pull origin main` from a tag checkout: that moves the detached checkout to the development branch's tip.
+
+**If your installation intentionally tracks `main`:** With `main` checked out, run `git -C plugins/redmine_more_previews pull --ff-only origin main` in place of the fetch/switch commands, then run `bundle install`.
+
+**Before restarting**, check the version you are upgrading **from**:
+
+- **6.1.3 or later:** Cached previews are versioned and regenerated as needed; no full cache purge is normally needed.
+- **6.1.2 or earlier, including older upstream/JVsup builds:** Read the **6.1.3 Upgrade precaution** in the [Change-Log](#change-log). If converter debug mode was ever enabled, stop Redmine and preview workers and carefully clear the *plugin's actual preview cache directory* before restarting, because old diagnostic files may still contain sensitive data. The routine age-based cache task does not immediately remove all such files. Verify the directory path before deletion.
+- **Libre enabled:** Review the [Linux `bubblewrap` sandbox requirements](#libre-converter-sandbox); conversion fails closed without a working sandbox.
+
+Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.5** under *Administration → Plugins*.
 
 ### Configure and enable
 
 1. Open **Administration → Plugins → Redmine More Previews → Configure**.
-2. Enable only the converters and file extensions needed. Choose the preview format for each file type, and review the conversion time, concurrency, cache, and output-size limits.
-3. Enable the plugin's project module in **Project → Settings → Modules** for existing projects; configure the default modules for newly created projects separately.
+2. Enable only the converters and file extensions needed. Enable each file extension in **one converter only**: if the same extension is enabled in multiple converters (for example, PDF in both Maggie and Peek), the settings page warns and only one converter handles it. Choose the preview format for each file type, and review the conversion time, concurrency, cache, and output-size limits.
+3. Enable the **Redmine More Previews** module in **Project → Settings → Modules** for existing projects. For new projects, select it under **Administration → Settings → Projects → Default enabled modules for new projects**.
 
 For Vince, `html` is a reasonable initial preview format. The `inline` option embeds converter HTML in Redmine pages and is sanitized before display. On large or untrusted input, prefer the isolated HTML preview while reviewing [resource limits](#a-note-on-conversion-limits).
 
@@ -72,7 +85,7 @@ Project-module screenshots: [defaults for new projects](https://github.com/user-
 
 ### Uninstall
 
-Remove the `plugins/redmine_more_previews` directory during a maintenance window and restart the Redmine application. Review cached preview storage separately before deleting it.
+Remove the `plugins/redmine_more_previews` directory during a maintenance window and restart the Redmine application. Remove any scheduled `redmine_more_previews:cache:clean` jobs, then review and delete the plugin's cache storage (default: `<Redmine root>/tmp/more_previews`, or your customized location). Verify the path before removing any files.
 
 ## Security and operational notes
 
@@ -99,7 +112,7 @@ Pull requests run automated smoke tests against Redmine 6.0.11 and 6.1.5 with Ru
 >
 > Install a distribution-packaged LibreOffice exposing `/usr/bin/soffice` and
 > `/usr/bin/env`, plus the `bwrap` package. This version does **not** support the
-> FORK NOTES installation of TDF `.deb` files in `/opt/libreoffice25.8` via
+> [historical JVsup fork notes](#historical-jvsup-fork-notes-605) installation of TDF `.deb` files in `/opt/libreoffice25.8` via
 > PATH alone. Migrate to a supported system package before enabling Libre.
 >
 > The sandbox mounts only the input file, a per-conversion writable output and
@@ -170,13 +183,13 @@ Cliff converts
 
 to html.
 
-You can view the .eml file almost like in a professional email viewer, see mail headers and download attachments. Cliff will sweep the .eml files from scripts, event attributes beginning with "on…", url() in css styles and external images. To do an unsafe preview, you can press a button do so and if you trust the .eml or .mime file
+You can view the .eml file almost like in a professional email viewer, see mail headers and download attachments. Cliff filters scripts, event-handler attributes, CSS `url()` references, and external images from email previews. Only administrators can request an unsafe preview, and they should do so only for trusted `.eml` or `.mime` files.
 
-An email larger than 50 MiB, with more than 1,000 MIME parts, or with multipart parts nested more than 100 levels deep or adding up to more than five times the size limit is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The size, parts and attachments limits can be changed in Cliff's settings. Cliff parses an email in a child process, within the time limit and with at most 1 GiB of memory beyond what the process starts with: the Mail library can take many times the size of an email to parse some of its lines.
+An email larger than 50 MiB, with more than 1,000 MIME parts, or with multipart parts nested more than 100 levels deep or adding up to more than five times the size limit is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The size, parts and attachments limits can be changed in Cliff's settings. On platforms with Ruby `fork` support, Cliff parses an email in a child process within the conversion time limit and with a 1 GiB additional-memory budget (monitored on supported Linux hosts). On Windows or without `fork`, parsing runs in the Redmine worker **without those process time and memory limits**; do not enable untrusted email previews there without an equivalent isolation mechanism. The Mail library can take many times the size of an email to parse some of its lines. the Mail library can take many times the size of an email to parse some of its lines.
 
 ---
 
-![Mark](doc/mark/logo.png "##mark##")
+![Mark](doc/mark/logo.png "Mark")
 
 Mark uses Pandoc to do the conversion. Currently supported is:
 
@@ -437,13 +450,13 @@ These notes describe an older fork and are **not current installation instructio
 
 ---
 
-# replaces
+## Replaces
 This plugin replaces 
  - redmine_preview_office, 
  - redmine_preview_docx and 
  - redmine_preview_pdf
 
-# best with
+## Works well with
 This plugin ideally works together with
  - redmine_preview_inline
  - redmine_all_thumbnails
@@ -451,8 +464,8 @@ This plugin ideally works together with
 > [!NOTE]
 > These companion plugins are recommended by the original upstream. They have not been verified with this maintained fork on Redmine 6.0 / 6.1.
  
-# a note on caching
-This plugin caches conversions in the Rails tmp directory. For large repositories (f.i. firm file servers) each conversion will store a copy of the conversion file in the Rails tmp directory and thus the tmp directory may become as large or even larger as the original repository. There are two ways to handle such a situation: 1. swipe Rails tmp/more_previews directory frequently, 2. change the storage path in the plugin's init.rb file to choose a mass storage, which can handle the amount of data.
+## A note on caching
+This plugin caches converted previews in the Rails temporary directory. For large repositories, cached previews can use substantial disk space. Run the cache cleanup rake task documented below regularly, or configure a dedicated storage location with sufficient capacity. Avoid manually deleting live preview files while Redmine is serving or converting them.
 
 Repository previews are cached per repository, revision and file content (`tmp/more_previews/repository_previews/<repository id>/<path>/<digest>/`), so that a preview is never served for another project or another version of the file. A new directory is added for each revision and content that is previewed, and older ones are not removed by the plugin itself: remove them with the task below. To find its cache directory, a preview or asset request reads the whole file from the repository and computes its SHA-256 digest, also when the preview is already cached. A repository file larger than 50 MiB (a setting) is not read: its preview is answered with `413`, and its page is shown as Redmine shows it. So is a file whose size the repository does not report (Bazaar, CVS): it could only be checked after it has been read whole. The previews cached by 6.1.0 and earlier (`tmp/more_previews/repository/`) are removed on start.
 
@@ -466,7 +479,7 @@ cd /path/to/redmine && bundle exec rake redmine_more_previews:cache:clean RAILS_
 
 A preview being converted or served is skipped and removed on the next run. The task also removes the failures remembered longer than their time.
 
-# a note on conversion limits
+## A note on conversion limits
 The external programs a converter runs (ImageMagick, Ghostscript, LibreOffice, Pandoc, ...) are stopped when a conversion runs longer than the time limit (default 60 seconds, at least 120 seconds for Libre, which starts slowly). The programs run in a process group of their own, and the whole group is stopped, including the programs they started in turn (f.i. Ghostscript started by ImageMagick). The preview is not shown then (404). A large office document may take Libre longer than 120 seconds (f.i. a text document of several hundred pages); raise the time limit if such documents are to be previewed.
 
 At most the configured number of conversions (default 2) run at the same time, counted over all Redmine processes (lock files in `tmp/more_previews/slots/`). A request that needs a conversion while all of them are taken, or that waits longer than the wait limit (default 5 seconds) for a preview another request is converting, is answered with `503 Service Unavailable` and `Retry-After`; reloading the page later shows the preview. A preview that is already cached is served without waiting for conversions of other files.

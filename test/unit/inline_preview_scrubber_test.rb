@@ -174,9 +174,12 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
   def test_inline_preview_rejects_oversized_html_without_parsing_it
     max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
     html = '<script>alert(1)</script>' + ('x' * max)
+    [defined?(Rails::HTML5::SafeListSanitizer) && Rails::HTML5::SafeListSanitizer,
+     Rails::HTML::SafeListSanitizer].compact.each { |klass| klass.expects(:new).never }
+
     output = sanitize(html)
 
-    assert_includes output, 'exceeds the size limit'
+    assert_includes output, I18n.t(:text_more_previews_inline_too_large)
     assert_not_includes output, 'alert(1)'
     assert_not_includes output, '<script>'
     assert output.html_safe?
@@ -186,7 +189,7 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
     output = sanitize('あ' * ((max / 3) + 1))
 
-    assert_includes output, 'exceeds the size limit'
+    assert_includes output, I18n.t(:text_more_previews_inline_too_large)
   end
 
   def test_inline_preview_still_strips_scripts_below_limit

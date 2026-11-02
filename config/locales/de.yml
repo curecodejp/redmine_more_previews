@@ -44,3 +44,4 @@ de:
   
   label_use_absolute_path:                                 "URL mit Host"
   text_help_redmine_more_previews_absolute:                "(URL mit Schema und Host) für <iframe>-tag oder <embed>-tag nutzen."
+  text_more_previews_inline_too_large: "Die Inline-Vorschau überschreitet die Größenbegrenzung. Laden Sie die Datei herunter, um sie anzusehen."

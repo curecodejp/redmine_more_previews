@@ -579,8 +579,20 @@ module RedmineMorePreviews
     private :regular_file_within?
     
     # the files to serve of a conversion in the tmp directory, see read_limited
+    # Only Cliff's HTML fragments embedded in Redmine pages need this cap.
+    # Other mail attachments (including .html attachments) retain max_output.
+    CLIFF_EMBEDDED_FRAGMENTS = %w[headers.html fields.html attachments.html].freeze
+
+    def cliff_embedded_fragment?(path)
+      converter.id.to_s == 'cliff' && preview_format == 'html' &&
+        CLIFF_EMBEDDED_FRAGMENTS.include?(File.basename(path.to_s)) &&
+        [tmpdir, dir].compact.any? { |root| File.dirname(path.to_s) == root }
+    end #def
+    private :cliff_embedded_fragment?
+
     def output_limit_for(path)
-      if preview_format == 'inline' && [tmptarget, (targetpath unless asset)].compact.include?(path)
+      if cliff_embedded_fragment?(path) ||
+         (preview_format == 'inline' && [tmptarget, (targetpath unless asset)].compact.include?(path))
         [RedmineMorePreviews::Converter.max_output,
          RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES].min
       else
@@ -590,7 +602,11 @@ module RedmineMorePreviews
     private :output_limit_for
 
     def check_output_size
-      [tmptarget, tmpasset].compact.each do |path|
+      paths = [tmptarget, tmpasset].compact
+      if converter.id.to_s == 'cliff' && preview_format == 'html' && tmpdir
+        paths.concat(CLIFF_EMBEDDED_FRAGMENTS.map { |name| File.join(tmpdir, name) })
+      end
+      paths.uniq.each do |path|
         next unless File.file?(path)
         limit = output_limit_for(path)
         next unless File.size(path) > limit

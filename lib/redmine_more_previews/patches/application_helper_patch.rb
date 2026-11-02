@@ -24,6 +24,10 @@ module RedmineMorePreviews
   module Patches 
     module ApplicationHelperPatch
 
+      # Sanitization runs in the Rails worker, outside converter subprocess limits.
+      # Provisional threshold pending representative load tests.
+      MAX_INLINE_PREVIEW_HTML_BYTES = 256 * 1024
+
       # Allow-list scrubber for converter output that is embedded directly
       # into the Redmine page (preview_format = inline). Converter input is
       # attacker controlled, so script-capable markup must never reach the
@@ -183,7 +187,14 @@ module RedmineMorePreviews
 
           def sanitize_inline_preview(html)
             html = html.to_s
-            return ''.html_safe if html.blank?
+            return ''.html_safe if html.empty?
+
+            # Never parse oversized converter output in the Rails process.
+            # Do not truncate: partial markup could change sanitizer semantics.
+            if html.bytesize > RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+              return ERB::Util.html_escape(l(:text_more_previews_inline_too_large)).html_safe
+            end
+
             sanitizer = defined?(Rails::HTML5::SafeListSanitizer) ? Rails::HTML5::SafeListSanitizer : Rails::HTML::SafeListSanitizer
             sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s.html_safe
           end #def

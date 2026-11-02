@@ -44,3 +44,5 @@ fr:
   
   label_use_absolute_path:                                 "URL avec hôte"
   text_help_redmine_more_previews_absolute:                "(utilisez l'URL avec le schéma et l'hôte) pour la balise <iframe> ou <embed>."
+
+  text_more_previews_inline_too_large: "L’aperçu intégré dépasse la limite de taille. Téléchargez le fichier pour le consulter."

@@ -145,8 +145,11 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     get :entry, params: params
     assert_response :success
     assert_equal 1, response.body.scan(I18n.t(:text_more_previews_inline_too_large)).length
+    assert_includes response.body, 'preserved'
     assert_select 'h2'
-    assert_select 'a'
+
+    get :more_asset, params: params.merge(baseformat: 'eml', asset: 'fields', assetformat: 'html')
+    assert_response 413
   end
 
   def test_regular_entry_is_served

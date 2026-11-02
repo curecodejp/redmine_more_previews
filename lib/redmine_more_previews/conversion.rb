@@ -582,6 +582,7 @@ module RedmineMorePreviews
     # Only Cliff's HTML fragments embedded in Redmine pages need this cap.
     # Other mail attachments (including .html attachments) retain max_output.
     CLIFF_EMBEDDED_FRAGMENTS = %w[headers.html fields.html attachments.html].freeze
+    CLIFF_FRAGMENT_TOO_LARGE = '<!-- redmine_more_previews:cliff_fragment_too_large -->'.freeze
 
     def cliff_embedded_fragment?(path)
       converter.id.to_s == 'cliff' && preview_format == 'html' &&
@@ -610,6 +611,11 @@ module RedmineMorePreviews
         next unless File.file?(path)
         limit = output_limit_for(path)
         next unless File.size(path) > limit
+        if cliff_embedded_fragment?(path)
+          # Keep the email body, extracted attachments and other fragments.
+          File.binwrite(path, CLIFF_FRAGMENT_TOO_LARGE)
+          next
+        end
         @asset_too_large = asset && path == tmpasset
         raise ConverterTooLarge, "#{File.basename(path)} is larger than #{limit} bytes"
       end
@@ -621,6 +627,7 @@ module RedmineMorePreviews
     def read_limited( path )
       limit = output_limit_for(path)
       if File.size(path) > limit
+        return CLIFF_FRAGMENT_TOO_LARGE if cliff_embedded_fragment?(path)
         @asset_too_large = asset && [tmpasset, assetpath].include?(path)
         raise ConverterTooLarge, "#{File.basename(path)} is larger than #{limit} bytes"
       end

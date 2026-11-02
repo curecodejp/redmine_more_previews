@@ -245,7 +245,10 @@ class ConversionLimitsTest < ActiveSupport::TestCase
       worker.tmptarget = File.join(tmp, 'index.html')
       File.binwrite(worker.tmptarget, 'ok')
       File.binwrite(File.join(tmp, 'headers.html'), 'x' * (limit + 1))
-      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { worker.send(:check_output_size) }
+      worker.send(:check_output_size)
+      assert_equal RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE,
+                   File.binread(File.join(tmp, 'headers.html'))
+      assert_equal 'ok', File.binread(worker.tmptarget)
     end
   end
 
@@ -259,7 +262,8 @@ class ConversionLimitsTest < ActiveSupport::TestCase
       path = File.join(worker.dir, name)
       File.binwrite(path, 'x' * (limit + 1))
       File.expects(:open).with(path, 'rb').never
-      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { worker.send(:read_limited, path) }
+      assert_equal RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE,
+                   worker.send(:read_limited, path)
     end
   end
 

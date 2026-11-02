@@ -36,19 +36,28 @@
        # headers, fields and attachments immediately follow (no asset slot).
        fragments = attachment.more_asset(:assets => names, :reload => reload) { |_html, *data| data }
      end
+     # A fragment may be refused without hiding the email body or other fragments.
+     marker = RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
+     too_large = Array(fragments).map { |fragment| fragment == marker }
      email_headers, email_fields, email_attachments = fragments || []
   %>
   
-    <% if email_headers %>
+    <% if too_large[0] %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <% elsif email_headers %>
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_headers) ) %></div>
     <%- end %>
     
-    <% if email_fields %>
+    <% if too_large[1] %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <% elsif email_fields %>
       <%= toggler.html_safe %>
       <div class="box" id="<%= html_id %>" style="display:none;"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_fields) ) %></div>
     <%- end %>
     
-    <% if email_attachments %>
+    <% if too_large[2] %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <% elsif email_attachments %>
       <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_attachments) ) %></div>
     <%- end %>
     

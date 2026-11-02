@@ -135,7 +135,7 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     Setting.plugin_redmine_more_previews = settings
     Setting.clear_cache
     File.binwrite(File.join(@repo_dir, 'fragment.eml'),
-      "From: writer@example.test\\r\\nSubject: preserved\\r\\nContent-Type: text/plain\\r\\n\\r\\nemail body")
+      "From: writer@example.test\r\nSubject: preserved\r\nContent-Type: text/plain\r\n\r\nemail body")
     params = entry_params(path: repository_path_hash(['fragment.eml'])[:param], format: 'html')
     get :entry, params: params
     assert_response :success

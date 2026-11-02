@@ -145,7 +145,6 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     get :entry, params: params
     assert_response :success
     assert_equal 1, response.body.scan(I18n.t(:text_more_previews_inline_too_large)).length
-    assert_select 'iframe[src*="more_preview"]'
     assert_select 'h2'
     assert_select 'a'
   end

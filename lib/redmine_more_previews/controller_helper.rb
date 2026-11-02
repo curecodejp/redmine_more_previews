@@ -159,7 +159,8 @@ module RedmineMorePreviews
     # The internal Cliff hook uses this marker as an in-page size notice.
     # A direct asset response must retain its normal 413 semantics.
     def reject_oversized_cliff_fragment!(data)
-      return unless %w[headers.html fields.html attachments.html].include?(@asset.to_s)
+      return unless RedmineMorePreviews::Conversion::CLIFF_EMBEDDED_FRAGMENTS.include?(@asset.to_s)
+      return unless RedmineMorePreviews::Converter.responsible(@cliff_preview_filename || @attachment&.diskfile || @entry&.name, :pathonly => true)&.id.to_s == 'cliff'
       return unless data == RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
       raise RedmineMorePreviews::Exceptions::ConverterTooLarge, 'Embedded email fragment exceeds its preview limit'
     end

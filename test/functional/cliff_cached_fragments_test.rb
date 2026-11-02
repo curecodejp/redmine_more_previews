@@ -50,8 +50,8 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
   def test_oversized_cached_fragment_stays_local_to_attachment_preview
     get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
     assert_response :success
-    header_path = @attachment.preview_assetpath(asset: 'fields.html')
-    File.binwrite(header_path, 'x' * (RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES + 1))
+    fields_path = @attachment.preview_assetpath(asset: 'fields.html')
+    File.binwrite(fields_path, 'x' * (RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES + 1))
 
     get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
     assert_response :success
@@ -70,8 +70,8 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     Setting.plugin_redmine_more_previews = settings
     Setting.clear_cache
     marker = RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
-    Attachment.any_instance.stubs(:more_asset).with(has_entries(assets: %w[headers.html fields.html attachments.html])).yields(
-      '<p>body</p>', '<p>header visible</p>', marker, '<p>attachments visible</p>'
+    Attachment.any_instance.stubs(:more_asset).with(has_entries(assets: %w[headers.html fields.html attachments.html])).returns(
+      ['<p>header visible</p>', marker, '<p>attachments visible</p>']
     )
 
     get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}

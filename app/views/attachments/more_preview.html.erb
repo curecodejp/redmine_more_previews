@@ -19,12 +19,16 @@
       <%= call_hook(:preview_attachment_top, :attachment => @attachment, :project => @project, :params => inline_preview_options ) %>
     </div>
     <div>
+    <% begin %>
     <% if RedmineMorePreviews::Converter.cache_previews? %>
       <%= sanitize_inline_preview( @attachment.more_preview( inline_preview_options ).to_s.to_utf8 ) %>
     <% else %>
       <%  @attachment.more_preview( inline_preview_options ) do |html| %>
         <%= sanitize_inline_preview( html.to_s.to_utf8 ) %>
       <% end %>
+    <% end %>
+    <% rescue RedmineMorePreviews::Exceptions::ConverterTooLarge %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
     <% end %>
     </div>
   <%- when "jpg", "jpeg", "png", "gif" %>

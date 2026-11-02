@@ -189,9 +189,15 @@ class ConversionLimitsTest < ActiveSupport::TestCase
   def test_inline_cap_does_not_restrict_assets_or_other_formats
     limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
     RedmineMorePreviews::Converter.stubs(:max_output).returns(limit * 2)
-    inline = inline_worker
-    inline.asset = 'file.png'
-    assert_equal limit * 2, inline.send(:output_limit_for, inline.tmptarget)
+    inline = RedmineMorePreviews::Converter.find(:pass).worker(
+      preview_format: 'inline', object: {}, asset: 'file.png',
+      target: File.join(@dir, 'storage', 'cache', 'preview.txt', 'index.inline')
+    )
+    inline.tmptarget = File.join(@dir, 'tmp', 'index.inline')
+    inline.tmpasset = File.join(@dir, 'tmp', 'file.png')
+    assert_equal limit, inline.send(:output_limit_for, inline.tmptarget)
+    assert_equal limit * 2, inline.send(:output_limit_for, inline.tmpasset)
+    assert_equal limit * 2, inline.send(:output_limit_for, inline.assetpath)
     assert_equal limit * 2, pass_worker.send(:output_limit_for, @target)
   end
 

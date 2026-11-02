@@ -580,7 +580,7 @@ module RedmineMorePreviews
     
     # the files to serve of a conversion in the tmp directory, see read_limited
     def output_limit_for(path)
-      if preview_format == 'inline' && !asset && [tmptarget, targetpath].include?(path)
+      if preview_format == 'inline' && [tmptarget, (targetpath unless asset)].compact.include?(path)
         [RedmineMorePreviews::Converter.max_output,
          RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES].min
       else

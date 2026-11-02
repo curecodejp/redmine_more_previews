@@ -156,6 +156,15 @@ module RedmineMorePreviews
 
     # assets extracted from archives etc. must never be rendered inline as
     # active content in the Redmine origin
+    # The internal Cliff hook uses this marker as an in-page size notice.
+    # A direct asset response must retain its normal 413 semantics.
+    def reject_oversized_cliff_fragment!(data)
+      return unless %w[headers.html fields.html attachments.html].include?(@asset.to_s)
+      return unless data == RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
+      raise RedmineMorePreviews::Exceptions::ConverterTooLarge, 'Embedded email fragment exceeds its preview limit'
+    end
+    private :reject_oversized_cliff_fragment!
+
     def secure_asset_disposition(asset, requested_disposition = nil)
       mime = Rack::Mime.mime_type(File.extname(asset.to_s).downcase, nil)
 

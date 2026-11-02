@@ -267,6 +267,29 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  def test_cliff_oversized_fragment_preserves_other_cached_output
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(
+      preview_format: 'html', object: {}, target: File.join(@dir, 'mail', 'index.html')
+    )
+    Dir.mktmpdir do |tmp|
+      worker.tmpdir = tmp
+      worker.tmptarget = File.join(tmp, 'index.html')
+      File.binwrite(worker.tmptarget, '<p>email body</p>')
+      File.binwrite(File.join(tmp, 'headers.html'), '<p>header</p>')
+      File.binwrite(File.join(tmp, 'fields.html'), 'x' * (limit + 1))
+      File.binwrite(File.join(tmp, 'attachments.html'), '<p>attachments</p>')
+
+      worker.send(:check_output_size)
+
+      assert_equal '<p>email body</p>', File.binread(worker.tmptarget)
+      assert_equal '<p>header</p>', File.binread(File.join(tmp, 'headers.html'))
+      assert_equal '<p>attachments</p>', File.binread(File.join(tmp, 'attachments.html'))
+      assert_equal RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE,
+                   File.binread(File.join(tmp, 'fields.html'))
+    end
+  end
+
   def test_cliff_extracted_attachment_retains_normal_output_limit
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(
       preview_format: 'html', object: {}, target: File.join(@dir, 'mail', 'index.html')

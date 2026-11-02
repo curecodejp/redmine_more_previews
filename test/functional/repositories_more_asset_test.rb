@@ -148,7 +148,11 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes response.body, 'preserved'
     assert_select 'h2'
 
-    get :more_asset, params: params.merge(baseformat: 'eml', asset: 'fields', assetformat: 'html')
+    # more_asset receives the file extension separately from the path.
+    get :more_asset, params: entry_params(
+      path: repository_path_hash(['fragment'])[:param],
+      baseformat: 'eml', asset: 'fields', assetformat: 'html'
+    )
     assert_response 413
   end
 

@@ -578,9 +578,9 @@ module RedmineMorePreviews
     end #def
     private :regular_file_within?
     
-    # the files to serve of a conversion in the tmp directory, see read_limited
-    # Only Cliff's HTML fragments embedded in Redmine pages need this cap.
-    # Other mail attachments (including .html attachments) retain max_output.
+    # Cliff embeds these generated HTML fragments in Redmine's page.
+    # The marker replaces an oversized fragment while preserving the mail body
+    # and other assets; a direct public asset response must return HTTP 413.
     CLIFF_EMBEDDED_FRAGMENTS = %w[headers.html fields.html attachments.html].freeze
     CLIFF_FRAGMENT_TOO_LARGE = '<!-- redmine_more_previews:cliff_fragment_too_large -->'.freeze
 
@@ -591,6 +591,7 @@ module RedmineMorePreviews
     end #def
     private :cliff_embedded_fragment?
 
+    # Apply the inline HTML cap to embedded output; other assets retain max_output.
     def output_limit_for(path)
       if cliff_embedded_fragment?(path) ||
          (preview_format == 'inline' && [tmptarget, (targetpath unless asset)].compact.include?(path))

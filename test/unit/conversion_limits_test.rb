@@ -154,6 +154,87 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_not File.exist?(@target)
   end
 
+  def test_inline_preview_output_is_rejected_before_cache_storage
+    worker = inline_worker
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    worker.define_singleton_method(:convert) do
+      File.binwrite(tmptarget, 'x' * (limit + 1))
+    end
+
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { worker.preview(File.new(@source)) }
+    assert_not File.exist?(worker.targetpath)
+  end
+
+  def test_existing_oversized_inline_cache_is_not_read
+    worker = inline_worker
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    FileUtils.mkdir_p(File.dirname(worker.targetpath))
+    File.binwrite(worker.targetpath, 'x' * (limit + 1))
+    File.expects(:open).with(worker.targetpath, 'rb').never
+
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) do
+      worker.send(:read_limited, worker.targetpath)
+    end
+  end
+
+  def test_inline_preview_accepts_exact_size_limit
+    worker = inline_worker
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    FileUtils.mkdir_p(File.dirname(worker.targetpath))
+    File.binwrite(worker.targetpath, 'x' * limit)
+
+    assert_equal limit, worker.send(:read_limited, worker.targetpath).bytesize
+  end
+
+  def test_inline_cap_does_not_restrict_assets_or_other_formats
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(limit * 2)
+    inline = RedmineMorePreviews::Converter.find(:pass).worker(
+      preview_format: 'inline', object: {}, asset: 'file.png',
+      target: File.join(@dir, 'storage', 'cache', 'preview.txt', 'index.inline')
+    )
+    inline.tmptarget = File.join(@dir, 'tmp', 'index.inline')
+    inline.tmpasset = File.join(@dir, 'tmp', 'file.png')
+    assert_equal limit, inline.send(:output_limit_for, inline.tmptarget)
+    assert_equal limit * 2, inline.send(:output_limit_for, inline.tmpasset)
+    assert_equal limit * 2, inline.send(:output_limit_for, inline.assetpath)
+    assert_equal limit * 2, pass_worker.send(:output_limit_for, @target)
+  end
+
+  def test_eager_asset_request_rejects_oversized_inline_index_before_caching
+    max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(max * 2)
+    worker = RedmineMorePreviews::Converter.find(:pass).worker(
+      preview_format: 'inline', object: {}, asset: 'file.png',
+      target: File.join(@dir, 'storage', 'cache', 'preview.txt', 'index.inline')
+    )
+    worker.define_singleton_method(:convert) do
+      File.binwrite(tmptarget, 'x' * (max + 1))
+      File.binwrite(tmpasset, 'a' * (max + 1))
+    end
+
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) do
+      worker.preview(File.new(@source))
+    end
+    assert_not File.exist?(worker.targetpath), 'oversized index must not be cached'
+  end
+
+  def test_eager_asset_request_allows_large_asset_with_small_inline_index
+    max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(max * 2)
+    worker = RedmineMorePreviews::Converter.find(:pass).worker(
+      preview_format: 'inline', object: {}, asset: 'file.png',
+      target: File.join(@dir, 'storage', 'cache', 'preview.txt', 'index.inline')
+    )
+    worker.define_singleton_method(:convert) do
+      File.binwrite(tmptarget, '<p>ok</p>')
+      File.binwrite(tmpasset, 'a' * (max + 1))
+    end
+
+    assert_equal 'a' * (max + 1), worker.preview(File.new(@source))
+    assert_equal '<p>ok</p>', File.binread(worker.targetpath)
+  end
+
   def test_full_cache_converts_without_storing
     RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
     assert_equal 'plain text', pass_worker.preview(File.new(@source))
@@ -191,6 +272,12 @@ class ConversionLimitsTest < ActiveSupport::TestCase
 
   def pass_worker
     RedmineMorePreviews::Converter.find(:pass).worker(preview_format: 'txt', object: {}, target: @target)
+  end
+
+  def inline_worker
+    RedmineMorePreviews::Converter.find(:pass).worker(
+      preview_format: 'inline', object: {}, target: File.join(@dir, 'storage', 'cache', 'preview.txt', 'index.inline')
+    )
   end
 
   def libre_worker

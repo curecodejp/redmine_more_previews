@@ -64,6 +64,20 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  def test_oversized_inline_preview_preserves_attachment_page
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'oversize.tar'), 'safe.txt' => 'safe'))
+      with_zippy_format('tar', 'inline') do
+        a.class.any_instance.stubs(:more_preview).raises(RedmineMorePreviews::Exceptions::ConverterTooLarge)
+        get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+        assert_response :success
+        assert_select 'p.nodata', text: I18n.t(:text_more_previews_inline_too_large)
+        assert_includes response.body, a.filename
+        assert_select 'a[href*="download"]'
+      end
+    end
+  end
+
   def with_zippy_format(ext, format)
     settings = Setting.plugin_redmine_more_previews.to_h.deep_dup
     settings['converter']['zippy']['mime_types'][ext]['format'] = format

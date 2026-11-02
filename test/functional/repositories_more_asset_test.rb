@@ -113,6 +113,20 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes response.body, 'file.txt'
   end
 
+  def test_oversized_inline_preview_preserves_repository_page
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    Repository::Filesystem.any_instance.stubs(:more_preview).raises(RedmineMorePreviews::Exceptions::ConverterTooLarge)
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_select 'p.nodata', text: I18n.t(:text_more_previews_inline_too_large)
+    assert_select 'h2'
+    assert_select '.pagination'
+  end
+
   def test_regular_entry_is_served
     get :entry, params: entry_params(asset: 'dir/file.txt')
     assert_response :success

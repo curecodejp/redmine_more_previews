@@ -201,6 +201,40 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_equal limit * 2, pass_worker.send(:output_limit_for, @target)
   end
 
+  def test_eager_asset_request_rejects_oversized_inline_index_before_caching
+    max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(max * 2)
+    worker = RedmineMorePreviews::Converter.find(:pass).worker(
+      preview_format: 'inline', object: {}, asset: 'file.png',
+      target: File.join(@dir, 'storage', 'cache', 'preview.txt', 'index.inline')
+    )
+    worker.define_singleton_method(:convert) do
+      File.binwrite(tmptarget, 'x' * (max + 1))
+      File.binwrite(tmpasset, 'a' * (max + 1))
+    end
+
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) do
+      worker.preview(File.new(@source))
+    end
+    assert_not File.exist?(worker.targetpath), 'oversized index must not be cached'
+  end
+
+  def test_eager_asset_request_allows_large_asset_with_small_inline_index
+    max = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(max * 2)
+    worker = RedmineMorePreviews::Converter.find(:pass).worker(
+      preview_format: 'inline', object: {}, asset: 'file.png',
+      target: File.join(@dir, 'storage', 'cache', 'preview.txt', 'index.inline')
+    )
+    worker.define_singleton_method(:convert) do
+      File.binwrite(tmptarget, '<p>ok</p>')
+      File.binwrite(tmpasset, 'a' * (max + 1))
+    end
+
+    assert_equal 'a' * (max + 1), worker.preview(File.new(@source))
+    assert_equal '<p>ok</p>', File.binread(worker.targetpath)
+  end
+
   def test_full_cache_converts_without_storing
     RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
     assert_equal 'plain text', pass_worker.preview(File.new(@source))

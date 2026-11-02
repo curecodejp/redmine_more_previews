@@ -47,6 +47,41 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     FileUtils.rm_rf(@tmp)
   end
 
+  def test_oversized_cached_fragment_stays_local_to_attachment_preview
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    fields_path = @attachment.preview_assetpath(asset: 'fields.html')
+    File.binwrite(fields_path, 'x' * (RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES + 1))
+
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_equal 1, response.body.scan(I18n.t(:text_more_previews_inline_too_large)).length
+    assert_includes response.body, 'cached-mail-subject'
+    assert_select 'iframe[src*="more_preview"]'
+    assert_select 'a[href*="download"]'
+
+    get :more_asset, params: {id: @attachment.id, asset: 'fields', assetformat: 'html'}
+    assert_response 413
+  end
+
+  def test_transient_fragment_marker_stays_local_to_attachment_preview
+    settings = Setting.plugin_redmine_more_previews.deep_dup
+    settings['cache_previews'] = '0'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+    marker = RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
+    Attachment.any_instance.stubs(:more_asset).with(has_entries(assets: %w[headers.html fields.html attachments.html])).returns(
+      ['<p>header visible</p>', marker, '<p>attachments visible</p>']
+    )
+
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_equal 1, response.body.scan(I18n.t(:text_more_previews_inline_too_large)).length
+    assert_includes response.body, 'header visible'
+    assert_includes response.body, 'attachments visible'
+    assert_select 'iframe[src*="more_preview"]'
+  end
+
   def test_repeat_attachment_page_reuses_cached_header_and_fields
     get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
     assert_response :success

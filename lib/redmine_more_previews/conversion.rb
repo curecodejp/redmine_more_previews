@@ -578,9 +578,23 @@ module RedmineMorePreviews
     end #def
     private :regular_file_within?
     
-    # the files to serve of a conversion in the tmp directory, see read_limited
+    # Cliff embeds these generated HTML fragments in Redmine's page.
+    # The marker replaces an oversized fragment while preserving the mail body
+    # and other assets; a direct public asset response must return HTTP 413.
+    CLIFF_EMBEDDED_FRAGMENTS = %w[headers.html fields.html attachments.html].freeze
+    CLIFF_FRAGMENT_TOO_LARGE = '<!-- redmine_more_previews:cliff_fragment_too_large -->'.freeze
+
+    def cliff_embedded_fragment?(path)
+      converter.id.to_s == 'cliff' && preview_format == 'html' &&
+        CLIFF_EMBEDDED_FRAGMENTS.include?(File.basename(path.to_s)) &&
+        [tmpdir, dir].compact.any? { |root| File.dirname(path.to_s) == root }
+    end #def
+    private :cliff_embedded_fragment?
+
+    # Apply the inline HTML cap to embedded output; other assets retain max_output.
     def output_limit_for(path)
-      if preview_format == 'inline' && [tmptarget, (targetpath unless asset)].compact.include?(path)
+      if cliff_embedded_fragment?(path) ||
+         (preview_format == 'inline' && [tmptarget, (targetpath unless asset)].compact.include?(path))
         [RedmineMorePreviews::Converter.max_output,
          RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES].min
       else
@@ -590,10 +604,19 @@ module RedmineMorePreviews
     private :output_limit_for
 
     def check_output_size
-      [tmptarget, tmpasset].compact.each do |path|
+      paths = [tmptarget, tmpasset].compact
+      if converter.id.to_s == 'cliff' && preview_format == 'html' && tmpdir
+        paths.concat(CLIFF_EMBEDDED_FRAGMENTS.map { |name| File.join(tmpdir, name) })
+      end
+      paths.uniq.each do |path|
         next unless File.file?(path)
         limit = output_limit_for(path)
         next unless File.size(path) > limit
+        if cliff_embedded_fragment?(path)
+          # Keep the email body, extracted attachments and other fragments.
+          File.binwrite(path, CLIFF_FRAGMENT_TOO_LARGE)
+          next
+        end
         @asset_too_large = asset && path == tmpasset
         raise ConverterTooLarge, "#{File.basename(path)} is larger than #{limit} bytes"
       end
@@ -605,6 +628,7 @@ module RedmineMorePreviews
     def read_limited( path )
       limit = output_limit_for(path)
       if File.size(path) > limit
+        return CLIFF_FRAGMENT_TOO_LARGE if cliff_embedded_fragment?(path)
         @asset_too_large = asset && [tmpasset, assetpath].include?(path)
         raise ConverterTooLarge, "#{File.basename(path)} is larger than #{limit} bytes"
       end

@@ -235,6 +235,72 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_equal '<p>ok</p>', File.binread(worker.targetpath)
   end
 
+  def test_cliff_embedded_fragments_are_capped_before_cache_storage
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(
+      preview_format: 'html', object: {}, target: File.join(@dir, 'mail', 'index.html')
+    )
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    Dir.mktmpdir do |tmp|
+      worker.tmpdir = tmp
+      worker.tmptarget = File.join(tmp, 'index.html')
+      File.binwrite(worker.tmptarget, 'ok')
+      File.binwrite(File.join(tmp, 'headers.html'), 'x' * (limit + 1))
+      worker.send(:check_output_size)
+      assert_equal RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE,
+                   File.binread(File.join(tmp, 'headers.html'))
+      assert_equal 'ok', File.binread(worker.tmptarget)
+    end
+  end
+
+  def test_cliff_cached_fragments_reject_oversize_before_file_read
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(
+      preview_format: 'html', object: {}, target: File.join(@dir, 'mail', 'index.html')
+    )
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    FileUtils.mkdir_p(worker.dir)
+    %w[headers.html fields.html attachments.html].each do |name|
+      path = File.join(worker.dir, name)
+      File.binwrite(path, 'x' * (limit + 1))
+      File.expects(:open).with(path, 'rb').never
+      assert_equal RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE,
+                   worker.send(:read_limited, path)
+    end
+  end
+
+  def test_cliff_oversized_fragment_preserves_other_cached_output
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(
+      preview_format: 'html', object: {}, target: File.join(@dir, 'mail', 'index.html')
+    )
+    Dir.mktmpdir do |tmp|
+      worker.tmpdir = tmp
+      worker.tmptarget = File.join(tmp, 'index.html')
+      File.binwrite(worker.tmptarget, '<p>email body</p>')
+      File.binwrite(File.join(tmp, 'headers.html'), '<p>header</p>')
+      File.binwrite(File.join(tmp, 'fields.html'), 'x' * (limit + 1))
+      File.binwrite(File.join(tmp, 'attachments.html'), '<p>attachments</p>')
+
+      worker.send(:check_output_size)
+
+      assert_equal '<p>email body</p>', File.binread(worker.tmptarget)
+      assert_equal '<p>header</p>', File.binread(File.join(tmp, 'headers.html'))
+      assert_equal '<p>attachments</p>', File.binread(File.join(tmp, 'attachments.html'))
+      assert_equal RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE,
+                   File.binread(File.join(tmp, 'fields.html'))
+    end
+  end
+
+  def test_cliff_extracted_attachment_retains_normal_output_limit
+    worker = RedmineMorePreviews::Converter.find(:cliff).worker(
+      preview_format: 'html', object: {}, target: File.join(@dir, 'mail', 'index.html')
+    )
+    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(limit * 2)
+    assert_equal limit, worker.send(:output_limit_for, File.join(worker.dir, 'headers.html'))
+    assert_equal limit * 2, worker.send(:output_limit_for, File.join(worker.dir, 'report.html'))
+    assert_equal limit * 2, worker.send(:output_limit_for, worker.targetpath)
+  end
+
   def test_full_cache_converts_without_storing
     RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
     assert_equal 'plain text', pass_worker.preview(File.new(@source))

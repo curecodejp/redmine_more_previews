@@ -127,6 +127,29 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_select '.pagination'
   end
 
+  def test_oversized_cliff_fragment_keeps_repository_page_and_body
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['cliff'] = {
+      'active' => '1', 'mime_types' => {'eml' => {'active' => '1', 'format' => 'html'}}
+    }
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+    File.binwrite(File.join(@repo_dir, 'fragment.eml'),
+      "From: writer@example.test\\r\\nSubject: preserved\\r\\nContent-Type: text/plain\\r\\n\\r\\nemail body")
+    params = entry_params(path: repository_path_hash(['fragment.eml'])[:param], format: 'html')
+    get :entry, params: params
+    assert_response :success
+    fields = @repository.preview_assetpath('fragment.eml', nil, asset: 'fields.html')
+    File.binwrite(fields, 'x' * (RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES + 1))
+
+    get :entry, params: params
+    assert_response :success
+    assert_equal 1, response.body.scan(I18n.t(:text_more_previews_inline_too_large)).length
+    assert_select 'iframe[src*="more_preview"]'
+    assert_select 'h2'
+    assert_select 'a'
+  end
+
   def test_regular_entry_is_served
     get :entry, params: entry_params(asset: 'dir/file.txt')
     assert_response :success

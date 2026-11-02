@@ -579,11 +579,23 @@ module RedmineMorePreviews
     private :regular_file_within?
     
     # the files to serve of a conversion in the tmp directory, see read_limited
+    def output_limit_for(path)
+      if preview_format == 'inline' && !asset && [tmptarget, targetpath].include?(path)
+        [RedmineMorePreviews::Converter.max_output,
+         RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES].min
+      else
+        RedmineMorePreviews::Converter.max_output
+      end
+    end #def
+    private :output_limit_for
+
     def check_output_size
       [tmptarget, tmpasset].compact.each do |path|
-        next unless File.file?( path ) && File.size( path ) > RedmineMorePreviews::Converter.max_output
+        next unless File.file?(path)
+        limit = output_limit_for(path)
+        next unless File.size(path) > limit
         @asset_too_large = asset && path == tmpasset
-        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
+        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{limit} bytes"
       end
     end #def
     private :check_output_size
@@ -591,11 +603,12 @@ module RedmineMorePreviews
     # a converted file is served from memory: one larger than the limit is not
     # read (ConverterTooLarge)
     def read_limited( path )
-      if File.size( path ) > RedmineMorePreviews::Converter.max_output
-        @asset_too_large = asset && [tmpasset, assetpath].include?( path )
-        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{RedmineMorePreviews::Converter.max_output} bytes"
+      limit = output_limit_for(path)
+      if File.size(path) > limit
+        @asset_too_large = asset && [tmpasset, assetpath].include?(path)
+        raise ConverterTooLarge, "#{File.basename(path)} is larger than #{limit} bytes"
       end
-      File.open( path, "rb" ) {|io| io.read}
+      File.open(path, "rb") {|io| io.read}
     end #def
     private :read_limited
     

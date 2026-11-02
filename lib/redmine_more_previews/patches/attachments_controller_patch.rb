@@ -110,7 +110,6 @@ module RedmineMorePreviews
                 # nil: the conversion failed or timed out (see Conversion#preview)
                 data = @attachment.more_preview(preview_params)
                 return render_404 if data.nil?
-                reject_oversized_cliff_fragment!(data)
                 send_data data,
                   :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),

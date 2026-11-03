@@ -519,7 +519,7 @@ On Windows, only the program started directly is stopped at the time limit, not 
 
 ## Benchmarking inline preview sanitization (test/staging only)
 
-The opt-in `scripts/benchmark_inline_preview.rb` separates two different paths: `balanced` and `dense` exercise the sanitizer with input at or below 256 KiB, while `reject` measures the size-limit rejection without parsing the HTML. The script aborts if the chosen input unexpectedly crosses the limit. Run each case in a separate Rails process to avoid carrying allocations between measurements:
+The opt-in `scripts/benchmark_inline_preview.rb` separates two different paths: `balanced` and `dense` exercise the sanitizer with input at or below 256 KiB, while `reject` measures the size-limit rejection without parsing the HTML. I18n and the sanitizer are initialized before timing and memory sampling, so a fresh process does not count their one-time loading as part of the measured operation. The script aborts if the chosen input unexpectedly crosses the limit. Run each case in a separate Rails process to avoid carrying allocations between measurements:
 
 ```bash
 cd /path/to/redmine
@@ -528,4 +528,4 @@ RMP_BENCH_PROFILE=dense RMP_BENCH_REPETITIONS=20000 RAILS_ENV=test bundle exec r
 RMP_BENCH_PROFILE=reject RMP_BENCH_REPETITIONS=5000 RAILS_ENV=test bundle exec rails runner plugins/redmine_more_previews/scripts/benchmark_inline_preview.rb
 ```
 
-The reported node counts describe the generated **source markup**, not nodes actually parsed in the rejection case. `VmHWM` is the process-wide high-water RSS and includes Rails startup; its change is not an exact per-sanitization memory peak. The script rejects production environments, uses only synthetic HTML, and does not run automatically in normal plugin operation. Set `RMP_BENCH_DRY_RUN=1` to validate generated input sizes without loading Rails or measuring the sanitizer.
+The reported node counts describe the generated **source markup**, not nodes actually parsed in the rejection case. Run each case at least three times in separate Rails processes and compare the median `seconds` value, noting the range; a single measurement is susceptible to system and GC noise. `VmHWM` is the process-wide high-water RSS and includes Rails startup; its change is not an exact per-sanitization memory peak. The script rejects production environments, uses only synthetic HTML, and does not run automatically in normal plugin operation. Set `RMP_BENCH_DRY_RUN=1` to validate generated input sizes without loading Rails or measuring the sanitizer.

@@ -8,18 +8,24 @@ require 'rbconfig'
 class BenchmarkInlinePreviewTest < ActiveSupport::TestCase
   SCRIPT = File.expand_path('../../scripts/benchmark_inline_preview.rb', __dir__).freeze
 
-  def dry_run(profile, repetitions)
+  def dry_run(profile, repetitions = nil)
     stdout, stderr, status = Open3.capture3(
       { 'RMP_BENCH_DRY_RUN' => '1', 'RMP_BENCH_PROFILE' => profile,
-        'RMP_BENCH_REPETITIONS' => repetitions.to_s },
+        'RMP_BENCH_REPETITIONS' => repetitions&.to_s },
       RbConfig.ruby, SCRIPT
     )
     assert status.success?, stderr
-    JSON.parse(stdout)
+    result = JSON.parse(stdout)
+    # The dry run uses the documented constant without loading Rails. Make
+    # sure it stays in sync with the actual plugin limit used at runtime.
+    assert_equal RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES,
+                 result.fetch('limit_bytes')
+    result
   end
 
   def test_balanced_markup_is_actually_sanitized_below_256_kib
-    result = dry_run('balanced', 4000)
+    result = dry_run('balanced')
+    assert_equal 4000, result.fetch('repetitions')
     assert_equal 'sanitizer', result.fetch('expected_path')
     assert_equal 256_011, result.fetch('input_bytes')
     assert_operator result.fetch('input_bytes'), :<=, result.fetch('limit_bytes')

@@ -9,7 +9,7 @@
 #     plugins/redmine_more_previews/scripts/benchmark_inline_preview.rb
 #
 # Inspect input sizes without Rails (not a sanitizer or memory benchmark):
-#   RMP_BENCH_DRY_RUN=1 RMP_BENCH_PROFILE=dense ruby scripts/benchmark_inline_preview.rb
+#   RMP_BENCH_DRY_RUN=1 RMP_BENCH_PROFILE=dense ruby plugins/redmine_more_previews/scripts/benchmark_inline_preview.rb
 #
 # Synthetic HTML only; never run on a production server or with customer data.
 require 'benchmark'
@@ -18,7 +18,7 @@ require 'json'
 cases = {
   'balanced' => {
     fragment: '<span class="entry"><b>sample</b></span><script>ignored</script>',
-    default_repetitions: 1000, elements_per_repetition: 3, text_nodes_per_repetition: 2,
+    default_repetitions: 4000, elements_per_repetition: 3, text_nodes_per_repetition: 2,
     expected_path: 'sanitizer'
   },
   'dense' => {
@@ -96,6 +96,12 @@ def process_memory_kib(field)
   File.read(status)[/^#{Regexp.escape(field)}:\s+(\d+)\s+kB$/, 1]&.to_i
 end
 
+# Initialize I18n and the sanitizer before timing or measuring RSS. The first
+# translation lookup can load all locales and otherwise dominate the rejection
+# timing, although rejection itself never parses the oversized HTML.
+notice = ERB::Util.html_escape(helper.l(:text_more_previews_inline_too_large))
+helper.sanitize_inline_preview('<b>warm-up</b>')
+
 rss_before = process_memory_kib('VmRSS')
 hwm_before = process_memory_kib('VmHWM')
 output = nil
@@ -103,7 +109,6 @@ seconds = Benchmark.realtime { output = helper.sanitize_inline_preview(html) }
 rss_after = process_memory_kib('VmRSS')
 hwm_after = process_memory_kib('VmHWM')
 
-notice = ERB::Util.html_escape(helper.l(:text_more_previews_inline_too_large))
 if expected_path == 'limit_rejection'
   abort 'The oversized preview did not return the size notice.' unless output.to_s == notice
 else

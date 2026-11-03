@@ -261,7 +261,6 @@ class Cliff < RedmineMorePreviews::Conversion
     'shift-jis' => 'Windows-31J', 'x-sjis' => 'Windows-31J', 'sjis' => 'Windows-31J',
     'iso-2022-jp' => 'CP50221'
   }.freeze
-  SEVEN_BIT_ENCODINGS = /\A(ISO-2022-|CP5022|UTF-7)/i
   META_CHARSET = /<meta[^>]*charset\s*=\s*["']?([A-Za-z0-9_.:-]+)/i
   # the <meta> charset is looked for in the head of the html only, as browsers
   # do: the pattern would take quadratic time on a long body of '<meta' alone
@@ -282,10 +281,14 @@ class Cliff < RedmineMorePreviews::Conversion
     end
     bytes = bytes.b
     # an html part without a charset may declare one in its <meta>; a <meta>
-    # in a comment does not count, as in the browser
-    charset = part.charset.presence ||
-              ( bytes[0, META_PRESCAN].gsub( HTML_COMMENT, '' )[META_CHARSET, 1] if html )
-    text    = transcoded( bytes, charset ) || RmpText.to_utf8( bytes )
+    # in a comment does not count, as in the browser. The pattern also finds
+    # '<meta' in a script or an attribute: the first charset the body is valid
+    # in is taken
+    charsets = if part.charset.present? then [part.charset]
+               elsif html then bytes[0, META_PRESCAN].gsub( HTML_COMMENT, '' ).scan( META_CHARSET ).flatten.uniq
+               else []
+               end
+    text = charsets.lazy.filter_map { |charset| transcoded( bytes, charset ) }.first || RmpText.to_utf8( bytes )
     text    = text.scrub( '?' )
     # the page is written in UTF-8, with or without the sweep (unsafe): so must
     # the html declare it
@@ -294,27 +297,18 @@ class Cliff < RedmineMorePreviews::Conversion
   end #def
   private :decoded_body
   
-  # bytes in charset converted to UTF-8, nil for a charset Ruby does not know
+  # bytes in charset converted to UTF-8; nil for a charset Ruby does not know
+  # or bytes the charset does not fit (a UTF-8 body declared US-ASCII, a broken
+  # ISO-2022-JP escape), which are guessed instead. Mail::Encodings.transcode_charset
+  # would replace those bytes, and take an unknown charset for binary.
   def transcoded( bytes, charset )
-    return nil unless charset
-    charset = CHARSET_SUPERSETS.fetch( charset.downcase.tr( '_', '-' ), charset )
-    # Mail takes a charset it does not know for binary and replaces every byte
-    # that is not ASCII
+    charset  = CHARSET_SUPERSETS.fetch( charset.downcase.tr( '_', '-' ), charset )
+    # Mail's names for charsets (utf8, ks_c_5601-1987, ...)
     encoding = Mail::Utilities.pick_encoding( charset )
     return nil if encoding == Encoding::BINARY
-    # it also replaces the bytes that are not valid in the charset, as in a
-    # UTF-8 body declared US-ASCII. Ruby cannot validate a dummy encoding: the
-    # stateful ISO-2022 ones (CP50221 too) and UTF-7 are 7 bit, the others
-    # (UTF-16, UTF-32) are left to Mail
-    valid = if !encoding.dummy? then bytes.dup.force_encoding( encoding ).valid_encoding?
-            elsif encoding.name =~ SEVEN_BIT_ENCODINGS then bytes.ascii_only?
-            else true
-            end
-    return nil unless valid
-    text = Mail::Encodings.transcode_charset( bytes, charset, 'UTF-8' )
+    # encode does not check a UTF-8 source, which it leaves as it is
+    text = bytes.dup.force_encoding( encoding ).encode( Encoding::UTF_8 )
     text if text.valid_encoding?
-  # Mail replaces what it cannot convert, but its charset_encoder can be
-  # replaced: any EncodingError falls back to the guess
   rescue EncodingError, ArgumentError
     nil
   end #def

@@ -237,12 +237,23 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
   end
 
-  # Mail replaces what it cannot convert, but its charset_encoder can be
-  # replaced by one that raises
-  def test_body_is_guessed_when_transcoding_raises
-    Mail::Encodings.stubs(:transcode_charset).raises(Encoding::InvalidByteSequenceError)
-    html = convert(encoded_message('text/plain', 'UTF-8', 'base64', JAPANESE.b))
-    assert_includes html, JAPANESE
+  # nor does a '<meta' in a script, which the pattern finds too
+  def test_html_body_without_a_charset_skips_a_meta_in_a_script
+    source = '<html><head><script>var s = "<meta charset=UTF-8>";</script>' \
+             '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
+             "<body><p>#{JAPANESE}</p></body></html>"
+    raw = encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b)
+    assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
+  end
+
+  # ISO-2022-JP is 7 bit: a broken escape is not replaced by U+FFFD, the body
+  # is guessed and its text kept
+  def test_iso_2022_jp_body_with_a_broken_escape_is_shown
+    bytes = "before #{JAPANESE} after".encode('CP50221').b.sub("\e$B".b, "\e$Z".b)
+    html = convert(encoded_message('text/plain', 'ISO-2022-JP', '7bit', bytes))
+    assert_includes html, 'before'
+    assert_includes html, 'after'
+    assert_not_includes html, "\uFFFD"
   end
 
   def test_pre_contents_are_exactly_the_escaped_plain_text

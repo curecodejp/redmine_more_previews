@@ -156,6 +156,47 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_response 413
   end
 
+  # See CliffCachedFragmentsTest: an old oversized fragment keeps its ETag.
+  def test_conditional_get_of_an_oversized_repository_fragment_answers_413
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['cliff'] = {
+      'active' => '1', 'mime_types' => {'eml' => {'active' => '1', 'format' => 'html'}}
+    }
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+    File.binwrite(File.join(@repo_dir, 'fragment.eml'),
+      "From: writer@example.test\r\nSubject: preserved\r\nContent-Type: text/plain\r\n\r\nemail body")
+    get :entry, params: entry_params(path: repository_path_hash(['fragment.eml'])[:param], format: 'html')
+    assert_response :success
+    fields = @repository.preview_assetpath('fragment.eml', nil, asset: 'fields.html')
+    mtime = File.mtime(fields)
+    asset = entry_params(path: repository_path_hash(['fragment'])[:param],
+                         baseformat: 'eml', asset: 'fields', assetformat: 'html')
+
+    get :more_asset, params: asset
+    assert_response :success
+    etag = response.headers['ETag']
+    assert etag.present?
+
+    File.binwrite(fields, 'x' * (RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES + 1))
+    File.utime(mtime, mtime, fields)
+    @request.if_none_match = etag
+    get :more_asset, params: asset
+    assert_response 413
+  end
+
+  # Archive entries keep answering conditional requests without reading them.
+  def test_conditional_get_of_an_archive_entry_stays_not_modified
+    get :entry, params: entry_params(asset: 'dir/file.txt')
+    assert_response :success
+    etag = response.headers['ETag']
+    assert etag.present?
+
+    @request.if_none_match = etag
+    get :entry, params: entry_params(asset: 'dir/file.txt')
+    assert_response :not_modified
+  end
+
   def test_regular_entry_is_served
     get :entry, params: entry_params(asset: 'dir/file.txt')
     assert_response :success

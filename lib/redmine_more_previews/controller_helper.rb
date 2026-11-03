@@ -154,12 +154,19 @@ module RedmineMorePreviews
     end
     private :apply_asset_security_headers
 
+    # headers.html, fields.html or attachments.html, the names Cliff embeds in the page
+    def cliff_embedded_fragment_asset?
+      RedmineMorePreviews::Conversion::CLIFF_EMBEDDED_FRAGMENTS.include?(@asset.to_s)
+    end
+    private :cliff_embedded_fragment_asset?
+
     # The internal Cliff hook uses this marker as an in-page size notice.
     # A direct asset response must retain its normal 413 semantics.
+    # Only Cliff writes the marker (Conversion#cliff_embedded_fragment?), so the
+    # name and the data decide; the extension need not name Cliff (the converter
+    # is chosen by content first).
     def reject_oversized_cliff_fragment!(data)
-      return unless RedmineMorePreviews::Conversion::CLIFF_EMBEDDED_FRAGMENTS.include?(@asset.to_s)
-      source_name = @attachment&.filename || @entry&.name
-      return unless source_name && RedmineMorePreviews::Converter.responsible(source_name, :pathonly => true)&.id.to_s == 'cliff'
+      return unless cliff_embedded_fragment_asset?
       return unless data == RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
       raise RedmineMorePreviews::Exceptions::ConverterTooLarge, 'Embedded email fragment exceeds its preview limit'
     end

@@ -134,11 +134,18 @@ module RedmineMorePreviews
             apply_asset_security_headers
 
             if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
-              if preview_reload? || stale?(:etag => @attachment.asset_mtime(preview_params))
-                # nil: the archive has no such entry (read_safe no longer falls back to the preview)
+              # A Cliff fragment cached before its size limit keeps its file and
+              # mtime, hence its ETag: check it before a conditional request can
+              # answer 304. The fragments are small, other assets are not read.
+              if cliff_embedded_fragment_asset?
                 data = @attachment.more_asset(preview_params)
                 return render_404 if data.nil?
                 reject_oversized_cliff_fragment!(data)
+              end
+              if preview_reload? || stale?(:etag => @attachment.asset_mtime(preview_params))
+                # nil: the archive has no such entry (read_safe no longer falls back to the preview)
+                data ||= @attachment.more_asset(preview_params)
+                return render_404 if data.nil?
                 send_data data,
                   :filename    => filename_for_content_disposition( File.basename(@asset) ),
                   :type        => Rack::Mime.mime_type( File.extname(@asset) ),

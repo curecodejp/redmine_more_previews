@@ -139,10 +139,16 @@ module RedmineMorePreviews
             apply_asset_security_headers
 
             if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
-              if preview_reload? || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
+              # see AttachmentsControllerPatch#send_more_asset: an old oversized
+              # Cliff fragment must not answer 304 under its unchanged ETag
+              if cliff_embedded_fragment_asset?
                 data = @repository.more_asset(@path, @rev, preview_params)
                 return render_404 if data.nil?
                 reject_oversized_cliff_fragment!(data)
+              end
+              if preview_reload? || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
+                data ||= @repository.more_asset(@path, @rev, preview_params)
+                return render_404 if data.nil?
                 send_data data,
                   :filename    => filename_for_content_disposition( File.basename(@asset) ),
                   :type        => Rack::Mime.mime_type( File.extname(@asset) ),

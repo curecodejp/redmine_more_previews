@@ -20,11 +20,12 @@ class CliffBodyTest < ActiveSupport::TestCase
     FileUtils.rm_rf(@tmp)
   end
 
-  def convert(mail_source)
+  def convert(mail_source, unsafe: false)
     eml = File.join(@tmp, 'a.eml')
     File.binwrite(eml, mail_source)
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(
-      :preview_format => 'html', :object => {}, :target => File.join(@tmp, 'preview.html', 'index.html')
+      :preview_format => 'html', :object => {}, :target => File.join(@tmp, 'preview.html', 'index.html'),
+      :unsafe => unsafe
     )
     preview = nil
     worker.preview(File.new(eml)) { |html, _asset| preview = html }
@@ -158,6 +159,20 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_no_match(/Shift_JIS/i, html)
   end
 
+  # without the sweep (unsafe, administrators only) the html is written as it
+  # is: its charset must still be UTF-8
+  def test_unsafe_html_body_declares_utf8
+    source = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
+             "<body><p>#{JAPANESE}</p></body></html>"
+    [false, true].each do |multipart|
+      html = convert(encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b, multipart: multipart),
+                     unsafe: true)
+      assert_includes html, JAPANESE, "multipart: #{multipart}"
+      assert_match(/<meta[^>]*charset=UTF-8/i, html, "multipart: #{multipart}")
+      assert_no_match(/Shift_JIS/i, html, "multipart: #{multipart}")
+    end
+  end
+
   # Japanese mail declared Shift_JIS or ISO-2022-JP mostly uses Microsoft's
   # supersets of them
   def test_japanese_bodies_keep_characters_of_microsofts_supersets
@@ -178,9 +193,22 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes convert(source), 'エイチティーエムエル版'
   end
 
+  # Mail turns a charset it does not know into binary and replaces every byte
+  # that is not ASCII: the body is guessed instead, as without a charset
   def test_body_of_an_unknown_charset_is_shown
-    html = convert(encoded_message('text/plain', 'x-unknown', 'base64', 'unknown charset'.b))
-    assert_includes html, 'unknown charset'
+    html = convert(encoded_message('text/plain', 'x-unknown', 'base64', "unknown charset #{JAPANESE}".b))
+    assert_includes html, "unknown charset #{JAPANESE}"
+  end
+
+  # an html part without a charset in its Content-Type often declares it in
+  # the html itself
+  def test_html_body_without_a_charset_uses_its_meta_charset
+    source = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
+             "<body><p>#{JAPANESE}</p></body></html>"
+    raw = encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b)
+    html = convert(raw.sub('; charset=Shift_JIS'.b, ''.b))
+    assert_includes html, JAPANESE
+    assert_no_match(/Shift_JIS/i, html)
   end
 
   def test_pre_contents_are_exactly_the_escaped_plain_text

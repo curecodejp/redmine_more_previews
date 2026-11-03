@@ -252,7 +252,7 @@ class Cliff < RedmineMorePreviews::Conversion
   end #def
   
   #---------------------------------------------------------------------------------------
-  # decoded_body
+  # decoded_body, transcoded
   #---------------------------------------------------------------------------------------
   # Japanese mail declared as Shift_JIS or ISO-2022-JP is mostly written in
   # Microsoft's supersets, with characters such as ① or 髙 the strict charsets
@@ -261,28 +261,44 @@ class Cliff < RedmineMorePreviews::Conversion
     'shift_jis' => 'Windows-31J', 'x-sjis' => 'Windows-31J', 'sjis' => 'Windows-31J',
     'iso-2022-jp' => 'CP50221'
   }.freeze
-  
+  META_CHARSET = /<meta[^>]*charset\s*=\s*["']?([A-Za-z0-9_.:-]+)/i
+
   # The text of a text/plain or text/html part in UTF-8: the transfer encoding
   # (base64, quoted-printable, 7bit, 8bit) is undone, then the charset of the
   # part (ISO-2022-JP, Shift_JIS, Windows-1252, ...) converted. Body#decoded
   # undoes only the transfer encoding.
   def decoded_body( part )
-    bytes   = part.body.decoded
+    html  = part.mime_type.to_s.casecmp?( 'text/html' )
+    bytes = part.body.decoded
     # an 8bit body is still the text of the email, which was read as ISO-8859-1
     # when it is not UTF-8 (see eml): take its bytes back
     if @latin1_source && part.content_transfer_encoding.to_s !~ /\A(base64|quoted-printable)\z/i
       bytes = bytes.dup.force_encoding( Encoding::UTF_8 ).encode( Encoding::ISO_8859_1 )
     end
-    charset = part.charset.presence
-    charset = CHARSET_SUPERSETS.fetch( charset.downcase, charset ) if charset
-    text    = charset ? Mail::Encodings.transcode_charset( bytes.b, charset, 'UTF-8' ) : nil
-    text    = RmpText.to_utf8( bytes.b ) unless text&.valid_encoding?
-    text.scrub( '?' )
-  rescue Encoding::ConverterNotFoundError, ArgumentError
-    # a charset Ruby does not know: guess, as for a part without one
-    RmpText.to_utf8( bytes.to_s.b ).scrub( '?' )
+    bytes = bytes.b
+    # an html part without a charset may declare one in its <meta>
+    charset = part.charset.presence || ( bytes[META_CHARSET, 1] if html )
+    text    = transcoded( bytes, charset ) || RmpText.to_utf8( bytes )
+    text    = text.scrub( '?' )
+    # the page is written in UTF-8, with or without the sweep (unsafe): so must
+    # the html declare it
+    html ? text.gsub( META_CHARSET ) { $&.sub( /[A-Za-z0-9_.:-]+\z/, 'UTF-8' ) } : text
   end #def
   private :decoded_body
+  
+  # bytes in charset converted to UTF-8, nil for a charset Ruby does not know
+  def transcoded( bytes, charset )
+    return nil unless charset
+    charset = CHARSET_SUPERSETS.fetch( charset.downcase, charset )
+    # Mail takes a charset it does not know for binary and replaces every byte
+    # that is not ASCII
+    return nil if Mail::Utilities.pick_encoding( charset ) == Encoding::BINARY
+    text = Mail::Encodings.transcode_charset( bytes, charset, 'UTF-8' )
+    text if text.valid_encoding?
+  rescue Encoding::ConverterNotFoundError, ArgumentError
+    nil
+  end #def
+  private :transcoded
   
   #---------------------------------------------------------------------------------------
   # save_attachments

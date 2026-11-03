@@ -114,7 +114,11 @@ class Cliff < RedmineMorePreviews::Conversion
     if File.size(source) > limit('max_size') * 1024 * 1024
       raise ConverterTooLarge, "the email is larger than #{limit('max_size')} MiB"
     end
-    text  = RmpText.to_utf8(File.read(source))
+    raw   = File.binread(source)
+    # an email that is not UTF-8 is read as ISO-8859-1, which maps every byte
+    # to one character: decoded_body takes the bytes of an 8bit body back
+    @latin1_source = !raw.dup.force_encoding(Encoding::UTF_8).valid_encoding?
+    text  = RmpText.to_utf8(raw.force_encoding(Encoding::UTF_8), @latin1_source ? 'ISO-8859-1' : nil)
     check_parts( text )
     mail  = Mail.new(text)
     check_depth( mail )
@@ -191,36 +195,14 @@ class Cliff < RedmineMorePreviews::Conversion
         ###########################################################
         #  multipart: try to fetch html                           #
         ###########################################################
-        encoding      = mail.html_part.content_transfer_encoding
-        charset       = mail.html_part.charset
-        
-        if encoding =~ /quoted-printable/ # there is a bug in .decoded
-          html        = mail.html_part.body.to_s.unpack('M')[0].html_safe
-        else
-          html        = mail.html_part.body.decoded
-        end
-        
-        ###########################################################
-        #  get eventual charset: UTF-8, Windows-1252, etc.        #
-        #  careful: 'charset' in mail is 'encoding' for strings   #
-        ###########################################################
-        charset     ||= RmpText.get_charset( html )
+        html          = decoded_body( mail.html_part )
+        charset       = 'UTF-8'
       
       elsif mail.text_part 
         ###########################################################
         #  multipart: no html -> try to fetch text                #
         ###########################################################
-        encoding      = mail.text_part.content_transfer_encoding
-        charset       = mail.text_part.charset
-        
-        if encoding =~ /quoted-printable/ # there is a bug in .decoded
-          text        = mail.text_part.body.to_s.unpack('M')[0]
-          text        = RmpText.to_utf8(text, charset)
-        else
-          text        = mail.text_part.body.decoded
-        end
-        
-        @text         = text
+        @text         = decoded_body( mail.text_part )
         erb           = ERB.new(File.read(File.join(views, 'cliff', 'pre.html.erb')))
         html          = erb.result(binding).html_safe
         charset       = "UTF-8"
@@ -244,36 +226,14 @@ class Cliff < RedmineMorePreviews::Conversion
         ###########################################################
         #  single part: try to identify html by content_type      #
         ###########################################################
-        encoding      = mail.body.encoding
-        charset       = mail.body.charset
-        
-        if encoding =~ /quoted-printable/ # there is a bug in .decoded
-          html        = mail.body.to_s.unpack('M')[0].html_safe
-        else
-          html        = mail.body.decoded
-        end
-        
-        ###########################################################
-        #  get eventual encoding: UTF-8, Windows-1252, etc.       #
-        #  careful: 'charset' in mail is 'encoding' for strings   #
-        ###########################################################
-        charset     ||= RmpText.get_charset( html )
+        html          = decoded_body( mail )
+        charset       = 'UTF-8'
         
       elsif mail.content_type && mail.content_type.downcase =~ /text\/plain/
         ###########################################################
         #  single part: text                                      #
         ###########################################################
-        encoding      = mail.body.encoding
-        charset       = mail.body.charset
-        
-        if encoding =~ /quoted-printable/ # there is a bug in .decoded
-          text        = mail.body.to_s.unpack('M')[0]
-          text        = RmpText.to_utf8(text, charset)
-        else
-          text        = mail.body.decoded
-        end
-        
-        @text         = text
+        @text         = decoded_body( mail )
         erb           = ERB.new(File.read(File.join(views, 'cliff', 'pre.html.erb')))
         html          = erb.result(binding).html_safe
         charset       = "UTF-8"
@@ -290,6 +250,90 @@ class Cliff < RedmineMorePreviews::Conversion
     end 
     [html, charset]
   end #def
+  
+  #---------------------------------------------------------------------------------------
+  # decoded_body, transcoded
+  #---------------------------------------------------------------------------------------
+  # Japanese mail declared as Shift_JIS or ISO-2022-JP is mostly written in
+  # Microsoft's supersets, with characters such as ① or 髙 the strict charsets
+  # do not have. Keys are lower case with '-' for '_' (Shift_JIS, shift-jis)
+  CHARSET_SUPERSETS = {
+    'shift-jis' => 'Windows-31J', 'x-sjis' => 'Windows-31J', 'sjis' => 'Windows-31J',
+    'iso-2022-jp' => 'CP50221'
+  }.freeze
+  # the html is read token by token, as the browser's prescan does: a '<meta'
+  # in a comment, a script or an attribute value is not a <meta>
+  HTML_TOKEN = %r{
+      <!--.*?(?:-->|\z)
+    | <(script|style|textarea|title|xmp|iframe|noembed|noframes|noscript)\b(?:[^>"']|"[^"]*"|'[^']*')*>.*?(?:</\1\s*>|\z)
+    | <meta\b((?:[^>"']|"[^"]*"|'[^']*')*)>
+    | <[!/?a-z](?:[^>"']|"[^"]*"|'[^']*')*>
+  }mix
+  META_CHARSET = /(charset\s*=\s*["']?)([A-Za-z0-9_.:-]+)/i
+  # the <meta> charset is looked for in the head of the html only, as browsers
+  # do: the pattern would take quadratic time on a long body of '<meta' alone
+  META_PRESCAN  = 4096
+  # each candidate converts the whole body: a prescan full of <meta> must not
+  # multiply that work
+  META_CANDIDATES = 3
+
+  # The text of a text/plain or text/html part in UTF-8: the transfer encoding
+  # (base64, quoted-printable, 7bit, 8bit) is undone, then the charset of the
+  # part (ISO-2022-JP, Shift_JIS, Windows-1252, ...) converted. Body#decoded
+  # undoes only the transfer encoding.
+  def decoded_body( part )
+    html  = part.mime_type.to_s.casecmp?( 'text/html' )
+    bytes = part.body.decoded
+    # an 8bit body is still the text of the email, which was read as ISO-8859-1
+    # when it is not UTF-8 (see eml): take its bytes back
+    if @latin1_source && part.content_transfer_encoding.to_s !~ /\A(base64|quoted-printable)\z/i
+      bytes = bytes.dup.force_encoding( Encoding::UTF_8 ).encode( Encoding::ISO_8859_1 )
+    end
+    bytes = bytes.b
+    # an html part without a charset may declare one in its <meta>: the first
+    # charset the body is valid in is taken
+    charsets = if part.charset.present? then [part.charset]
+               elsif html
+                 meta_charsets( bytes[0, META_PRESCAN] ).
+                   uniq { |charset| source_encoding( charset ) }.first( META_CANDIDATES )
+               else []
+               end
+    text = charsets.lazy.filter_map { |charset| transcoded( bytes, charset ) }.first || RmpText.to_utf8( bytes )
+    text    = text.scrub( '?' )
+    # the page is written in UTF-8, with or without the sweep (unsafe): so must
+    # the html declare it
+    return text unless html
+    text[0, META_PRESCAN].gsub( HTML_TOKEN ) { $2 ? $&.sub( META_CHARSET, '\\1UTF-8' ) : $& } + text[META_PRESCAN..].to_s
+  end #def
+  private :decoded_body
+  
+  # the charsets the <meta> tags in html declare
+  def meta_charsets( html )
+    html.scan( HTML_TOKEN ).filter_map { |_raw, meta| meta[META_CHARSET, 2] if meta }
+  end #def
+  private :meta_charsets
+
+  # bytes in charset converted to UTF-8; nil for a charset Ruby does not know
+  # or bytes the charset does not fit (a UTF-8 body declared US-ASCII, a broken
+  # ISO-2022-JP escape), which are guessed instead. Mail::Encodings.transcode_charset
+  # would replace those bytes, and take an unknown charset for binary.
+  def transcoded( bytes, charset )
+    encoding = source_encoding( charset )
+    return nil if encoding == Encoding::BINARY
+    # encode does not check a UTF-8 source, which it leaves as it is
+    text = bytes.dup.force_encoding( encoding ).encode( Encoding::UTF_8 )
+    text if text.valid_encoding?
+  rescue EncodingError, ArgumentError
+    nil
+  end #def
+  private :transcoded
+
+  # the encoding of a charset label, by Mail's names for charsets (utf8,
+  # ks_c_5601-1987, ...); BINARY for a label it does not know
+  def source_encoding( charset )
+    Mail::Utilities.pick_encoding( CHARSET_SUPERSETS.fetch( charset.downcase.tr( '_', '-' ), charset ) )
+  end #def
+  private :source_encoding
   
   #---------------------------------------------------------------------------------------
   # save_attachments

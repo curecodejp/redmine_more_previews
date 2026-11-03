@@ -231,11 +231,14 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
 
   # An email beyond the Cliff limits answers 413 in the body iframe only; the
   # attachment page itself stays, with its download link and a notice.
+  # More MIME parts than Cliff's default max_parts (1,000).
+  MANY_PARTS = "From: writer@example.test\r\nSubject: many parts\r\nMIME-Version: 1.0\r\n" \
+               "Content-Type: multipart/mixed; boundary=b\r\n\r\n" +
+               (1..1100).map { |i| "--b\r\nContent-Type: text/plain\r\n\r\npart #{i}\r\n" }.join +
+               "--b--\r\n"
+
   def test_email_beyond_limits_keeps_the_attachment_page
-    parts = (1..1100).map { |i| "--b\r\nContent-Type: text/plain\r\n\r\npart #{i}\r\n" }.join
-    attachment = upload_mail('many-parts.eml',
-      "From: writer@example.test\r\nSubject: many parts\r\nMIME-Version: 1.0\r\n" \
-      "Content-Type: multipart/mixed; boundary=b\r\n\r\n#{parts}--b--\r\n")
+    attachment = upload_mail('many-parts.eml', MANY_PARTS)
 
     2.times do # converted the first time, a remembered failure the second
       get :show, params: {id: attachment.id, filename: attachment.filename, format: 'html'}
@@ -244,6 +247,23 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
       assert_select 'a[href*="download"]'
       assert_select 'iframe[src*="more_preview"]'
     end
+  end
+
+  # The transient branch (cache disabled, admin reload, other locale) gets the
+  # limit from the conversion child rather than from a stored failure.
+  def test_email_beyond_limits_keeps_the_attachment_page_without_cache
+    settings = Setting.plugin_redmine_more_previews.deep_dup
+    settings['cache_previews'] = '0'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+    attachment = upload_mail('many-parts.eml', MANY_PARTS)
+
+    get :show, params: {id: attachment.id, filename: attachment.filename, format: 'html'}
+    assert_response :success
+    assert_equal 1, response.body.scan(I18n.t(:text_more_previews_inline_too_large)).length
+    assert_select 'a[href*="download"]'
+    assert_select 'iframe[src*="more_preview"]'
+    assert_not File.file?(attachment.preview_filepath)
   end
 
   private

@@ -135,12 +135,30 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
     assert_includes attachments.text, 'slot-attached.txt'
   end
 
-  def test_email_beyond_limits_keeps_the_repository_entry_page
-    parts = (1..1100).map { |i| "--b\r\nContent-Type: text/plain\r\n\r\npart #{i}\r\n" }.join
-    File.binwrite(File.join(@repo_dir, 'many-parts.eml'),
-      "From: writer@example.test\r\nSubject: many parts\r\nMIME-Version: 1.0\r\n" \
-      "Content-Type: multipart/mixed; boundary=b\r\n\r\n#{parts}--b--\r\n")
+  # More MIME parts than Cliff's default max_parts (1,000).
+  MANY_PARTS = "From: writer@example.test\r\nSubject: many parts\r\nMIME-Version: 1.0\r\n" \
+               "Content-Type: multipart/mixed; boundary=b\r\n\r\n" +
+               (1..1100).map { |i| "--b\r\nContent-Type: text/plain\r\n\r\npart #{i}\r\n" }.join +
+               "--b--\r\n"
 
+  def test_email_beyond_limits_keeps_the_repository_entry_page
+    assert_repository_page_keeps_too_large_notice
+  end
+
+  def test_email_beyond_limits_keeps_the_repository_entry_page_without_cache
+    settings = Setting.plugin_redmine_more_previews.deep_dup
+    settings['cache_previews'] = '0'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    assert_repository_page_keeps_too_large_notice
+    assert_not File.file?(@repository.preview_filepath('many-parts.eml', nil))
+  end
+
+  private
+
+  def assert_repository_page_keeps_too_large_notice
+    File.binwrite(File.join(@repo_dir, 'many-parts.eml'), MANY_PARTS)
     get :entry, params: {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
                          path: repository_path_hash(['many-parts.eml'])[:param]}
     assert_response :success

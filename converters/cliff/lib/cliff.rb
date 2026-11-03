@@ -266,6 +266,7 @@ class Cliff < RedmineMorePreviews::Conversion
   # the <meta> charset is looked for in the head of the html only, as browsers
   # do: the pattern would take quadratic time on a long body of '<meta' alone
   META_PRESCAN  = 4096
+  HTML_COMMENT  = /<!--.*?(?:-->|\z)/m
 
   # The text of a text/plain or text/html part in UTF-8: the transfer encoding
   # (base64, quoted-printable, 7bit, 8bit) is undone, then the charset of the
@@ -280,8 +281,10 @@ class Cliff < RedmineMorePreviews::Conversion
       bytes = bytes.dup.force_encoding( Encoding::UTF_8 ).encode( Encoding::ISO_8859_1 )
     end
     bytes = bytes.b
-    # an html part without a charset may declare one in its <meta>
-    charset = part.charset.presence || ( bytes[0, META_PRESCAN][META_CHARSET, 1] if html )
+    # an html part without a charset may declare one in its <meta>; a <meta>
+    # in a comment does not count, as in the browser
+    charset = part.charset.presence ||
+              ( bytes[0, META_PRESCAN].gsub( HTML_COMMENT, '' )[META_CHARSET, 1] if html )
     text    = transcoded( bytes, charset ) || RmpText.to_utf8( bytes )
     text    = text.scrub( '?' )
     # the page is written in UTF-8, with or without the sweep (unsafe): so must
@@ -310,7 +313,9 @@ class Cliff < RedmineMorePreviews::Conversion
     return nil unless valid
     text = Mail::Encodings.transcode_charset( bytes, charset, 'UTF-8' )
     text if text.valid_encoding?
-  rescue Encoding::ConverterNotFoundError, ArgumentError
+  # Mail replaces what it cannot convert, but its charset_encoder can be
+  # replaced: any EncodingError falls back to the guess
+  rescue EncodingError, ArgumentError
     nil
   end #def
   private :transcoded

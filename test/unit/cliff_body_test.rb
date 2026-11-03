@@ -142,8 +142,10 @@ class CliffBodyTest < ActiveSupport::TestCase
   def test_html_bodies_are_converted_from_their_charset
     CHARSETS.each do |charset, (text, encodings)|
       encodings.each do |encoding|
-        html = convert(encoded_message('text/html', charset, encoding, "<p>#{text}</p>".encode(charset).b, multipart: true))
-        assert_includes html, text, "#{charset} #{encoding} html"
+        [false, true].each do |multipart|
+          html = convert(encoded_message('text/html', charset, encoding, "<p>#{text}</p>".encode(charset).b, multipart: multipart))
+          assert_includes html, text, "#{charset} #{encoding} html, multipart: #{multipart}"
+        end
       end
     end
   end
@@ -224,6 +226,23 @@ class CliffBodyTest < ActiveSupport::TestCase
     html = convert(raw.sub('; charset=Shift_JIS'.b, ''.b))
     assert_includes html, JAPANESE
     assert_no_match(/Shift_JIS/i, html)
+  end
+
+  # the browser ignores a <meta> in a comment
+  def test_html_body_without_a_charset_skips_a_commented_meta
+    source = '<html><head><!-- <meta charset="UTF-8"> -->' \
+             '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
+             "<body><p>#{JAPANESE}</p></body></html>"
+    raw = encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b)
+    assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
+  end
+
+  # Mail replaces what it cannot convert, but its charset_encoder can be
+  # replaced by one that raises
+  def test_body_is_guessed_when_transcoding_raises
+    Mail::Encodings.stubs(:transcode_charset).raises(Encoding::InvalidByteSequenceError)
+    html = convert(encoded_message('text/plain', 'UTF-8', 'base64', JAPANESE.b))
+    assert_includes html, JAPANESE
   end
 
   def test_pre_contents_are_exactly_the_escaped_plain_text

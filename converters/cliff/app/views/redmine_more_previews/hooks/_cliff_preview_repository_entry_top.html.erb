@@ -24,15 +24,24 @@
      current = cache_enabled &&
        RedmineMorePreviews::Conversion.current_cached_preview?(repository.preview_filepath(path, rev), :cliff)
      same_locale = current && Cliff.cache_locale_matches?(repository.preview_filepath(path, rev), I18n.locale)
-     if cache_enabled && !reload && !unsafe &&
-        (same_locale || (!current && !RedmineMorePreviews::Lib::RmpCacheSize.full?))
-       # Read cached fragments; a missing preview is converted only once.
-       fragments = names.map { |name| repository.more_asset(path, rev, :asset => name) }
-     else
-       # The admin requested a fresh preview, the locale differs, or no current cache can be
-       # stored/read: generate all three fragments in one transient conversion.
-       # The first result is the body, followed by the three fragments.
-       fragments = repository.more_asset(path, rev, :assets => names, :reload => reload) { |_html, *data| data }
+     begin
+       if cache_enabled && !reload && !unsafe &&
+          (same_locale || (!current && !RedmineMorePreviews::Lib::RmpCacheSize.full?))
+         # Read cached fragments; a missing preview is converted only once.
+         fragments = names.map { |name| repository.more_asset(path, rev, :asset => name) }
+       else
+         # The admin requested a fresh preview, the locale differs, or no current cache can be
+         # stored/read: generate all three fragments in one transient conversion.
+         # The block gets the body, the asset slot (nil: no :asset is asked for)
+         # and then the three fragments.
+         fragments = repository.more_asset(path, rev, :assets => names, :reload => reload) { |_html, _asset, *data| data }
+       end
+     rescue RedmineMorePreviews::Exceptions::ConverterTooLarge
+       # An email beyond the Cliff limits must not replace the whole page with
+       # the controller's 413: keep the page and its download link, and show
+       # the notice the inline previews use (the body iframe still answers 413).
+       fragments = nil
+       email_too_large = true
      end
      # A fragment may be refused without hiding the email body or other fragments.
      marker = RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
@@ -40,6 +49,10 @@
      email_headers, email_fields, email_attachments = fragments || []
   %>
   
+    <% if email_too_large %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <%- end %>
+    
     <% if too_large[0] %>
       <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
     <% elsif email_headers %>

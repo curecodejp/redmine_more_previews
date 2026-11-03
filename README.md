@@ -2,7 +2,7 @@
 
 Preview files directly from **Redmine issue attachments, documents, files, and repository entries**. This plugin adds optional converters for office documents, email, archives, Markdown, images, PDFs, and vCards, so users can inspect content without manually downloading every file.
 
-**Current release:** [v6.1.5](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.5) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
+**Current release:** [v6.1.6](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.6) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
 
 > [!NOTE]
 > This is a **Cure Code Corp.-maintained fork**, based on [JVsup's fork](https://github.com/JVsup/redmine_more_previews) of the [original project by HugoHasenbein](https://github.com/HugoHasenbein/redmine_more_previews). It is not an official upstream release. The inherited license is **GNU GPL v2.0 or later**. General-purpose fixes can be proposed upstream separately.
@@ -29,7 +29,7 @@ Select which converters, file types, and output formats to enable in the plugin 
 | --- | --- |
 | **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5**. For PDF previews with Maggie / Peek, use **6.0.10 / 6.1.3 or later**; see [Converter details](#converter-details) |
 | **Ruby** | 3.3.x verified (CI: **3.3.8**); other Ruby versions have not been verified |
-| **Plugin release** | **6.1.5** |
+| **Plugin release** | **6.1.6** |
 | **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork`, and its memory monitoring needs Linux `/proc` support |
 
 Redmine 7 is **not yet verified** by this fork. Support for a Redmine release does not imply that every optional converter is available on every operating system.
@@ -42,7 +42,7 @@ From the Redmine installation directory, install the maintained release into `pl
 
 ```bash
 cd /path/to/redmine
-git clone --branch v6.1.5 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
+git clone --branch v6.1.6 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
 bundle install
 ```
 
@@ -50,7 +50,7 @@ Install the external programs needed by the **converters you intend to enable** 
 
 ### Upgrade an existing installation
 
-Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.5` tag, so its checkout has a **detached HEAD**, not a `main` branch.
+Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.6` tag, so its checkout has a **detached HEAD**, not a `main` branch.
 
 **Before fetching**, check which repository `origin` points to:
 
@@ -66,11 +66,11 @@ If migrating from the original upstream or JVsup fork, change `origin` **before*
 git -C plugins/redmine_more_previews remote set-url origin https://github.com/curecodejp/redmine_more_previews.git
 ```
 
-Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.4):
+Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.5):
 
 ```bash
 git -C plugins/redmine_more_previews fetch --tags origin
-git -C plugins/redmine_more_previews switch --detach v6.1.5
+git -C plugins/redmine_more_previews switch --detach v6.1.6
 bundle install
 ```
 
@@ -84,7 +84,7 @@ Do not run `git pull origin main` from a tag checkout: that moves the detached c
 - **6.1.2 or earlier, including older upstream/JVsup builds:** Read the **6.1.3 Upgrade precaution** in the [Change-Log](#change-log). If converter debug mode was ever enabled, stop Redmine and preview workers and carefully clear the *plugin's actual preview cache directory* before restarting, because old diagnostic files may still contain sensitive data. The routine age-based cache task does not immediately remove all such files. Verify the directory path before deletion.
 - **Libre enabled:** Review the [Linux `bubblewrap` sandbox requirements](#libre-converter-sandbox); conversion fails closed without a working sandbox.
 
-Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.5** under *Administration → Plugins*.
+Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.6** under *Administration → Plugins*.
 
 ### Configure and enable
 
@@ -271,6 +271,14 @@ NilText is a development and diagnostics converter for understanding the plugin'
 Native speakers: please help to improve localizations
 
 ## Change-Log
+
+**6.1.6**
+
+- Inline previews: HTML larger than 256 KiB is not sanitized, cached or embedded in the page; the page shows a size notice instead. Previews cached by earlier versions are checked against the same limit when they are read.
+- Cliff: the email header, field and attachment fragments embedded in a page are limited to 256 KiB each. An oversized fragment shows the size notice on the page and answers `413` when requested directly, also to a conditional request for a fragment cached by an earlier version.
+- Cliff: keep the email headers, fields and attachment list in their boxes when an email is converted without the cache (cache disabled or full, an administrator's reload, another language), and show the size notice instead of replacing the attachment or repository page with `413` when an email is beyond Cliff's limits.
+- Clarify the welcome text and the Teddie converter description, improve the README for Redmine 6.0/6.1 users, and add an opt-in benchmark script for the inline sanitizer (`scripts/benchmark_inline_preview.rb`).
+- Cliff 1.1.5.
 
 **6.1.5**
 
@@ -501,7 +509,7 @@ The number of conversions is counted with `flock` on the lock files. With many u
 
 A reverse proxy in front of Redmine often gives up after 60 seconds. A first conversion that takes longer, f.i. a large office document converted by Libre, then shows an error in the browser while the conversion finishes and is cached; the next view shows it. Raise the proxy's timeout to the time limit to avoid this.
 
-A preview is served from memory: one larger than 100 MiB is answered with `413`. A request holds the preview it serves, converted or cached, until it is sent, and the number of conversions does not bound requests for cached previews: a server may need this limit times the number of requests it serves at the same time (processes times threads, f.i. of Passenger or Puma). Where memory is short, lower the limit or the number of processes and threads. When the whole cache has grown beyond 10 GiB, new previews are converted for each request and not stored; the size of the cache is added up again at most every 10 minutes. Both limits are settings.
+A preview is served from memory: one larger than 100 MiB is answered with `413`. A preview shown inline in the page (the `inline` format, and the email headers, fields and attachment list Cliff adds above an email) is limited to 256 KiB, because Rails sanitizes it in the Redmine process, outside the limits of a conversion: a larger one shows a size notice in the page instead, and a Cliff fragment requested directly is answered with `413`. This limit is not a setting. A request holds the preview it serves, converted or cached, until it is sent, and the number of conversions does not bound requests for cached previews: a server may need this limit times the number of requests it serves at the same time (processes times threads, f.i. of Passenger or Puma). Where memory is short, lower the limit or the number of processes and threads. When the whole cache has grown beyond 10 GiB, new previews are converted for each request and not stored; the size of the cache is added up again at most every 10 minutes. Both limits are settings.
 
 A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. An asset that the cached preview does not offer (a name not in the list of an archive, or a file not among the assets stored with a preview) is answered with `404` without converting, and its failure is not remembered: only the failures of assets known to exist are. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown. A preview shown inline in the page of a file ignores the unsafe parameter for administrators as well.
 

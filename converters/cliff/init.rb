@@ -41,6 +41,9 @@
 #       - preview emails attached without a file extension
 #       - reuse the cached email headers on attachment and repository pages
 #       - remove the unused legacy hooks and duplicate templates
+# 1.1.5
+#       - keep the header fragments in their boxes when converted without the cache
+#       - show an inline size notice instead of a 413 page for emails beyond the limits
 #
 
 require_relative 'lib/cliff'
@@ -50,7 +53,7 @@ RedmineMorePreviews::Converter.register :cliff do
   name           'Cliff'
   author         'Stephan Wenzel'
   description    'Preview email files in preview pane'
-  version        '1.1.4'
+  version        '1.1.5'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
                  

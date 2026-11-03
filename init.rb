@@ -151,6 +151,9 @@
 #       - Parse and render vCards in a child process with a time and memory limit (GHSA-hm82-jvvw-hmg4)
 #       - Fix Cliff previews of extensionless mail attachments and reuse cached Cliff headers
 #       - Remove the unused legacy Cliff hooks and duplicate templates
+# 6.1.6
+#       - Limit inline preview HTML and embedded Cliff fragments to 256 KiB
+#       - Keep Cliff header fragments in place and the page shown on oversized mail
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -158,7 +161,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.5'
+  version      '6.1.6'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

@@ -136,7 +136,8 @@ module RedmineMorePreviews
             if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
               # A Cliff fragment cached before its size limit keeps its file and
               # mtime, hence its ETag: check it before a conditional request can
-              # answer 304. The fragments are small, other assets are not read.
+              # answer 304. The fragments are small; other assets (archive
+              # entries of the same name included) are not read first.
               if cliff_embedded_fragment_asset?
                 data = @attachment.more_asset(preview_params)
                 return render_404 if data.nil?

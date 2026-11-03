@@ -187,6 +187,10 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
 
   # Archive entries keep answering conditional requests without reading them.
   def test_conditional_get_of_an_archive_entry_stays_not_modified
+    # The first request answers with an ETag of the time before the entry is
+    # extracted; take the ETag once the extracted file is cached.
+    get :entry, params: entry_params(asset: 'dir/file.txt')
+    assert_response :success
     get :entry, params: entry_params(asset: 'dir/file.txt')
     assert_response :success
     etag = response.headers['ETag']
@@ -194,6 +198,22 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
 
     @request.if_none_match = etag
     get :entry, params: entry_params(asset: 'dir/file.txt')
+    assert_response :not_modified
+  end
+
+  # An archive entry named like a Cliff fragment is an ordinary asset, even when
+  # its content is the internal marker: served, and 304 when unchanged.
+  def test_archive_entry_named_like_a_cliff_fragment_is_an_ordinary_asset
+    marker = RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
+    build_zip(File.join(@repo_dir, 'a.zip'), 'fields.html' => marker)
+    get :entry, params: entry_params(asset: 'fields.html')
+    assert_response :success
+    get :entry, params: entry_params(asset: 'fields.html')
+    assert_response :success
+    assert_equal marker, response.body
+
+    @request.if_none_match = response.headers['ETag']
+    get :entry, params: entry_params(asset: 'fields.html')
     assert_response :not_modified
   end
 

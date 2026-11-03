@@ -229,7 +229,7 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'cached-mail-subject'
     assert_not_includes response.body, 'old header'
-    assert_equal 'cliff:maintenance-6.1.5-v1:normal', File.read("#{cache_dir}.converter")
+    assert_equal "cliff:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal", File.read("#{cache_dir}.converter")
   end
 
   WITH_ATTACHMENT = "From: writer@example.test\r\nTo: reader@example.test\r\nSubject: slot-mail-subject\r\n" \

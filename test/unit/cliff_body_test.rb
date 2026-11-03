@@ -22,7 +22,7 @@ class CliffBodyTest < ActiveSupport::TestCase
 
   def convert(mail_source)
     eml = File.join(@tmp, 'a.eml')
-    File.write(eml, mail_source)
+    File.binwrite(eml, mail_source)
     worker = RedmineMorePreviews::Converter.find(:cliff).worker(
       :preview_format => 'html', :object => {}, :target => File.join(@tmp, 'preview.html', 'index.html')
     )
@@ -98,6 +98,89 @@ class CliffBodyTest < ActiveSupport::TestCase
     html = convert(plain_message('body'))
     assert_not_includes html, 'bold'
     assert_equal I18n.translate(:"redmine_more_previews.cliff.text_not_previewed"), html
+  end
+
+  # The body of a part was shown in the charset of the email: only
+  # quoted-printable text was converted, and only in a multipart email.
+  # Japanese mail is mostly ISO-2022-JP or Shift_JIS, often base64 encoded.
+  JAPANESE = '日本語の本文です'
+  WESTERN  = 'café naïve'
+  CHARSETS = {
+    'ISO-2022-JP'  => [JAPANESE, %w(base64 7bit quoted-printable)],
+    'Shift_JIS'    => [JAPANESE, %w(base64 8bit quoted-printable)],
+    'Windows-1252' => [WESTERN,  %w(base64 8bit quoted-printable)],
+    'UTF-8'        => [JAPANESE, %w(base64 8bit quoted-printable)]
+  }.freeze
+
+  def encoded_message(type, charset, encoding, bytes, multipart: false)
+    body = case encoding
+           when 'base64' then [bytes].pack('m')
+           when 'quoted-printable' then [bytes].pack('M')
+           else bytes
+           end
+    part = "Content-Type: #{type}; charset=#{charset}\nContent-Transfer-Encoding: #{encoding}\n\n".b + body.b
+    head = "From: a@example.test\nTo: b@example.test\nSubject: s\nMIME-Version: 1.0\n".b
+    return head + part unless multipart
+
+    head + "Content-Type: multipart/mixed; boundary=XX\n\n--XX\n".b + part +
+      "\n--XX\nContent-Type: application/octet-stream; name=a.bin\nContent-Disposition: attachment; filename=a.bin\n" \
+      "Content-Transfer-Encoding: base64\n\nAAAA\n--XX--\n".b
+  end
+
+  def test_text_bodies_are_converted_from_their_charset
+    CHARSETS.each do |charset, (text, encodings)|
+      encodings.each do |encoding|
+        [false, true].each do |multipart|
+          html = convert(encoded_message('text/plain', charset, encoding, text.encode(charset).b, multipart: multipart))
+          assert_includes html, text, "#{charset} #{encoding} text, multipart: #{multipart}"
+        end
+      end
+    end
+  end
+
+  def test_html_bodies_are_converted_from_their_charset
+    CHARSETS.each do |charset, (text, encodings)|
+      encodings.each do |encoding|
+        html = convert(encoded_message('text/html', charset, encoding, "<p>#{text}</p>".encode(charset).b, multipart: true))
+        assert_includes html, text, "#{charset} #{encoding} html"
+      end
+    end
+  end
+
+  # the page is written in UTF-8: a charset of the email in the html must not
+  # remain, or the browser would read the page in it
+  def test_html_body_declares_utf8
+    source = '<html><head><meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
+             "<body><p>#{JAPANESE}</p></body></html>"
+    html = convert(encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b))
+    assert_includes html, JAPANESE
+    assert_match(/<meta[^>]*charset=UTF-8/i, html)
+    assert_no_match(/Shift_JIS/i, html)
+  end
+
+  # Japanese mail declared Shift_JIS or ISO-2022-JP mostly uses Microsoft's
+  # supersets of them
+  def test_japanese_bodies_keep_characters_of_microsofts_supersets
+    text = '①～髙'
+    assert_includes convert(encoded_message('text/plain', 'Shift_JIS', 'base64', text.encode('Windows-31J').b)), text
+    assert_includes convert(encoded_message('text/plain', 'ISO-2022-JP', '7bit', text.encode('CP50221').b)), text
+  end
+
+  # an email that is not UTF-8 is read as ISO-8859-1; an 8bit part gets its
+  # bytes back, a quoted-printable part beside it is not touched
+  def test_8bit_and_quoted_printable_parts_of_one_email
+    source = "From: a@example.test\nTo: b@example.test\nSubject: s\nMIME-Version: 1.0\n" \
+             "Content-Type: multipart/alternative; boundary=XX\n\n--XX\n" \
+             "Content-Type: text/plain; charset=Shift_JIS\nContent-Transfer-Encoding: 8bit\n\n".b +
+             JAPANESE.encode('Shift_JIS').b +
+             "\n--XX\nContent-Type: text/html; charset=UTF-8\nContent-Transfer-Encoding: quoted-printable\n\n".b +
+             ['<p>エイチティーエムエル版</p>'.b].pack('M') + "\n--XX--\n".b
+    assert_includes convert(source), 'エイチティーエムエル版'
+  end
+
+  def test_body_of_an_unknown_charset_is_shown
+    html = convert(encoded_message('text/plain', 'x-unknown', 'base64', 'unknown charset'.b))
+    assert_includes html, 'unknown charset'
   end
 
   def test_pre_contents_are_exactly_the_escaped_plain_text

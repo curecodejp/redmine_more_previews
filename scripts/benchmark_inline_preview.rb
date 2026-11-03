@@ -118,7 +118,7 @@ end
 
 puts JSON.generate(result.merge(
   output_bytes: output.bytesize,
-  seconds: seconds.round(4),
+  seconds: seconds.round(7),
   rss_before_kib: rss_before,
   rss_after_kib: rss_after,
   process_peak_rss_before_kib: hwm_before,

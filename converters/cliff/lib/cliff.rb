@@ -261,6 +261,7 @@ class Cliff < RedmineMorePreviews::Conversion
     'shift-jis' => 'Windows-31J', 'x-sjis' => 'Windows-31J', 'sjis' => 'Windows-31J',
     'iso-2022-jp' => 'CP50221'
   }.freeze
+  SEVEN_BIT_ENCODINGS = /\A(ISO-2022-|CP5022|UTF-7)/i
   META_CHARSET = /<meta[^>]*charset\s*=\s*["']?([A-Za-z0-9_.:-]+)/i
   # the <meta> charset is looked for in the head of the html only, as browsers
   # do: the pattern would take quadratic time on a long body of '<meta' alone
@@ -296,7 +297,17 @@ class Cliff < RedmineMorePreviews::Conversion
     charset = CHARSET_SUPERSETS.fetch( charset.downcase.tr( '_', '-' ), charset )
     # Mail takes a charset it does not know for binary and replaces every byte
     # that is not ASCII
-    return nil if Mail::Utilities.pick_encoding( charset ) == Encoding::BINARY
+    encoding = Mail::Utilities.pick_encoding( charset )
+    return nil if encoding == Encoding::BINARY
+    # it also replaces the bytes that are not valid in the charset, as in a
+    # UTF-8 body declared US-ASCII. Ruby cannot validate a dummy encoding: the
+    # stateful ISO-2022 ones (CP50221 too) and UTF-7 are 7 bit, the others
+    # (UTF-16, UTF-32) are left to Mail
+    valid = if !encoding.dummy? then bytes.dup.force_encoding( encoding ).valid_encoding?
+            elsif encoding.name =~ SEVEN_BIT_ENCODINGS then bytes.ascii_only?
+            else true
+            end
+    return nil unless valid
     text = Mail::Encodings.transcode_charset( bytes, charset, 'UTF-8' )
     text if text.valid_encoding?
   rescue Encoding::ConverterNotFoundError, ArgumentError

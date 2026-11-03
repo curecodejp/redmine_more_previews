@@ -202,6 +202,19 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes html, "unknown charset #{JAPANESE}"
   end
 
+  # Mail also replaces the bytes that are not valid in a charset it knows: a
+  # body the charset does not fit is guessed too
+  def test_body_of_a_wrong_charset_is_shown
+    { 'US-ASCII' => '8bit', 'ISO-2022-JP' => '8bit', 'Shift_JIS' => 'base64' }.each do |charset, encoding|
+      [['text/plain', JAPANESE], ['text/html', "<p>#{JAPANESE}</p>"]].each do |type, body|
+        [false, true].each do |multipart|
+          html = convert(encoded_message(type, charset, encoding, body.b, multipart: multipart))
+          assert_includes html, JAPANESE, "UTF-8 #{type} declared #{charset}, multipart: #{multipart}"
+        end
+      end
+    end
+  end
+
   # an html part without a charset in its Content-Type often declares it in
   # the html itself
   def test_html_body_without_a_charset_uses_its_meta_charset

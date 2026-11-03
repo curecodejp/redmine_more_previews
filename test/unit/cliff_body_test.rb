@@ -177,7 +177,9 @@ class CliffBodyTest < ActiveSupport::TestCase
   # supersets of them
   def test_japanese_bodies_keep_characters_of_microsofts_supersets
     text = '①～髙'
-    assert_includes convert(encoded_message('text/plain', 'Shift_JIS', 'base64', text.encode('Windows-31J').b)), text
+    %w(Shift_JIS shift-jis).each do |label|
+      assert_includes convert(encoded_message('text/plain', label, 'base64', text.encode('Windows-31J').b)), text, label
+    end
     assert_includes convert(encoded_message('text/plain', 'ISO-2022-JP', '7bit', text.encode('CP50221').b)), text
   end
 

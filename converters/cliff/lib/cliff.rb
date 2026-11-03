@@ -256,12 +256,15 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   # Japanese mail declared as Shift_JIS or ISO-2022-JP is mostly written in
   # Microsoft's supersets, with characters such as ① or 髙 the strict charsets
-  # do not have
+  # do not have. Keys are lower case with '-' for '_' (Shift_JIS, shift-jis)
   CHARSET_SUPERSETS = {
-    'shift_jis' => 'Windows-31J', 'x-sjis' => 'Windows-31J', 'sjis' => 'Windows-31J',
+    'shift-jis' => 'Windows-31J', 'x-sjis' => 'Windows-31J', 'sjis' => 'Windows-31J',
     'iso-2022-jp' => 'CP50221'
   }.freeze
   META_CHARSET = /<meta[^>]*charset\s*=\s*["']?([A-Za-z0-9_.:-]+)/i
+  # the <meta> charset is looked for in the head of the html only, as browsers
+  # do: the pattern would take quadratic time on a long body of '<meta' alone
+  META_PRESCAN  = 4096
 
   # The text of a text/plain or text/html part in UTF-8: the transfer encoding
   # (base64, quoted-printable, 7bit, 8bit) is undone, then the charset of the
@@ -277,19 +280,20 @@ class Cliff < RedmineMorePreviews::Conversion
     end
     bytes = bytes.b
     # an html part without a charset may declare one in its <meta>
-    charset = part.charset.presence || ( bytes[META_CHARSET, 1] if html )
+    charset = part.charset.presence || ( bytes[0, META_PRESCAN][META_CHARSET, 1] if html )
     text    = transcoded( bytes, charset ) || RmpText.to_utf8( bytes )
     text    = text.scrub( '?' )
     # the page is written in UTF-8, with or without the sweep (unsafe): so must
     # the html declare it
-    html ? text.gsub( META_CHARSET ) { $&.sub( /[A-Za-z0-9_.:-]+\z/, 'UTF-8' ) } : text
+    return text unless html
+    text[0, META_PRESCAN].gsub( META_CHARSET ) { $&.sub( /[A-Za-z0-9_.:-]+\z/, 'UTF-8' ) } + text[META_PRESCAN..].to_s
   end #def
   private :decoded_body
   
   # bytes in charset converted to UTF-8, nil for a charset Ruby does not know
   def transcoded( bytes, charset )
     return nil unless charset
-    charset = CHARSET_SUPERSETS.fetch( charset.downcase, charset )
+    charset = CHARSET_SUPERSETS.fetch( charset.downcase.tr( '_', '-' ), charset )
     # Mail takes a charset it does not know for binary and replaces every byte
     # that is not ASCII
     return nil if Mail::Utilities.pick_encoding( charset ) == Encoding::BINARY

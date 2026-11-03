@@ -109,4 +109,42 @@ class CliffRepositoryCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'repo-cache-subject'
   end
+
+  WITH_ATTACHMENT = "From: writer@example.test\r\nTo: reader@example.test\r\nSubject: slot-mail-subject\r\n" \
+                    "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n" \
+                    "--b\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nslot mail body\r\n" \
+                    "--b\r\nContent-Type: text/plain; name=slot-attached.txt\r\n" \
+                    "Content-Disposition: attachment; filename=slot-attached.txt\r\n\r\nattached\r\n--b--\r\n"
+
+  def test_transient_repository_fragments_keep_their_boxes
+    File.binwrite(File.join(@repo_dir, 'slot.eml'), WITH_ATTACHMENT)
+    settings = Setting.plugin_redmine_more_previews.deep_dup
+    settings['cache_previews'] = '0'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    get :entry, params: {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
+                         path: repository_path_hash(['slot.eml'])[:param]}
+    assert_response :success
+    boxes = css_select('#preview_repository_entry_top div.box')
+    assert_equal 3, boxes.size, response.body
+    headers, fields, attachments = boxes
+    assert headers.at_css('table.white'), 'headers.html belongs in the first box'
+    assert fields.at_css('table.email.header_fields'), 'fields.html belongs in the collapsed box'
+    assert_match(/display:\s*none/, fields['style'].to_s)
+    assert_includes attachments.text, 'slot-attached.txt'
+  end
+
+  def test_email_beyond_limits_keeps_the_repository_entry_page
+    parts = (1..1100).map { |i| "--b\r\nContent-Type: text/plain\r\n\r\npart #{i}\r\n" }.join
+    File.binwrite(File.join(@repo_dir, 'many-parts.eml'),
+      "From: writer@example.test\r\nSubject: many parts\r\nMIME-Version: 1.0\r\n" \
+      "Content-Type: multipart/mixed; boundary=b\r\n\r\n#{parts}--b--\r\n")
+
+    get :entry, params: {id: PROJECT_ID, repository_id: @repository.id, format: 'html',
+                         path: repository_path_hash(['many-parts.eml'])[:param]}
+    assert_response :success
+    assert_equal 1, response.body.scan(I18n.t(:text_more_previews_inline_too_large)).length
+    assert_select 'iframe#preview_frame[src*="many-parts.eml"]'
+  end
 end

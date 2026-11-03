@@ -246,6 +246,16 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
   end
 
+  # each <meta> charset tried converts the whole body: the labels of one
+  # encoding count once, and only the first few are tried
+  def test_html_body_tries_each_encoding_of_its_meta_once
+    source = '<html><head>' + %w(utf-8 UTF-8 utf8 UTF_8).map { |c| %(<meta charset="#{c}">) }.join +
+             '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
+             "<body><p>#{JAPANESE}</p></body></html>"
+    raw = encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b)
+    assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
+  end
+
   # ISO-2022-JP is 7 bit: a broken escape is not replaced by U+FFFD, the body
   # is guessed and its text kept
   def test_iso_2022_jp_body_with_a_broken_escape_is_shown

@@ -266,6 +266,9 @@ class Cliff < RedmineMorePreviews::Conversion
   # do: the pattern would take quadratic time on a long body of '<meta' alone
   META_PRESCAN  = 4096
   HTML_COMMENT  = /<!--.*?(?:-->|\z)/m
+  # each candidate converts the whole body: a prescan full of <meta> must not
+  # multiply that work
+  META_CANDIDATES = 3
 
   # The text of a text/plain or text/html part in UTF-8: the transfer encoding
   # (base64, quoted-printable, 7bit, 8bit) is undone, then the charset of the
@@ -285,7 +288,9 @@ class Cliff < RedmineMorePreviews::Conversion
     # '<meta' in a script or an attribute: the first charset the body is valid
     # in is taken
     charsets = if part.charset.present? then [part.charset]
-               elsif html then bytes[0, META_PRESCAN].gsub( HTML_COMMENT, '' ).scan( META_CHARSET ).flatten.uniq
+               elsif html
+                 bytes[0, META_PRESCAN].gsub( HTML_COMMENT, '' ).scan( META_CHARSET ).flatten.
+                   uniq { |charset| source_encoding( charset ) }.first( META_CANDIDATES )
                else []
                end
     text = charsets.lazy.filter_map { |charset| transcoded( bytes, charset ) }.first || RmpText.to_utf8( bytes )
@@ -302,9 +307,7 @@ class Cliff < RedmineMorePreviews::Conversion
   # ISO-2022-JP escape), which are guessed instead. Mail::Encodings.transcode_charset
   # would replace those bytes, and take an unknown charset for binary.
   def transcoded( bytes, charset )
-    charset  = CHARSET_SUPERSETS.fetch( charset.downcase.tr( '_', '-' ), charset )
-    # Mail's names for charsets (utf8, ks_c_5601-1987, ...)
-    encoding = Mail::Utilities.pick_encoding( charset )
+    encoding = source_encoding( charset )
     return nil if encoding == Encoding::BINARY
     # encode does not check a UTF-8 source, which it leaves as it is
     text = bytes.dup.force_encoding( encoding ).encode( Encoding::UTF_8 )
@@ -313,6 +316,13 @@ class Cliff < RedmineMorePreviews::Conversion
     nil
   end #def
   private :transcoded
+
+  # the encoding of a charset label, by Mail's names for charsets (utf8,
+  # ks_c_5601-1987, ...); BINARY for a label it does not know
+  def source_encoding( charset )
+    Mail::Utilities.pick_encoding( CHARSET_SUPERSETS.fetch( charset.downcase.tr( '_', '-' ), charset ) )
+  end #def
+  private :source_encoding
   
   #---------------------------------------------------------------------------------------
   # save_attachments

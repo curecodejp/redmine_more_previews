@@ -64,6 +64,37 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_response 413
   end
 
+  # A fragment cached (and fetched) before the limit existed keeps its file
+  # and mtime, hence its ETag: a browser revalidating it must still get 413.
+  def test_conditional_get_of_an_oversized_cached_fragment_answers_413
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    fields_path = @attachment.preview_assetpath(asset: 'fields.html')
+    mtime = File.mtime(fields_path)
+
+    get :more_asset, params: {id: @attachment.id, asset: 'fields', assetformat: 'html'}
+    assert_response :success
+    etag = response.headers['ETag']
+    assert etag.present?
+
+    File.binwrite(fields_path, 'x' * (RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES + 1))
+    File.utime(mtime, mtime, fields_path)
+    @request.if_none_match = etag
+    get :more_asset, params: {id: @attachment.id, asset: 'fields', assetformat: 'html'}
+    assert_response 413
+  end
+
+  def test_conditional_get_of_a_regular_fragment_stays_not_modified
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    get :more_asset, params: {id: @attachment.id, asset: 'fields', assetformat: 'html'}
+    assert_response :success
+
+    @request.if_none_match = response.headers['ETag']
+    get :more_asset, params: {id: @attachment.id, asset: 'fields', assetformat: 'html'}
+    assert_response :not_modified
+  end
+
   def test_transient_fragment_marker_stays_local_to_attachment_preview
     settings = Setting.plugin_redmine_more_previews.deep_dup
     settings['cache_previews'] = '0'

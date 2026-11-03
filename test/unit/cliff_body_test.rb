@@ -237,13 +237,20 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
   end
 
-  # nor does a '<meta' in a script, which the pattern finds too
-  def test_html_body_without_a_charset_skips_a_meta_in_a_script
-    source = '<html><head><script>var s = "<meta charset=UTF-8>";</script>' \
-             '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
-             "<body><p>#{JAPANESE}</p></body></html>"
-    raw = encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b)
-    assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
+  # nor does a '<meta' in a script or in an attribute value. ISO-8859-1 takes
+  # every byte: validity alone could not reject it
+  def test_html_body_without_a_charset_skips_a_meta_in_a_script_or_an_attribute
+    ['<script>var s = "<meta charset=ISO-8859-1>";</script>',
+     '<style>/* <meta charset=ISO-8859-1> */</style>',
+     '<link title="<meta charset=ISO-8859-1>">'].each do |decoy|
+      source = "<html><head>#{decoy}" \
+               '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
+               "<body><p>#{JAPANESE}</p></body></html>"
+      raw = encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b)
+      html = convert(raw.sub('; charset=Shift_JIS'.b, ''.b), unsafe: true)
+      assert_includes html, JAPANESE, decoy
+      assert_includes html, decoy, 'only the <meta> declaring the charset is rewritten'
+    end
   end
 
   # each <meta> charset tried converts the whole body: the labels of one

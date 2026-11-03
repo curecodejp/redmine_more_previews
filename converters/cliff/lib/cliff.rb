@@ -261,11 +261,18 @@ class Cliff < RedmineMorePreviews::Conversion
     'shift-jis' => 'Windows-31J', 'x-sjis' => 'Windows-31J', 'sjis' => 'Windows-31J',
     'iso-2022-jp' => 'CP50221'
   }.freeze
-  META_CHARSET = /<meta[^>]*charset\s*=\s*["']?([A-Za-z0-9_.:-]+)/i
+  # the html is read token by token, as the browser's prescan does: a '<meta'
+  # in a comment, a script or an attribute value is not a <meta>
+  HTML_TOKEN = %r{
+      <!--.*?(?:-->|\z)
+    | <(script|style|textarea|title|xmp|iframe|noembed|noframes|noscript)\b(?:[^>"']|"[^"]*"|'[^']*')*>.*?(?:</\1\s*>|\z)
+    | <meta\b((?:[^>"']|"[^"]*"|'[^']*')*)>
+    | <[!/?a-z](?:[^>"']|"[^"]*"|'[^']*')*>
+  }mix
+  META_CHARSET = /(charset\s*=\s*["']?)([A-Za-z0-9_.:-]+)/i
   # the <meta> charset is looked for in the head of the html only, as browsers
   # do: the pattern would take quadratic time on a long body of '<meta' alone
   META_PRESCAN  = 4096
-  HTML_COMMENT  = /<!--.*?(?:-->|\z)/m
   # each candidate converts the whole body: a prescan full of <meta> must not
   # multiply that work
   META_CANDIDATES = 3
@@ -283,13 +290,11 @@ class Cliff < RedmineMorePreviews::Conversion
       bytes = bytes.dup.force_encoding( Encoding::UTF_8 ).encode( Encoding::ISO_8859_1 )
     end
     bytes = bytes.b
-    # an html part without a charset may declare one in its <meta>; a <meta>
-    # in a comment does not count, as in the browser. The pattern also finds
-    # '<meta' in a script or an attribute: the first charset the body is valid
-    # in is taken
+    # an html part without a charset may declare one in its <meta>: the first
+    # charset the body is valid in is taken
     charsets = if part.charset.present? then [part.charset]
                elsif html
-                 bytes[0, META_PRESCAN].gsub( HTML_COMMENT, '' ).scan( META_CHARSET ).flatten.
+                 meta_charsets( bytes[0, META_PRESCAN] ).
                    uniq { |charset| source_encoding( charset ) }.first( META_CANDIDATES )
                else []
                end
@@ -298,10 +303,16 @@ class Cliff < RedmineMorePreviews::Conversion
     # the page is written in UTF-8, with or without the sweep (unsafe): so must
     # the html declare it
     return text unless html
-    text[0, META_PRESCAN].gsub( META_CHARSET ) { $&.sub( /[A-Za-z0-9_.:-]+\z/, 'UTF-8' ) } + text[META_PRESCAN..].to_s
+    text[0, META_PRESCAN].gsub( HTML_TOKEN ) { $2 ? $&.sub( META_CHARSET, '\\1UTF-8' ) : $& } + text[META_PRESCAN..].to_s
   end #def
   private :decoded_body
   
+  # the charsets the <meta> tags in html declare
+  def meta_charsets( html )
+    html.scan( HTML_TOKEN ).filter_map { |_raw, meta| meta[META_CHARSET, 2] if meta }
+  end #def
+  private :meta_charsets
+
   # bytes in charset converted to UTF-8; nil for a charset Ruby does not know
   # or bytes the charset does not fit (a UTF-8 body declared US-ASCII, a broken
   # ISO-2022-JP escape), which are guessed instead. Mail::Encodings.transcode_charset

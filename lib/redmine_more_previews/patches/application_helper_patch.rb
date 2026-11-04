@@ -196,7 +196,14 @@ module RedmineMorePreviews
             end
 
             sanitizer = defined?(Rails::HTML5::SafeListSanitizer) ? Rails::HTML5::SafeListSanitizer : Rails::HTML::SafeListSanitizer
-            sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s.html_safe
+            begin
+              sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s.html_safe
+            rescue ArgumentError => e
+              # The HTML5 parser refuses markup over its tree depth and attribute
+              # limits by raising. Keep the page and never fall back to the input.
+              Rails.logger.warn("Inline preview not sanitized: #{e.message}")
+              ERB::Util.html_escape(l(:text_more_previews_inline_too_complex)).html_safe
+            end
           end #def
 
           def more_previews_tag(path, filename, options={})

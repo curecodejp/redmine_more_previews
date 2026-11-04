@@ -192,6 +192,30 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     assert_includes output, I18n.t(:text_more_previews_inline_too_large)
   end
 
+  # the parser refuses these with an exception; small input must not fail the page
+  def test_inline_preview_shows_a_notice_for_nesting_over_the_parser_limit
+    output = sanitize('<script>alert(1)</script>' + '<div>' * 500 + 'x' + '</div>' * 500)
+
+    assert_equal ERB::Util.html_escape(I18n.t(:text_more_previews_inline_too_complex)), output
+    assert output.html_safe?
+  end
+
+  def test_inline_preview_shows_a_notice_for_attributes_over_the_parser_limit
+    attributes = (0...500).map { |i| %(a#{i}="1") }.join(' ')
+    output = sanitize("<script>alert(1)</script><span #{attributes}>x</span>")
+
+    assert_equal ERB::Util.html_escape(I18n.t(:text_more_previews_inline_too_complex)), output
+    assert output.html_safe?
+  end
+
+  def test_inline_preview_still_sanitizes_nesting_below_the_parser_limit
+    output = sanitize('<script>alert(1)</script>' + '<div>' * 300 + 'x' + '</div>' * 300)
+
+    assert_includes output, '<div>'
+    assert_not_includes output, '<script>'
+    assert_not_includes output, I18n.t(:text_more_previews_inline_too_complex)
+  end
+
   def test_inline_preview_still_strips_scripts_below_limit
     output = sanitize('<p>safe</p><script>alert(1)</script>')
 

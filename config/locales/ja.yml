@@ -59,3 +59,4 @@ ja:
   text_help_redmine_more_previews_absolute:                "<iframe>タグまたは<embed>タグのための（スキームとホストを含むURLを使用する"
 
   text_more_previews_inline_too_large: "インラインプレビューのサイズ上限を超えました。ファイルをダウンロードして確認してください。"
+  text_more_previews_inline_too_complex: "インラインプレビューの構造が複雑すぎるため表示できません。ファイルをダウンロードして確認してください。"

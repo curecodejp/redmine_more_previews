@@ -25,8 +25,16 @@ module RedmineMorePreviews
     module ApplicationHelperPatch
 
       # Sanitization runs in the Rails worker, outside converter subprocess limits.
-      # Provisional threshold pending representative load tests.
       MAX_INLINE_PREVIEW_HTML_BYTES = 256 * 1024
+
+      # Sanitizing input near the limit can take seconds, and every page view
+      # would repeat it. The results stay in the process on purpose: Rails.cache
+      # defaults to a file store with no size limit, and the preview storage is
+      # written by converters. Restarting after an update also empties this, so
+      # a fixed scrubber can never be served results of the old one.
+      INLINE_PREVIEW_CACHE = ActiveSupport::Cache::MemoryStore.new(
+        :size => 32 * 1024 * 1024, :expires_in => 1.hour
+      )
 
       # Allow-list scrubber for converter output that is embedded directly
       # into the Redmine page (preview_format = inline). Converter input is
@@ -195,15 +203,29 @@ module RedmineMorePreviews
               return ERB::Util.html_escape(l(:text_more_previews_inline_too_large)).html_safe
             end
 
-            sanitizer = defined?(Rails::HTML5::SafeListSanitizer) ? Rails::HTML5::SafeListSanitizer : Rails::HTML::SafeListSanitizer
             begin
-              sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s.html_safe
+              # keyed on the content, so query parameters cannot bypass the cache
+              # (the scrubber's result depends on the sub-URI as well). A preview
+              # cache disabled by the administrator means nothing is kept here too.
+              if RedmineMorePreviews::Converter.cache_previews?
+                key = "#{Redmine::Utils.relative_url_root}:#{Digest::SHA256.hexdigest(html)}"
+                RedmineMorePreviews::Patches::ApplicationHelperPatch::INLINE_PREVIEW_CACHE.fetch(key) do
+                  sanitize_inline_preview_html(html)
+                end.html_safe
+              else
+                sanitize_inline_preview_html(html).html_safe
+              end
             rescue ArgumentError => e
               # The HTML5 parser refuses markup over its tree depth and attribute
               # limits by raising. Keep the page and never fall back to the input.
               Rails.logger.warn("Inline preview not sanitized: #{e.message}")
               ERB::Util.html_escape(l(:text_more_previews_inline_too_complex)).html_safe
             end
+          end #def
+
+          def sanitize_inline_preview_html(html)
+            sanitizer = defined?(Rails::HTML5::SafeListSanitizer) ? Rails::HTML5::SafeListSanitizer : Rails::HTML::SafeListSanitizer
+            sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s
           end #def
 
           def more_previews_tag(path, filename, options={})

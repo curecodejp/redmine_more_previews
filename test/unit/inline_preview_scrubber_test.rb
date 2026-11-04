@@ -5,6 +5,11 @@ require 'cgi'
 require 'nokogiri'
 
 class InlinePreviewScrubberTest < ActiveSupport::TestCase
+  def setup
+    RedmineMorePreviews::Patches::ApplicationHelperPatch::INLINE_PREVIEW_CACHE.clear
+    RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(true)
+  end
+
   def test_external_protocol_relative_and_backslash_sources_are_removed
     ['https://evil.example/t.png', '//evil.example/t.png', '/\evil.example/t.png'].each do |src|
       assert_nil img_src(src), src.inspect
@@ -216,6 +221,42 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     assert_not_includes output, I18n.t(:text_more_previews_inline_too_complex)
   end
 
+  def test_inline_preview_sanitizes_identical_html_only_once
+    html = '<p>cached</p><script>alert(1)</script>'
+    first = with_real_sanitizer_count { sanitize(html) }
+    second = with_real_sanitizer_count { sanitize(html) }
+
+    assert_equal [1, 0], [first.last, second.last]
+    assert_equal '<p>cached</p>', second.first
+    assert second.first.html_safe?
+  end
+
+  def test_inline_preview_cache_does_not_mix_up_different_html
+    assert_equal '<p>one</p>', sanitize('<p>one</p><script>alert(1)</script>')
+    assert_equal '<p>two</p>', sanitize('<p>two</p><script>alert(2)</script>')
+  end
+
+  def test_inline_preview_cache_is_kept_apart_per_sub_uri
+    html = '<link rel="stylesheet" href="/redmine/plugin_assets/redmine_more_previews/a.css">'
+
+    Redmine::Utils.stubs(:relative_url_root).returns('/redmine')
+    assert_includes sanitize(html), '<link'
+    Redmine::Utils.stubs(:relative_url_root).returns('')
+    assert_not_includes sanitize(html), '<link'
+  end
+
+  def test_inline_preview_is_not_cached_when_the_preview_cache_is_disabled
+    RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+    html = '<p>never kept</p>'
+    2.times { assert_equal [html, 1], with_real_sanitizer_count { sanitize(html) } }
+  end
+
+  def test_inline_preview_does_not_cache_parser_limit_failures
+    html = '<div>' * 500 + 'x' + '</div>' * 500
+    notice = ERB::Util.html_escape(I18n.t(:text_more_previews_inline_too_complex))
+    2.times { assert_equal [notice, 1], with_real_sanitizer_count { sanitize(html) } }
+  end
+
   def test_inline_preview_still_strips_scripts_below_limit
     output = sanitize('<p>safe</p><script>alert(1)</script>')
 
@@ -230,6 +271,20 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     helper = Object.new
     helper.extend(ApplicationHelper)
     helper.sanitize_inline_preview(html)
+  end
+
+  # [the block's result, how many times the html was really sanitized]
+  def with_real_sanitizer_count
+    scrubber = RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber
+    original = scrubber.method(:new)
+    count = 0
+    scrubber.define_singleton_method(:new) do |*args|
+      count += 1
+      original.call(*args)
+    end
+    [yield, count]
+  ensure
+    scrubber.singleton_class.send(:remove_method, :new)
   end
 
   def img_node(src)

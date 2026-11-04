@@ -30,6 +30,48 @@ cases = {
     fragment: '<span class="entry"><b>sample</b></span><script>ignored</script>',
     default_repetitions: 5000, elements_per_repetition: 3, text_nodes_per_repetition: 2,
     expected_path: 'limit_rejection'
+  },
+  # Nested below Nokogiri's default HTML5 tree depth limit (400).
+  'deep' => {
+    fragment: '<div>', closing_fragment: '</div>',
+    default_repetitions: 390, elements_per_repetition: 1, text_nodes_per_repetition: 0,
+    expected_path: 'sanitizer'
+  },
+  # Nested above that limit, still far below the size limit.
+  'deep_over_parser_limit' => {
+    fragment: '<div>', closing_fragment: '</div>',
+    default_repetitions: 5000, elements_per_repetition: 1, text_nodes_per_repetition: 0,
+    expected_path: 'sanitizer'
+  },
+  # Forty attributes per element, all of which the scrubber has to remove.
+  'attrs' => {
+    fragment: "<span #{(0...40).map { |i| %(a#{i}="1") }.join(' ')}>x</span>",
+    default_repetitions: 700, elements_per_repetition: 1, text_nodes_per_repetition: 1,
+    expected_path: 'sanitizer'
+  },
+  # One element above Nokogiri's default limit of 400 attributes per element.
+  'attrs_over_parser_limit' => {
+    fragment: "<span #{(0...500).map { |i| %(a#{i}="1") }.join(' ')}>x</span>",
+    default_repetitions: 1, elements_per_repetition: 1, text_nodes_per_repetition: 1,
+    expected_path: 'sanitizer'
+  },
+  # Every style attribute goes through Loofah's CSS scrubbing.
+  'style' => {
+    fragment: '<span style="color:red;font-size:1px">x</span>',
+    default_repetitions: 5000, elements_per_repetition: 1, text_nodes_per_repetition: 1,
+    expected_path: 'sanitizer'
+  },
+  # One style attribute holding nearly all of the input.
+  'style_long' => {
+    fragment: "<span style=\"#{'color:red;' * 26_000}\">x</span>",
+    default_repetitions: 1, elements_per_repetition: 1, text_nodes_per_repetition: 1,
+    expected_path: 'sanitizer'
+  },
+  # Repeated subtrees just below the tree depth limit.
+  'deep_repeated' => {
+    fragment: '<div>' * 390 + '</div>' * 390,
+    default_repetitions: 60, elements_per_repetition: 390, text_nodes_per_repetition: 0,
+    expected_path: 'sanitizer'
   }
 }.freeze
 
@@ -38,8 +80,10 @@ abort "Unknown RMP_BENCH_PROFILE: #{profile.inspect}" unless cases.key?(profile)
 case_info = cases.fetch(profile)
 repetitions = Integer(ENV.fetch('RMP_BENCH_REPETITIONS', case_info[:default_repetitions].to_s), 10)
 abort 'RMP_BENCH_REPETITIONS must be between 1 and 20000' unless (1..20_000).cover?(repetitions)
+iterations = Integer(ENV.fetch('RMP_BENCH_ITERATIONS', '1'), 10)
+abort 'RMP_BENCH_ITERATIONS must be between 1 and 100' unless (1..100).cover?(iterations)
 
-html = '<div>' + case_info[:fragment] * repetitions + '</div>'
+html = '<div>' + case_info[:fragment] * repetitions + case_info[:closing_fragment].to_s * repetitions + '</div>'
 # These are counts of *source* nodes, not the nodes actually passed to the
 # sanitizer (especially in the limit-rejection case, which parses no HTML).
 source_elements = 1 + case_info[:elements_per_repetition] * repetitions
@@ -70,6 +114,7 @@ result = {
   profile: profile,
   expected_path: expected_path,
   repetitions: repetitions,
+  iterations: iterations,
   input_bytes: html.bytesize,
   limit_bytes: max_inline_bytes,
   input_element_nodes: source_elements,
@@ -105,11 +150,28 @@ helper.sanitize_inline_preview('<b>warm-up</b>')
 rss_before = process_memory_kib('VmRSS')
 hwm_before = process_memory_kib('VmHWM')
 output = nil
-seconds = Benchmark.realtime { output = helper.sanitize_inline_preview(html) }
-rss_after = process_memory_kib('VmRSS')
+error = nil
+# Sampled after every iteration to show whether repeated views of one preview
+# plateau or keep growing. RSS can only hint at this; it is not a leak check.
+seconds_each = []
+rss_after_each = []
+iterations.times do
+  seconds_each << Benchmark.realtime do
+    output = helper.sanitize_inline_preview(html)
+  rescue StandardError, SystemStackError => e
+    # The parser's own limits raise; a page render would fail the same way.
+    error = "#{e.class}: #{e.message}"
+  end
+  rss_after_each << process_memory_kib('VmRSS')
+  break if error
+end
+seconds = seconds_each.first
+rss_after = rss_after_each.first
 hwm_after = process_memory_kib('VmHWM')
 
-if expected_path == 'limit_rejection'
+if error
+  # Reported below: an exception is itself the result for this input.
+elsif expected_path == 'limit_rejection'
   abort 'The oversized preview did not return the size notice.' unless output.to_s == notice
 else
   abort 'The sanitizer case unexpectedly returned the size notice.' if output.to_s == notice
@@ -117,8 +179,11 @@ else
 end
 
 puts JSON.generate(result.merge(
-  output_bytes: output.bytesize,
+  output_bytes: output.to_s.bytesize,
+  error: error,
   seconds: seconds.round(7),
+  seconds_each: seconds_each.map { |value| value.round(7) },
+  rss_after_each_kib: rss_after_each,
   rss_before_kib: rss_before,
   rss_after_kib: rss_after,
   process_peak_rss_before_kib: hwm_before,

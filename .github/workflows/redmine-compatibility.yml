@@ -2,7 +2,7 @@ name: Redmine compatibility
 
 on:
   push:
-    branches: [main, experiment/inline-sanitizer-ci-benchmark]
+    branches: [main, experiment/inline-sanitizer-worst-cases]
   pull_request:
     branches: [main]
 
@@ -357,7 +357,7 @@ jobs:
       # parses a 4 MiB header in a child limited to 64 MiB; the memory of the
       # runner is logged every second
       - name: Run the Cliff memory limit test alone
-        if: ${{ github.ref != 'refs/heads/experiment/inline-sanitizer-ci-benchmark' }}
+        if: ${{ github.ref != 'refs/heads/experiment/inline-sanitizer-worst-cases' }}
         working-directory: redmine
         env:
           RAILS_ENV: test
@@ -375,25 +375,30 @@ jobs:
 
       # One-time experiment on disposable public GitHub-hosted runners.
       # Do not enable this benchmark on main or use real customer data.
-      - name: Measure inline sanitizer load (3 runs per profile)
-        if: ${{ github.ref == 'refs/heads/experiment/inline-sanitizer-ci-benchmark' }}
+      - name: Measure inline sanitizer load (3 runs per profile, 20 repeated views)
+        if: ${{ github.ref == 'refs/heads/experiment/inline-sanitizer-worst-cases' }}
         working-directory: redmine
-        timeout-minutes: 10
+        timeout-minutes: 25
         env:
           RAILS_ENV: test
         run: |
           set -eu
           bundle exec rake db:migrate
-          for profile in balanced dense reject; do
+          for profile in balanced dense reject deep deep_over_parser_limit attrs attrs_over_parser_limit style style_long deep_repeated; do
             for attempt in 1 2 3; do
               echo "RMP_BENCH_BEGIN profile=$profile attempt=$attempt"
               RMP_BENCH_PROFILE="$profile" bundle exec rails runner plugins/redmine_more_previews/scripts/benchmark_inline_preview.rb
               echo "RMP_BENCH_END profile=$profile attempt=$attempt"
             done
           done
+          for profile in balanced dense style style_long; do
+            echo "RMP_BENCH_BEGIN profile=$profile iterations=20"
+            RMP_BENCH_PROFILE="$profile" RMP_BENCH_ITERATIONS=20 bundle exec rails runner plugins/redmine_more_previews/scripts/benchmark_inline_preview.rb
+            echo "RMP_BENCH_END profile=$profile iterations=20"
+          done
 
       - name: Run plugin test files one by one
-        if: ${{ github.ref != 'refs/heads/experiment/inline-sanitizer-ci-benchmark' }}
+        if: ${{ github.ref != 'refs/heads/experiment/inline-sanitizer-worst-cases' }}
         working-directory: redmine
         env:
           RAILS_ENV: test
@@ -409,7 +414,7 @@ jobs:
           exit $failed
 
       - name: Run plugin test suite
-        if: ${{ github.ref != 'refs/heads/experiment/inline-sanitizer-ci-benchmark' }}
+        if: ${{ github.ref != 'refs/heads/experiment/inline-sanitizer-worst-cases' }}
         working-directory: redmine
         env:
           RAILS_ENV: test

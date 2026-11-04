@@ -45,3 +45,4 @@ zh:
   label_use_absolute_path:                                 "带有主机的URL"
   text_help_redmine_more_previews_absolute:                "使用带有方案和主机的URL）用于<iframe>-标签或<embed>-标签。"
   text_more_previews_inline_too_large: "内嵌预览超过大小限制。请下载文件查看。"
+  text_more_previews_inline_too_complex: "内嵌预览过于复杂，无法显示。请下载文件查看。"

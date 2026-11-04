@@ -58,3 +58,4 @@ en:
   label_use_absolute_path:                                 "URL with host"
   text_help_redmine_more_previews_absolute:                "(use URL with scheme and host) for <iframe>-tag or <embed>-tag."
   text_more_previews_inline_too_large: "Inline preview exceeds the size limit. Download the file to view it."
+  text_more_previews_inline_too_complex: "Inline preview is too complex to display. Download the file to view it."

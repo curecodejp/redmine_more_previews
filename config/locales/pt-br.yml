@@ -45,3 +45,4 @@ pt-BR:
   label_use_absolute_path:                                 "URL com host"
   text_help_redmine_more_previews_absolute:                "(usar URL com esquema e host) para <iframe>-tag ou <embed>-tag"
   text_more_previews_inline_too_large: "A pré-visualização excede o limite de tamanho. Baixe o arquivo para visualizá-lo."
+  text_more_previews_inline_too_complex: "A pré-visualização é complexa demais para ser exibida. Baixe o arquivo para visualizá-lo."

@@ -113,6 +113,19 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes response.body, 'file.txt'
   end
 
+  def test_inline_preview_over_the_parser_limit_preserves_repository_page
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    Repository::Filesystem.any_instance.stubs(:more_preview).returns('<div>' * 500 + 'x' + '</div>' * 500)
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_includes response.body, I18n.t(:text_more_previews_inline_too_complex)
+    assert_select 'h2'
+  end
+
   def test_oversized_inline_preview_preserves_repository_page
     settings = ZIPPY_SETTINGS.deep_dup
     settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'

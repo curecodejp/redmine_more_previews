@@ -64,6 +64,19 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  def test_inline_preview_over_the_parser_limit_preserves_attachment_page
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'deep.tar'), 'safe.txt' => 'safe'))
+      with_zippy_format('tar', 'inline') do
+        a.class.any_instance.stubs(:more_preview).returns('<div>' * 500 + 'x' + '</div>' * 500)
+        get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+        assert_response :success
+        assert_includes response.body, I18n.t(:text_more_previews_inline_too_complex)
+        assert_includes response.body, a.filename
+      end
+    end
+  end
+
   def test_oversized_inline_preview_preserves_attachment_page
     Dir.mktmpdir do |dir|
       a = attach(build_tar(File.join(dir, 'oversize.tar'), 'safe.txt' => 'safe'))

@@ -205,8 +205,9 @@ module RedmineMorePreviews
 
             begin
               # keyed on the content, so query parameters cannot bypass the cache
-              # (the scrubber's result depends on the sub-URI as well). A preview
-              # cache disabled by the administrator means nothing is kept here too.
+              # (the scrubber's result depends on the sub-URI as well). While the
+              # preview cache is disabled nothing new is kept; results stored
+              # before that are not read and expire on their own.
               if RedmineMorePreviews::Converter.cache_previews?
                 key = "#{Redmine::Utils.relative_url_root}:#{Digest::SHA256.hexdigest(html)}"
                 RedmineMorePreviews::Patches::ApplicationHelperPatch::INLINE_PREVIEW_CACHE.fetch(key) do

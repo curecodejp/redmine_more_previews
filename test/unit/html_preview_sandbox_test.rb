@@ -78,6 +78,10 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert pane, 'preview pane must be present'
     assert frame, 'preview iframe must be present'
     assert_equal 'position:relative;padding-top:141%;', pane['style']
+    # The iframe is a replaced element, so top/bottom alone do not stretch it.
+    # Without an explicit height, Firefox shows only a ~150px PDF viewport
+    # and leaves most of the portrait-ratio preview pane blank.
+    assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
     assert_equal 'no', frame['scrolling']
   end
 

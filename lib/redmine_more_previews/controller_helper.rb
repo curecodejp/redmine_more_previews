@@ -94,6 +94,19 @@ module RedmineMorePreviews
     end #def
     private :preview_params
 
+    # The preview is stored as index.<format> for cache compatibility, but the
+    # browser's built-in PDF viewer uses Content-Disposition as its Save name.
+    # Keep the internal name for non-PDF responses and preserve the original
+    # basename (including additional dots) for converted PDF downloads.
+    def preview_download_filename(original_filename, stored_filename)
+      return stored_filename unless File.extname(stored_filename.to_s).casecmp?('.pdf')
+
+      source = File.basename(original_filename.to_s.tr('\\', '/'))
+      stem = source.delete_suffix(File.extname(source))
+      stem.present? ? "#{stem}.pdf" : stored_filename
+    end
+    private :preview_download_filename
+
     # seconds after which a client may ask again for a preview that was busy
     BUSY_RETRY_AFTER = 10
 

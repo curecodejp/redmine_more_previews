@@ -97,15 +97,19 @@ module RedmineMorePreviews
           private :ensure_more_previews_module_enabled
 
           def send_more_preview
+            download_name = preview_download_filename(@entry.name, @repository.preview_filename(@path, @rev, preview_params))
             if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
               # read before the freshness check: the ETag needs the selected converter
               content = entry_content_for_preview
-              if preview_reload? || stale?(:etag => preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content))
+              # Revalidated PDFs must also carry the latest suggested filename.
+              etag = preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content)
+              etag << download_name if params[:format].to_s.downcase == 'pdf'
+              if preview_reload? || stale?(:etag => etag)
                 # nil: the conversion failed or timed out (see Conversion#preview)
                 data = @repository.more_preview(@path, @rev, preview_params)
                 return render_404 if data.nil?
                 send_data data,
-                  :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
+                  :filename    => filename_for_content_disposition( download_name ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
               end
@@ -115,7 +119,7 @@ module RedmineMorePreviews
                  # no output: answered with 404 below, not with an empty 200
                  next if preview_data.nil?
                  send_data preview_data,
-                   :filename    => filename_for_content_disposition( @repository.preview_filename(@path, @rev, preview_params) ),
+                   :filename    => filename_for_content_disposition( download_name ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                    :disposition => 'inline'
               end

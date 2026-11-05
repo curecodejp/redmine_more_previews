@@ -78,6 +78,10 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert pane, 'preview pane must be present'
     assert frame, 'preview iframe must be present'
     assert_equal 'position:relative;padding-top:141%;', pane['style']
+    # An absolutely positioned iframe is a replaced element. Without an
+    # explicit height it stays at the default ~150px, in Firefox and Chrome,
+    # leaving most of the portrait-ratio preview pane blank.
+    assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
     assert_equal 'no', frame['scrolling']
   end
 

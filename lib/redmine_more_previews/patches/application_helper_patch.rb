@@ -231,8 +231,8 @@ module RedmineMorePreviews
                 "position:relative;padding-top:141%;"
 
               # Non-HTML iframes (PDF, converted office files) need an explicit
-              # height too. top/bottom alone leave replaced elements at their
-              # default 150px height in browsers such as Firefox.
+              # height too. An absolutely positioned replaced element stays at its
+              # intrinsic height (150px for an iframe) with top/bottom alone.
               iframe_style = "position:absolute;top:0;left:0;width:95%;height:100%;"
 
               iframe_options = {

@@ -69,6 +69,39 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  def test_pdf_preview_rename_invalidates_old_etag_and_updates_download_name
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'previous.xlsx')
+      File.binwrite(path, 'synthetic spreadsheet')
+      attachment = attach(path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      Attachment.any_instance.stubs(:preview_convertible?).returns(true)
+      Attachment.any_instance.stubs(:preview_mtime).returns(Time.utc(2026, 11, 5))
+      Attachment.any_instance.stubs(:more_preview).returns('%PDF-1.4 synthetic')
+
+      get :more_preview, params: {id: attachment.id, format: 'pdf'}
+      assert_response :success
+      old_etag = response.headers['ETag']
+      assert old_etag.present?, 'cached preview needs an ETag'
+      assert_includes response.headers['Content-Disposition'], 'previous.pdf'
+
+      # A conditional request without changes really does take the 304 path.
+      @request.headers['If-None-Match'] = old_etag
+      get :more_preview, params: {id: attachment.id, format: 'pdf'}
+      assert_response :not_modified
+
+      # The PDF bytes and cache timestamp are identical, but the suggested
+      # filename changed. The old ETag must no longer cause a 304.
+      attachment.update_columns(filename: 'renamed.xlsx')
+      get :more_preview, params: {id: attachment.id, format: 'pdf'}
+      assert_response :success
+      assert_not_equal old_etag, response.headers['ETag']
+      assert_includes response.headers['Content-Disposition'], 'renamed.pdf'
+      assert_not_includes response.headers['Content-Disposition'], 'previous.pdf'
+    end
+  ensure
+    @request.headers.delete('If-None-Match')
+  end
+
   def test_converted_pdf_uses_original_excel_filename_without_cache
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'monthly.report.2026.xlsx')

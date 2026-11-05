@@ -2,7 +2,7 @@
 
 Preview files directly from **Redmine issue attachments, documents, files, and repository entries**. This plugin adds optional converters for office documents, email, archives, Markdown, images, PDFs, and vCards, so users can inspect content without manually downloading every file.
 
-**Current release:** [v6.1.6](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.6) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
+**Current release:** [v6.1.7](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.7) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
 
 > [!NOTE]
 > This is a **Cure Code Corp.-maintained fork**, based on [JVsup's fork](https://github.com/JVsup/redmine_more_previews) of the [original project by HugoHasenbein](https://github.com/HugoHasenbein/redmine_more_previews). It is not an official upstream release. The inherited license is **GNU GPL v2.0 or later**. General-purpose fixes can be proposed upstream separately.
@@ -29,7 +29,7 @@ Select which converters, file types, and output formats to enable in the plugin 
 | --- | --- |
 | **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5**. For PDF previews with Maggie / Peek, use **6.0.10 / 6.1.3 or later**; see [Converter details](#converter-details) |
 | **Ruby** | 3.3.x verified (CI: **3.3.8**); other Ruby versions have not been verified |
-| **Plugin release** | **6.1.6** |
+| **Plugin release** | **6.1.7** |
 | **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork`, and its memory monitoring needs Linux `/proc` support |
 
 Redmine 7 is **not yet verified** by this fork. Support for a Redmine release does not imply that every optional converter is available on every operating system.
@@ -42,7 +42,7 @@ From the Redmine installation directory, install the maintained release into `pl
 
 ```bash
 cd /path/to/redmine
-git clone --branch v6.1.6 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
+git clone --branch v6.1.7 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
 bundle install
 ```
 
@@ -50,7 +50,7 @@ Install the external programs needed by the **converters you intend to enable** 
 
 ### Upgrade an existing installation
 
-Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.6` tag, so its checkout has a **detached HEAD**, not a `main` branch.
+Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.7` tag, so its checkout has a **detached HEAD**, not a `main` branch.
 
 **Before fetching**, check which repository `origin` points to:
 
@@ -66,11 +66,11 @@ If migrating from the original upstream or JVsup fork, change `origin` **before*
 git -C plugins/redmine_more_previews remote set-url origin https://github.com/curecodejp/redmine_more_previews.git
 ```
 
-Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.5):
+Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.6):
 
 ```bash
 git -C plugins/redmine_more_previews fetch --tags origin
-git -C plugins/redmine_more_previews switch --detach v6.1.6
+git -C plugins/redmine_more_previews switch --detach v6.1.7
 bundle install
 ```
 
@@ -84,7 +84,7 @@ Do not run `git pull origin main` from a tag checkout: that moves the detached c
 - **6.1.2 or earlier, including older upstream/JVsup builds:** Read the **6.1.3 Upgrade precaution** in the [Change-Log](#change-log). If converter debug mode was ever enabled, stop Redmine and preview workers and carefully clear the *plugin's actual preview cache directory* before restarting, because old diagnostic files may still contain sensitive data. The routine age-based cache task does not immediately remove all such files. Verify the directory path before deletion.
 - **Libre enabled:** Review the [Linux `bubblewrap` sandbox requirements](#libre-converter-sandbox); conversion fails closed without a working sandbox.
 
-Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.6** under *Administration → Plugins*.
+Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.7** under *Administration → Plugins*.
 
 ### Configure and enable
 
@@ -271,6 +271,15 @@ NilText is a development and diagnostics converter for understanding the plugin'
 Native speakers: please help to improve localizations
 
 ## Change-Log
+
+**6.1.7**
+
+- **Cliff:** decode email text and HTML bodies to UTF-8 according to their declared charset. This includes ISO-2022-JP, Shift_JIS, Windows-1252 and common transfer encodings. Update the conversion cache-format marker to regenerate old previews; **all converter preview caches may need to be regenerated once**.
+- **Inline HTML safety:** show a localized notice rather than failing the whole page when Nokogiri rejects unusually deep elements or excessive attributes. Cache successfully sanitized inline HTML in a process-local memory store (32 MiB per worker, 1-hour expiry) to avoid repeated sanitization. Preview-cache-disabled requests do not populate this cache; cold-cache parsing work still occurs.
+- **PDF display and downloads:** restore full-height PDF iframes, including PDF output from Word/Excel. When saving a PDF preview, suggest the original document's basename with `.pdf` instead of the internal `index.pdf`. Include the suggested PDF name in conditional request ETags so browsers refresh filename metadata.
+- **Benchmarks:** separate actual inline HTML sanitization from early 256 KiB limit rejection, and exclude one-time warmup from measured work.
+- No changes to the 256 KiB inline HTML limit or the LibreOffice `bubblewrap` sandbox requirements. Existing non-PDF iframe text previews may still require a separate scrolling fix.
+- Cliff 1.1.6.
 
 **6.1.6**
 

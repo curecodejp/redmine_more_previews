@@ -51,6 +51,43 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     response.headers['Content-Security-Policy'].to_s
   end
 
+  # Conversion is stubbed: this checks the response headers used by the
+  # browser's PDF viewer, without requiring LibreOffice on the CI runner.
+  def test_converted_pdf_uses_original_excel_filename_with_cache
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'monthly.report.2026.xlsx')
+      File.binwrite(path, 'synthetic spreadsheet')
+      a = attach(path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      Attachment.any_instance.stubs(:preview_convertible?).returns(true)
+      Attachment.any_instance.stubs(:more_preview).returns('%PDF-1.4 synthetic')
+
+      get :more_preview, params: {id: a.id, format: 'pdf'}
+      assert_response :success
+      assert_equal 'application/pdf', response.media_type
+      assert_includes response.headers['Content-Disposition'], 'monthly.report.2026.pdf'
+      assert_not_includes response.headers['Content-Disposition'], 'index.pdf'
+    end
+  end
+
+  def test_converted_pdf_uses_original_excel_filename_without_cache
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'monthly.report.2026.xlsx')
+      File.binwrite(path, 'synthetic spreadsheet')
+      a = attach(path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+      settings = SETTINGS.deep_dup
+      settings['cache_previews'] = '0'
+      Setting.plugin_redmine_more_previews = settings
+      Setting.clear_cache
+      Attachment.any_instance.stubs(:preview_convertible?).returns(true)
+      Attachment.any_instance.stubs(:more_preview).yields('%PDF-1.4 synthetic')
+
+      get :more_preview, params: {id: a.id, format: 'pdf'}
+      assert_response :success
+      assert_equal 'application/pdf', response.media_type
+      assert_includes response.headers['Content-Disposition'], 'monthly.report.2026.pdf'
+    end
+  end
+
   def test_zippy_listing_allows_downloads_in_iframe_and_csp
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'a.zip'), 'dir/' => '', 'dir/file.txt' => 'x'), 'application/zip')

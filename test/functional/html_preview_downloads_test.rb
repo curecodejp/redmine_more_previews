@@ -99,7 +99,7 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
       assert_not_includes response.headers['Content-Disposition'], 'previous.pdf'
     end
   ensure
-    @request.headers.delete('If-None-Match')
+    @request.env.delete('HTTP_IF_NONE_MATCH')
   end
 
   def test_converted_pdf_uses_original_excel_filename_without_cache

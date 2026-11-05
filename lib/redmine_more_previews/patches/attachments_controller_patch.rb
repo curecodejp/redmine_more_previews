@@ -111,7 +111,7 @@ module RedmineMorePreviews
                 data = @attachment.more_preview(preview_params)
                 return render_404 if data.nil?
                 send_data data,
-                  :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
+                  :filename    => filename_for_content_disposition( preview_download_filename(@attachment.filename, @attachment.preview_filename(preview_params)) ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
               end
@@ -120,7 +120,7 @@ module RedmineMorePreviews
                  # no output: answered with 404 below, not with an empty 200
                  next if preview_data.nil?
                  send_data preview_data,
-                   :filename    => filename_for_content_disposition( @attachment.preview_filename(preview_params) ),
+                   :filename    => filename_for_content_disposition( preview_download_filename(@attachment.filename, @attachment.preview_filename(preview_params)) ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                    :disposition => 'inline'
               end

@@ -104,14 +104,20 @@ module RedmineMorePreviews
 
           def send_more_preview
             apply_preview_security_headers(@attachment.diskfile)
+            download_name = preview_download_filename(@attachment.filename, @attachment.preview_filename(preview_params))
 
             if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
-              if preview_reload? || stale?(:etag => preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile))
+              # PDF download names are response metadata: include them in the ETag
+              # so browsers do not reuse an old index.pdf filename after a deploy
+              # or after the attachment is renamed. Leave other formats unchanged.
+              etag = preview_etag(@attachment.preview_mtime(preview_params), @attachment.diskfile)
+              etag << download_name if params[:format].to_s.downcase == 'pdf'
+              if preview_reload? || stale?(:etag => etag)
                 # nil: the conversion failed or timed out (see Conversion#preview)
                 data = @attachment.more_preview(preview_params)
                 return render_404 if data.nil?
                 send_data data,
-                  :filename    => filename_for_content_disposition( preview_download_filename(@attachment.filename, @attachment.preview_filename(preview_params)) ),
+                  :filename    => filename_for_content_disposition( download_name ),
                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                   :disposition => 'inline'
               end
@@ -120,7 +126,7 @@ module RedmineMorePreviews
                  # no output: answered with 404 below, not with an empty 200
                  next if preview_data.nil?
                  send_data preview_data,
-                   :filename    => filename_for_content_disposition( preview_download_filename(@attachment.filename, @attachment.preview_filename(preview_params)) ),
+                   :filename    => filename_for_content_disposition( download_name ),
                    :type        => Rack::Mime.mime_type(".#{params[:format]}"),
                    :disposition => 'inline'
               end

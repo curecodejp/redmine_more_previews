@@ -44,6 +44,9 @@
 # 1.1.5
 #       - keep the header fragments in their boxes when converted without the cache
 #       - show an inline size notice instead of a 413 page for emails beyond the limits
+# 1.1.6
+#       - decode text and HTML bodies using their declared charset
+#       - preserve Japanese encodings and repair HTML meta charset after conversion
 #
 
 require_relative 'lib/cliff'
@@ -53,7 +56,7 @@ RedmineMorePreviews::Converter.register :cliff do
   name           'Cliff'
   author         'Stephan Wenzel'
   description    'Preview email files in preview pane'
-  version        '1.1.5'
+  version        '1.1.6'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
                  

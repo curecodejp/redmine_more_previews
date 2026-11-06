@@ -274,11 +274,12 @@ Native speakers: please help to improve localizations
 
 **6.1.7**
 
-- **Cliff:** decode email text and HTML bodies to UTF-8 according to their declared charset. This includes ISO-2022-JP, Shift_JIS, Windows-1252 and common transfer encodings. Update the conversion cache-format marker to regenerate old previews; **all converter preview caches may need to be regenerated once**.
+- **Cliff:** decode email text and HTML bodies to UTF-8 according to their declared charset. This includes ISO-2022-JP, Shift_JIS, Windows-1252 and common transfer encodings.
+- **All converters:** bump the preview cache format marker, so cached previews of every converter are converted again when first viewed; older cache files may remain on disk until cache cleanup.
 - **Inline HTML safety:** show a localized notice rather than failing the whole page when Nokogiri rejects unusually deep elements or excessive attributes. Cache successfully sanitized inline HTML in a process-local memory store (32 MiB per worker, 1-hour expiry) to avoid repeated sanitization. Preview-cache-disabled requests do not populate this cache; cold-cache parsing work still occurs.
 - **PDF display and downloads:** restore full-height PDF iframes, including PDF output from Word/Excel. When saving a PDF preview, suggest the original document's basename with `.pdf` instead of the internal `index.pdf`. Include the suggested PDF name in conditional request ETags so browsers refresh filename metadata.
 - **Benchmarks:** separate actual inline HTML sanitization from early 256 KiB limit rejection, and exclude one-time warmup from measured work.
-- No changes to the 256 KiB inline HTML limit or the LibreOffice `bubblewrap` sandbox requirements. Existing non-PDF iframe text previews may still require a separate scrolling fix.
+- No changes to the 256 KiB inline HTML limit or the LibreOffice `bubblewrap` sandbox requirements. Known limitation: non-HTML iframe previews use `scrolling="no"`; long plain-text previews may not scroll within the frame in some browsers (not yet visually verified).
 - Cliff 1.1.6.
 
 **6.1.6**

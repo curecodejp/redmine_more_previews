@@ -272,6 +272,11 @@ Native speakers: please help to improve localizations
 
 ## Change-Log
 
+**Unreleased (planned 6.1.8)**
+
+- Preview frames: when the plugin is set to use `<iframe>`, text longer than the frame and images larger than it can be scrolled. Non-HTML frames no longer have `scrolling="no"`.
+- Inline previews: no longer fail with `NoMethodError` when the Vince converter directory has been removed.
+
 **6.1.7**
 
 - **Cliff:** decode email text and HTML bodies to UTF-8 according to their declared charset. This includes ISO-2022-JP, Shift_JIS, Windows-1252 and common transfer encodings.

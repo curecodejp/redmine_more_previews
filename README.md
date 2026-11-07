@@ -275,6 +275,7 @@ Native speakers: please help to improve localizations
 **Unreleased (planned 6.1.8)**
 
 - Preview frames: when the plugin is set to use `<iframe>`, text longer than the frame can be scrolled. Non-HTML frames no longer have `scrolling="no"`.
+- Preview frames: text and PDF frames now fit the window rather than being sized by their width, in both `<iframe>` and `<object>` modes. On a wide screen the page no longer has to scroll as well as the frame.
 - Inline previews: no longer fail with `NoMethodError` when the Vince converter directory has been removed.
 
 **6.1.7**

@@ -128,6 +128,24 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes response.body, 'file.txt'
   end
 
+  # see AttachmentsMoreAssetTest#test_entry_named_as_the_listing_is_served_and_the_listing_stays
+  def test_entry_named_as_the_listing_is_served_and_the_listing_stays
+    build_zip(File.join(@repo_dir, 'b.zip'), 'index.html' => 'the entry')
+    preview = entry_params(path: repository_path_hash(['b.zip'])[:param], format: 'html')
+
+    get :more_preview, params: preview
+    assert_response :success
+    assert_select 'a', text: 'index.html'
+
+    get :more_preview, params: preview.merge(asset: 'index.html')
+    assert_response :success
+    assert_equal 'the entry', response.body
+    assert_includes response.headers['Content-Disposition'], 'attachment'
+
+    get :more_preview, params: preview
+    assert_select 'a', text: 'index.html'
+  end
+
   # A browser only shows a broken image when the preview request fails, for
   # example for an image beyond the limits of the conversion
   def test_image_preview_has_a_message_for_when_it_fails_to_load

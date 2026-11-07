@@ -286,12 +286,13 @@ module RedmineMorePreviews
 
               # HTML previews are sandboxed (GHSA-j23w-wwfh-gwfp): no scripts, forms,
               # top navigation or same-origin access. Only previews whose HTML the
-              # plugin generates itself (Zippy's archive listing) get allow-downloads,
-              # so their links can start a download; see
-              # ControllerHelper::DOWNLOAD_PREVIEW_CONVERTERS, which also drives the
-              # response's CSP sandbox directive (the browser applies both).
+              # plugin generates itself (Zippy's archive listing) get allow-downloads
+              # and top navigation after a click, so their links can start a download;
+              # see ControllerHelper::DOWNLOAD_PREVIEW_CONVERTERS, which also drives
+              # the response's CSP sandbox directive (the browser applies both).
               if html_preview
-                iframe_options[:sandbox] = options[:allow_downloads] ? "allow-downloads" : ""
+                iframe_options[:sandbox] = options[:allow_downloads] ?
+                  RedmineMorePreviews::ControllerHelper::DOWNLOAD_PREVIEW_SANDBOX : ""
               end
 
               content_tag(:div,

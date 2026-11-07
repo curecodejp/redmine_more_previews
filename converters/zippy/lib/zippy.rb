@@ -237,6 +237,10 @@ class Zippy < RedmineMorePreviews::Conversion
   # URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
   # Only the rev parameter is kept: a revision the route's :rev does not take (a slash,
   # capitals) comes as a parameter, and without it the link leads to the default branch.
+  # The link opens in the top window: the listing's frame is sandboxed into an opaque
+  # origin, so a request from it carries no SameSite=Lax session cookie and got the login
+  # page, and the download attribute is ignored there. The response is an attachment,
+  # so the page stays as it is (see ControllerHelper::DOWNLOAD_PREVIEW_CONVERTERS).
   #---------------------------------------------------------------------------------------
   def entry_link( name )
     basename = File.basename(RmpText.to_utf8(name))
@@ -246,7 +250,7 @@ class Zippy < RedmineMorePreviews::Conversion
     rev    = request.query_parameters["rev"]
     query[:rev] = rev if rev.is_a?( String ) && rev.present?
     path   = "#{request.path}?#{ query.to_query }"
-    link_to basename, path, :download => basename
+    link_to basename, path, :download => basename, :target => "_top"
   end #def
   
   #---------------------------------------------------------------------------------------

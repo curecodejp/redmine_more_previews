@@ -36,6 +36,11 @@ module RedmineMorePreviews
         :size => 32 * 1024 * 1024, :expires_in => 1.hour
       )
 
+      # Text and PDF previews scroll inside their frame. A pane taller than the
+      # window would make the page scroll as well, so it leaves room for what the
+      # page shows around it (about 310px: header, title, footer).
+      NON_HTML_PREVIEW_PANE_STYLE = "position:relative;height:calc(100vh - 320px);min-height:280px;"
+
       # Allow-list scrubber for converter output that is embedded directly
       # into the Redmine page (preview_format = inline). Converter input is
       # attacker controlled, so script-capable markup must never reach the
@@ -246,12 +251,12 @@ module RedmineMorePreviews
                    }.merge(options.except(:allow_downloads))
                 ),
                 :id     => "preview_pane",
-                :style  => "position:relative;padding-top:141%;",
+                :style  => RedmineMorePreviews::Patches::ApplicationHelperPatch::NON_HTML_PREVIEW_PANE_STYLE,
               )
             else
               preview_pane_style = html_preview ?
                 "position:relative;height:60vh;min-height:280px;max-height:600px;" :
-                "position:relative;padding-top:141%;"
+                RedmineMorePreviews::Patches::ApplicationHelperPatch::NON_HTML_PREVIEW_PANE_STYLE
 
               # Non-HTML iframes (PDF, converted office files) need an explicit
               # height too. An absolutely positioned replaced element stays at its
@@ -261,7 +266,7 @@ module RedmineMorePreviews
               iframe_options = {
                 :style                => iframe_style,
                 :seamless             => "seamless",
-                :scrolling            => html_preview ? "auto" : "no",
+                :scrolling            => "auto",
                 :frameborder          => "0",
                 :allowtransparency    => "true",
                 :title                => filename,

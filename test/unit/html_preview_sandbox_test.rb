@@ -64,8 +64,7 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
 
   def test_non_html_iframe_preview_is_not_sandboxed
     # ZIPPY_SETTINGS uses embedding=0, which selects <object> for non-HTML
-    # previews. Switch to iframe mode so this test covers the non-HTML branch
-    # whose pane ratio must remain unchanged.
+    # previews. Switch to iframe mode so this test covers the non-HTML iframe.
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => '1')
     Setting.clear_cache
 
@@ -77,12 +76,43 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert_not_includes html, 'sandbox='
     assert pane, 'preview pane must be present'
     assert frame, 'preview iframe must be present'
-    assert_equal 'position:relative;padding-top:141%;', pane['style']
     # An absolutely positioned iframe is a replaced element. Without an
     # explicit height it stays at the default ~150px, in Firefox and Chrome,
-    # leaving most of the portrait-ratio preview pane blank.
+    # leaving most of the preview pane blank.
     assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
-    assert_equal 'no', frame['scrolling']
+  end
+
+  # A pane sized by its width is taller than the window on a wide screen. The
+  # page then scrolls as well as the frame or viewer inside it.
+  def test_non_html_panes_are_sized_by_the_window_in_both_embedding_modes
+    {'0' => '#preview_object', '1' => '#preview_frame'}.each do |embedding, element|
+      Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => embedding)
+      Setting.clear_cache
+
+      %w[text/plain application/pdf].each do |type|
+        fragment = Nokogiri::HTML.fragment(helper.more_previews_tag('/attachments/more_preview/1', 'preview', type: type).to_s)
+
+        assert fragment.at_css(element), "embedding #{embedding}, #{type}: #{element} must be present"
+        assert_equal 'position:relative;height:calc(100vh - 320px);min-height:280px;', fragment.at_css('#preview_pane')['style'],
+                     "embedding #{embedding}, #{type}"
+      end
+    end
+  end
+
+  # Text longer than the frame can only be read by scrolling the frame; a PDF
+  # viewer scrolls by itself and is not affected. Image formats do not get here:
+  # the views show them with image_tag.
+  def test_non_html_iframes_can_be_scrolled
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => '1') # iframe, not <object>
+    Setting.clear_cache
+
+    %w[text/plain application/pdf].each do |type|
+      html = helper.more_previews_tag('/attachments/more_preview/1', 'preview', type: type).to_s
+      frame = Nokogiri::HTML.fragment(html).at_css('#preview_frame')
+
+      assert frame, "#{type}: preview iframe must be present"
+      assert_equal 'auto', frame['scrolling'], type
+    end
   end
 
   def test_only_listed_converters_allow_downloads

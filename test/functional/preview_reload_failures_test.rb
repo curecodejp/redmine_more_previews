@@ -111,8 +111,8 @@ class PreviewReloadFailuresTest < Redmine::ControllerTest
 
   # --- assets -------------------------------------------------------------------------------
 
-  # the preview is stored as index.<format> next to its assets: an asset of that
-  # name would be the preview, and its failure the preview's
+  # an archive without an entry of the preview's name: the name is not taken for
+  # the preview, and no failure is remembered for it
   def test_asset_named_as_the_preview_is_not_found
     as_user(2)
     get :more_asset, params: {id: @attachment.id, asset: 'index', assetformat: 'html'}

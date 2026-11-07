@@ -180,10 +180,7 @@ module RedmineMorePreviews
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
             return if @asset.nil?
             @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
-            # the format of the preview as Repository#preview_format finds it, from
-            # the entry's name, without asking the SCM for the entry
-            extension = File.extname(@path.to_s)[1..].to_s.downcase
-            render_404 unless preview_asset?(@asset, RedmineMorePreviews::Converter.conversion_extension(extension))
+            render_404 if @asset.blank?
           end #def
           private :find_path_param
           

@@ -64,6 +64,83 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  # an archive may hold an entry of the name the listing is stored under, and
+  # the listing links it like any other
+  def test_entry_named_as_the_listing_is_served_and_the_listing_stays
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'index.html' => 'the entry', 'index.html.entry' => 'the other'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_select 'a[href*=?]', 'asset=index.html', text: 'index.html'
+
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'index.html'}
+      assert_response :success
+      assert_equal 'the entry', response.body
+      assert_includes response.headers['Content-Disposition'], 'attachment'
+
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'index.html.entry'}
+      assert_equal 'the other', response.body
+
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_select 'a', text: 'index.html'
+    end
+  end
+
+  def test_entry_named_as_the_listing_can_be_asked_for_before_the_listing
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'index.html' => 'the entry'))
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'index.html'}
+      assert_equal 'the entry', response.body
+
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_select 'a', text: 'index.html'
+
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'index.html'}
+      assert_equal 'the entry', response.body
+    end
+  end
+
+  def test_entry_named_as_the_listing_is_served_without_the_cache
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('cache_previews' => '0')
+    Setting.clear_cache
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'index.html' => 'the entry'))
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'index.html'}
+      assert_response :success
+      assert_equal 'the entry', response.body
+    end
+  end
+
+  def test_entry_below_a_directory_named_as_the_listing_is_served
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'index.html/nested.txt' => 'nested'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'index.html/nested.txt'}
+      assert_response :success
+      assert_equal 'nested', response.body
+
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_select 'a', text: 'nested.txt'
+    end
+  end
+
+  # the entry's failure is its own: the listing must not be taken for failed
+  def test_failure_of_an_entry_named_as_the_listing_is_not_the_listings
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'index.html' => 'the entry'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+
+      Zippy.any_instance.stubs(:convert).raises(StandardError, 'broken')
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'index.html'}
+      assert_response 404
+      assert_equal 1, Dir.glob(File.join(@storage, 'failures', '*')).size
+      assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(a.preview_filepath(format: 'html'))
+    end
+  end
+
   # A browser only shows a broken image when the preview request fails, for
   # example for an image beyond the limits of the conversion
   def test_image_preview_has_a_message_for_when_it_fails_to_load

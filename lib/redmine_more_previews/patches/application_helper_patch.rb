@@ -234,6 +234,16 @@ module RedmineMorePreviews
             sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s
           end #def
 
+          # the preview is a request of its own, so only the browser learns that it
+          # failed (an image beyond the conversion's limits, say). Without this it
+          # shows a broken image and no reason. The handler is an attribute so that
+          # it cannot miss an error that comes before a script would have run.
+          def more_previews_image_tag(source, options={})
+            image_tag(source, options.merge(
+              :onerror => "this.style.display='none';this.nextElementSibling.style.display='';"
+            )) + content_tag(:p, l(:text_more_previews_image_failed), :class => "nodata", :style => "display:none")
+          end #def
+
           def more_previews_tag(path, filename, options={})
 
             html_preview = options[:type].to_s.split(';').first == 'text/html'

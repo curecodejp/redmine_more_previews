@@ -36,7 +36,7 @@
       <%= call_hook(:preview_attachment_top, :attachment => @attachment, :project => @project, :params => preview_query_parameters.merge(:request => request).symbolize_keys ) %>
     </div>
     <div>
-    <%= image_tag(
+    <%= more_previews_image_tag(
           ::Setting['plugin_redmine_more_previews']['absolute'].to_i > 0 ?
           more_preview_url(
             @attachment, 

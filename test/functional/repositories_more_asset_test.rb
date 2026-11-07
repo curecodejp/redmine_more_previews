@@ -128,6 +128,16 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes response.body, 'file.txt'
   end
 
+  # A browser only shows a broken image when the preview request fails, for
+  # example for an image beyond the limits of the conversion
+  def test_image_preview_has_a_message_for_when_it_fails_to_load
+    RedmineMorePreviews::Converter.stubs(:conversion_ext).returns('png')
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_select 'img[onerror]', 1
+    assert_select 'img[onerror] + p.nodata[style*="display:none"]', :text => I18n.t(:text_more_previews_image_failed), :count => 1
+  end
+
   # String#to_utf8 comes from a gem of the Vince converter, which can be removed
   def test_inline_preview_does_not_need_the_string_helper_of_vince
     settings = ZIPPY_SETTINGS.deep_dup

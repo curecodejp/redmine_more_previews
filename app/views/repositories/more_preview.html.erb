@@ -47,7 +47,7 @@
     </div>
     
   <%- when "jpg", "jpeg", "png", "gif" %>
-    <%= image_tag(
+    <%= more_previews_image_tag(
           url_for({
                 :controller    => "repositories",
                 :action        => "more_preview",

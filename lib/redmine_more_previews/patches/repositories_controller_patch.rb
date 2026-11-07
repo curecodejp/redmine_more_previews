@@ -101,26 +101,29 @@ module RedmineMorePreviews
             if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
               # read before the freshness check: the ETag needs the selected converter
               content = entry_content_for_preview
+              type    = preview_type(content)
               # Revalidated PDFs must also carry the latest suggested filename.
               etag = preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content)
               etag << download_name if params[:format].to_s.downcase == 'pdf'
+              # a browser that kept a listing served without the charset must fetch it again
+              etag << type if type.include?("charset")
               if preview_reload? || stale?(:etag => etag)
                 # nil: the conversion failed or timed out (see Conversion#preview)
                 data = @repository.more_preview(@path, @rev, preview_params)
                 return render_404 if data.nil?
                 send_data data,
                   :filename    => filename_for_content_disposition( download_name ),
-                  :type        => Rack::Mime.mime_type(".#{params[:format]}"),
+                  :type        => type,
                   :disposition => 'inline'
               end
             else #no cache
-              entry_content_for_preview
+              content = entry_content_for_preview
               @repository.more_preview(@path, @rev, preview_params) do |preview_data|
                  # no output: answered with 404 below, not with an empty 200
                  next if preview_data.nil?
                  send_data preview_data,
                    :filename    => filename_for_content_disposition( download_name ),
-                   :type        => Rack::Mime.mime_type(".#{params[:format]}"),
+                   :type        => preview_type(content),
                    :disposition => 'inline'
               end
               # the conversion failed or timed out: nothing was yielded
@@ -138,6 +141,12 @@ module RedmineMorePreviews
             content
           end
           private :entry_content_for_preview
+
+          # decided on the bytes read for the CSP, like the download sandbox
+          def preview_type(content)
+            RedmineMorePreviews::ControllerHelper.preview_content_type(params[:format], @entry&.name || @path, :content => content)
+          end
+          private :preview_type
           
           def send_more_asset
             apply_asset_security_headers

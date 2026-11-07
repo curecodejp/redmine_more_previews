@@ -53,6 +53,19 @@ module RedmineMorePreviews
       converter.present? && DOWNLOAD_PREVIEW_CONVERTERS.include?(converter.id.to_s)
     end
 
+    # Content-Type of a preview response. The HTML these converters generate is
+    # always UTF-8 (Zippy's listing is a fragment without <meta charset>), so it
+    # is said in the header: without it, the browser guessed another encoding
+    # and non-ASCII headings were garbled. Being a header, it also holds for
+    # listings cached before. Other HTML (Pass serves the uploaded file as it
+    # is) may be in any encoding and keeps the bare type. file / options as in
+    # preview_allows_downloads?
+    def self.preview_content_type(format, file, options = {})
+      type = Rack::Mime.mime_type(".#{format}")
+      return type unless format.to_s.casecmp?('html') && preview_allows_downloads?(file, options)
+      "#{type}; charset=utf-8"
+    end
+
     def self.html_preview_csp(file, options = {})
       return HTML_PREVIEW_CSP unless preview_allows_downloads?(file, options)
       HTML_PREVIEW_CSP.sub(/\Asandbox;/, 'sandbox allow-downloads;')

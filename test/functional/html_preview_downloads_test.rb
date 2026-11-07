@@ -121,6 +121,43 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  # the listing is a fragment without <meta charset>: the encoding must come
+  # from the header, or Japanese headings were shown garbled
+  def test_zippy_listing_is_shown_in_utf8
+    User.find(2).update_column(:language, 'ja')
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'a.zip'), 'file.txt' => 'x'), 'application/zip')
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_displayed_as 'ファイル名', response
+
+      # also when the listing comes from the cache
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_displayed_as '圧縮されたサイズ', response
+
+      RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_displayed_as 'ファイル名', response
+    end
+  end
+
+  # an uploaded page may be in any encoding: Pass serves it as it is, and the
+  # browser reads the page's own <meta charset>
+  def test_uploaded_html_gets_no_charset_from_the_plugin
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'page.html')
+      File.binwrite(path, "<!DOCTYPE html><html><head><meta charset=\"shift_jis\"></head><body>#{'表'.encode('Shift_JIS').b}</body></html>".b)
+      a = attach(path, 'text/html')
+      assert_equal 'pass', RedmineMorePreviews::Converter.responsible(a.diskfile).id.to_s
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_equal 'text/html', response.media_type
+      assert_no_match(/charset/i, response.headers['Content-Type'].to_s)
+    end
+  end
+
   def test_zippy_listing_allows_downloads_in_iframe_and_csp
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'a.zip'), 'dir/' => '', 'dir/file.txt' => 'x'), 'application/zip')

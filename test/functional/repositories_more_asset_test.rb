@@ -105,6 +105,19 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
   end
 
   # the bytes are read once and shared by the CSP decision and the conversion
+  # see HtmlPreviewDownloadsTest#test_zippy_listing_is_shown_in_utf8
+  def test_zippy_listing_is_shown_in_utf8
+    User.find(1).update_column(:language, 'ja')
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :success
+    assert_displayed_as 'ファイル名', response
+
+    RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :success
+    assert_displayed_as 'ファイル名', response
+  end
+
   def test_preview_reads_the_entry_once
     bytes = File.binread(File.join(@repo_dir, 'a.zip'))
     Repository::Filesystem.any_instance.expects(:cat).once.returns(bytes)

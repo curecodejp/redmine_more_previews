@@ -146,8 +146,12 @@ module RedmineMorePreviews
       # its lock, its marker and what is copied into it. The directory of the
       # target held the asset at a/a/b.txt, where it was never found again
       suffix = File.join( "", asset.to_s )
-      self.dir = targetpath.delete_suffix( suffix ) if asset && targetpath.to_s.end_with?( suffix )
-      self.assetpath,  self.assetdir,   self.assetfile,  self.assetext = path_set( File.join(dir, asset), :nocreate => true ) if asset
+      if asset && targetpath.to_s.end_with?( suffix )
+        self.dir    = targetpath.delete_suffix( suffix )
+        self.target = File.join( dir, stored_asset_name )
+        self.targetpath, _, self.file, self.ext = path_set( target, :nocreate => true )
+      end
+      self.assetpath,  self.assetdir,   self.assetfile,  self.assetext = path_set( File.join(dir, stored_asset_name), :nocreate => true ) if asset
       self.assetspaths = assets.to_a.map{ |ass| path_set( File.join(dir, ass), nil, :nocreate => true )}
     end #def
     
@@ -166,7 +170,26 @@ module RedmineMorePreviews
       names.presence
     end #def
     private :safe_asset_names
-    
+
+    # the name the preview is stored under, next to its assets
+    def preview_name
+      ["index", preview_format].join(".")
+    end #def
+    private :preview_name
+
+    # where the asset is stored below the preview's directory. The assets of a
+    # converter that extracts them on demand are named by the archive, which may
+    # use the preview's name, for a file or a directory: such a name is stored with
+    # a suffix. Any name starting like the preview's takes it, so that no two names
+    # share a file. Other names keep their path, and the caches made before this.
+    def stored_asset_name
+      return asset unless assets_on_demand?
+      first, rest = asset.split( "/", 2 )
+      return asset unless first.start_with?( preview_name )
+      ["#{first}.entry", rest].compact.join( "/" )
+    end #def
+    private :stored_asset_name
+
     # raises unless path lies below directory (after resolving ".." and symlinks)
     def ensure_within!( directory, path )
       return if path.nil?
@@ -267,7 +290,13 @@ module RedmineMorePreviews
       
       # sourcefile, either direct or copied in a tmp dir from elsewhere 
       begin; self.source = file.path; rescue; raise ConverterBadArgument; end
-      
+
+      # a converter that writes its assets with the preview stores them beside it:
+      # an asset of the preview's name would be the preview, and its failure the
+      # preview's (see stored_asset_name for one that extracts them on demand).
+      # Decided here, as the converter is chosen by the file's content
+      return nil if asset == preview_name && !assets_on_demand?
+
       # an asset the stored preview does not offer is not converted for: its
       # name comes from the request, and every new name would convert again
       # (an asset stored already is served, whatever the list says)
@@ -350,7 +379,7 @@ module RedmineMorePreviews
       Dir.mktmpdir do |tdir|
         files = []
         self.tmptarget, self.tmpdir,     self.tmpfile,     self.tmpext      = path_set(tdir, ["index", preview_format].join("."))
-        self.tmpasset,  self.tmpassetdir,self.tmpassetfile,self.tmpassetext = path_set(tmpdir, asset )
+        self.tmpasset,  self.tmpassetdir,self.tmpassetfile,self.tmpassetext = path_set(tmpdir, asset && stored_asset_name )
         self.tmpassetspaths = assets.to_a.map do |ass|
           path_set( File.join(tmpdir, ass), nil, :nocreate => true )
         end 

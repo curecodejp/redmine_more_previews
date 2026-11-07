@@ -84,13 +84,14 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
   end
 
-  # Text longer than the frame and images larger than it can only be read by
-  # scrolling the frame; a PDF viewer scrolls by itself and is not affected.
+  # Text longer than the frame can only be read by scrolling the frame; a PDF
+  # viewer scrolls by itself and is not affected. Image formats do not get here:
+  # the views show them with image_tag.
   def test_non_html_iframes_can_be_scrolled
     Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => '1') # iframe, not <object>
     Setting.clear_cache
 
-    %w[text/plain image/png application/pdf].each do |type|
+    %w[text/plain application/pdf].each do |type|
       html = helper.more_previews_tag('/attachments/more_preview/1', 'preview', type: type).to_s
       frame = Nokogiri::HTML.fragment(html).at_css('#preview_frame')
 

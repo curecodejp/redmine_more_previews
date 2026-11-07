@@ -128,6 +128,26 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes response.body, 'file.txt'
   end
 
+  # String#to_utf8 comes from a gem of the Vince converter, which can be removed
+  def test_inline_preview_does_not_need_the_string_helper_of_vince
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    String.any_instance.expects(:to_utf8).never
+    Repository::Filesystem.any_instance.stubs(:more_preview).returns('<p>cached</p>')
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_includes response.body, 'cached'
+
+    RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+    Repository::Filesystem.any_instance.stubs(:more_preview).yields('<p>uncached</p>')
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_includes response.body, 'uncached'
+  end
+
   def test_inline_preview_over_the_parser_limit_preserves_repository_page
     settings = ZIPPY_SETTINGS.deep_dup
     settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'

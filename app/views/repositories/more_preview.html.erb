@@ -35,10 +35,10 @@
     <div>
     <% begin %>
     <% if RedmineMorePreviews::Converter.cache_previews? %>
-      <%= sanitize_inline_preview( @repository.more_preview( @path, @rev, inline_preview_options ).to_s.to_utf8 ) %>
+      <%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8( @repository.more_preview( @path, @rev, inline_preview_options ).to_s ) ) %>
     <% else %>
       <%  @repository.more_preview( @path, @rev, inline_preview_options ) do |html| %>
-        <%= sanitize_inline_preview( html.to_s.to_utf8 ) %>
+        <%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8( html.to_s ) ) %>
       <% end %>
     <% end %>
     <% rescue RedmineMorePreviews::Exceptions::ConverterTooLarge %>

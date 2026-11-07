@@ -261,7 +261,7 @@ module RedmineMorePreviews
               iframe_options = {
                 :style                => iframe_style,
                 :seamless             => "seamless",
-                :scrolling            => html_preview ? "auto" : "no",
+                :scrolling            => "auto",
                 :frameborder          => "0",
                 :allowtransparency    => "true",
                 :title                => filename,

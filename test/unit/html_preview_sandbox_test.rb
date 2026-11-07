@@ -82,7 +82,21 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     # explicit height it stays at the default ~150px, in Firefox and Chrome,
     # leaving most of the portrait-ratio preview pane blank.
     assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
-    assert_equal 'no', frame['scrolling']
+  end
+
+  # Text longer than the frame and images larger than it can only be read by
+  # scrolling the frame; a PDF viewer scrolls by itself and is not affected.
+  def test_non_html_iframes_can_be_scrolled
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => '1') # iframe, not <object>
+    Setting.clear_cache
+
+    %w[text/plain image/png application/pdf].each do |type|
+      html = helper.more_previews_tag('/attachments/more_preview/1', 'preview', type: type).to_s
+      frame = Nokogiri::HTML.fragment(html).at_css('#preview_frame')
+
+      assert frame, "#{type}: preview iframe must be present"
+      assert_equal 'auto', frame['scrolling'], type
+    end
   end
 
   def test_only_listed_converters_allow_downloads

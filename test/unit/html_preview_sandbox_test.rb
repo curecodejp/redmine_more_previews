@@ -8,8 +8,10 @@ require 'nokogiri'
 # Zippy listing links unusable in html mode. allow-downloads removes the
 # sandboxed-downloads flag altogether -- clicks and automatic starts such as a
 # <meta refresh> alike -- so it is granted only to previews whose HTML the
-# plugin generates itself; scripts, forms, navigation and same-origin access
-# stay disabled.
+# plugin generates itself. Their links open in the top window (a request from
+# the opaque-origin frame carries no session cookie), so these previews may
+# also navigate the top window after a click; scripts, forms, popups and
+# same-origin access stay disabled.
 class HtmlPreviewSandboxTest < ActiveSupport::TestCase
   include RedmineMorePreviews::TestHelper
 
@@ -58,7 +60,8 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
 
   def test_html_preview_iframe_allows_downloads_only_when_asked
     html = helper.more_previews_tag('/attachments/more_preview/1.html', 'preview.html', type: 'text/html', allow_downloads: true).to_s
-    assert_equal ['allow-downloads'], sandbox_of(html).to_s.split, 'sandbox must contain allow-downloads and nothing else'
+    assert_equal %w[allow-downloads allow-top-navigation-by-user-activation], sandbox_of(html).to_s.split,
+      'sandbox must contain allow-downloads and top navigation after a click, and nothing else'
     assert_not_includes html, 'allow_downloads', 'the option must not leak into the markup'
   end
 
@@ -122,7 +125,7 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
       tgz = build_tgz(File.join(dir, 'archive.tgz'), 'file.txt' => 'x')
       assert helper_module.preview_allows_downloads?(zip)
       assert helper_module.preview_allows_downloads?(tgz)
-      assert_match(/\Asandbox allow-downloads; default-src 'none'/, helper_module.html_preview_csp(zip))
+      assert_match(/\Asandbox allow-downloads allow-top-navigation-by-user-activation; default-src 'none'/, helper_module.html_preview_csp(zip))
     end
     assert_not helper_module.preview_allows_downloads?('page.html', :pathonly => true)
     assert_not helper_module.preview_allows_downloads?('notes.md', :pathonly => true)

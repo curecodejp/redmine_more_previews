@@ -278,6 +278,7 @@ Native speakers: please help to improve localizations
 - Preview frames: text and PDF frames now fit the window rather than being sized by their width, in both `<iframe>` and `<object>` modes. On a wide screen the page no longer has to scroll as well as the frame.
 - Inline previews: no longer fail with `NoMethodError` when the Vince converter directory has been removed.
 - Image previews: show a message instead of a broken image when the preview fails to load, for example for an image beyond the conversion's size limits.
+- **Zippy:** the HTML listing is sent as UTF-8 (`Content-Type: text/html; charset=utf-8`). Browsers had to guess its encoding and showed non-ASCII headings garbled, for example in Japanese. Listings already cached are fixed too. Previews of uploaded HTML are sent as before.
 - **Zippy:** an archive entry named like the HTML listing (`index.html` at the top of the archive, or anything below a directory of that name) can be downloaded. It used to answer 404 or fail.
 - **Zippy:** clicking a file in an archive listing downloads it. The link was followed inside the sandboxed frame, where no session cookie is sent, so the frame showed the login page. The links now open in the top window, and the listing's sandbox allows that after a click. A listing cached before the update keeps the old links until it is converted again.
 

@@ -2,7 +2,7 @@
 
 Preview files directly from **Redmine issue attachments, documents, files, and repository entries**. This plugin adds optional converters for office documents, email, archives, Markdown, images, PDFs, and vCards, so users can inspect content without manually downloading every file.
 
-**Current release:** [v6.1.7](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.7) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
+**Current release:** [v6.1.8](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.8) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
 
 > [!NOTE]
 > This is a **Cure Code Corp.-maintained fork**, based on [JVsup's fork](https://github.com/JVsup/redmine_more_previews) of the [original project by HugoHasenbein](https://github.com/HugoHasenbein/redmine_more_previews). It is not an official upstream release. The inherited license is **GNU GPL v2.0 or later**. General-purpose fixes can be proposed upstream separately.
@@ -29,7 +29,7 @@ Select which converters, file types, and output formats to enable in the plugin 
 | --- | --- |
 | **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5**. For PDF previews with Maggie / Peek, use **6.0.10 / 6.1.3 or later**; see [Converter details](#converter-details) |
 | **Ruby** | 3.3.x verified (CI: **3.3.8**); other Ruby versions have not been verified |
-| **Plugin release** | **6.1.7** |
+| **Plugin release** | **6.1.8** |
 | **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork`, and its memory monitoring needs Linux `/proc` support |
 
 Redmine 7 is **not yet verified** by this fork. Support for a Redmine release does not imply that every optional converter is available on every operating system.
@@ -42,7 +42,7 @@ From the Redmine installation directory, install the maintained release into `pl
 
 ```bash
 cd /path/to/redmine
-git clone --branch v6.1.7 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
+git clone --branch v6.1.8 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
 bundle install
 ```
 
@@ -50,7 +50,7 @@ Install the external programs needed by the **converters you intend to enable** 
 
 ### Upgrade an existing installation
 
-Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.7` tag, so its checkout has a **detached HEAD**, not a `main` branch.
+Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.8` tag, so its checkout has a **detached HEAD**, not a `main` branch.
 
 **Before fetching**, check which repository `origin` points to:
 
@@ -66,11 +66,11 @@ If migrating from the original upstream or JVsup fork, change `origin` **before*
 git -C plugins/redmine_more_previews remote set-url origin https://github.com/curecodejp/redmine_more_previews.git
 ```
 
-Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.6):
+Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.7):
 
 ```bash
 git -C plugins/redmine_more_previews fetch --tags origin
-git -C plugins/redmine_more_previews switch --detach v6.1.7
+git -C plugins/redmine_more_previews switch --detach v6.1.8
 bundle install
 ```
 
@@ -81,10 +81,11 @@ Do not run `git pull origin main` from a tag checkout: that moves the detached c
 **Before restarting**, check the version you are upgrading **from**:
 
 - **6.1.3 or later:** Cached previews are versioned and regenerated as needed; no full cache purge is normally needed.
+- **6.1.7 or earlier, with Zippy archive listings in HTML format:** 6.1.8 does not change the cache format, so a listing cached before the upgrade keeps its old links, and clicking an entry there shows the login page inside the frame. Such a listing is fixed when it is converted again: an administrator can use the *Update* link above the preview, or the cached listings can be removed from the preview cache directory.
 - **6.1.2 or earlier, including older upstream/JVsup builds:** Read the **6.1.3 Upgrade precaution** in the [Change-Log](#change-log). If converter debug mode was ever enabled, stop Redmine and preview workers and carefully clear the *plugin's actual preview cache directory* before restarting, because old diagnostic files may still contain sensitive data. The routine age-based cache task does not immediately remove all such files. Verify the directory path before deletion.
 - **Libre enabled:** Review the [Linux `bubblewrap` sandbox requirements](#libre-converter-sandbox); conversion fails closed without a working sandbox.
 
-Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.7** under *Administration → Plugins*.
+Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.8** under *Administration → Plugins*.
 
 ### Configure and enable
 
@@ -272,7 +273,7 @@ Native speakers: please help to improve localizations
 
 ## Change-Log
 
-**Unreleased (planned 6.1.8)**
+**6.1.8**
 
 - Preview frames: when the plugin is set to use `<iframe>`, text longer than the frame can be scrolled. Non-HTML frames no longer have `scrolling="no"`.
 - Preview frames: text and PDF frames now fit the window rather than being sized by their width, in both `<iframe>` and `<object>` modes. On a wide screen the page no longer has to scroll as well as the frame.
@@ -280,7 +281,9 @@ Native speakers: please help to improve localizations
 - Image previews: show a message instead of a broken image when the preview fails to load, for example for an image beyond the conversion's size limits.
 - **Zippy:** the HTML listing is sent as UTF-8 (`Content-Type: text/html; charset=utf-8`). Browsers had to guess its encoding and showed non-ASCII headings garbled, for example in Japanese. Listings already cached are fixed too. Previews of uploaded HTML are sent as before.
 - **Zippy:** an archive entry named like the HTML listing (`index.html` at the top of the archive, or anything below a directory of that name) can be downloaded. It used to answer 404 or fail.
-- **Zippy:** clicking a file in an archive listing downloads it. The link was followed inside the sandboxed frame, where no session cookie is sent, so the frame showed the login page. The links now open in the top window, and the listing's sandbox allows that after a click. A listing cached before the update keeps the old links until it is converted again.
+- **Zippy:** clicking a file in an archive listing downloads it. The link was followed inside the sandboxed frame, where no session cookie is sent, so the frame showed the login page. The links now open in the top window, and the listing's sandbox allows that after a click. A listing cached before the update keeps the old links until it is converted again; see [Upgrade an existing installation](#upgrade-an-existing-installation).
+- The preview cache format is not changed, so previews cached by 6.1.7 are kept.
+- Zippy 1.1.6.
 
 **6.1.7**
 

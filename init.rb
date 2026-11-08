@@ -158,6 +158,10 @@
 #       - Decode Cliff email text and HTML bodies using their declared charset
 #       - Recover safely from inline HTML parser complexity limits and cache sanitized HTML
 #       - Restore full-height PDF iframes and meaningful converted PDF download filenames
+# 6.1.8
+#       - Let text and PDF preview frames scroll and fit the window; run inline previews without Vince
+#       - Show a message when an image preview fails to load
+#       - Zippy: download entries from the listing, including one named like the listing, and send it as UTF-8
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -165,7 +169,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.7'
+  version      '6.1.8'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

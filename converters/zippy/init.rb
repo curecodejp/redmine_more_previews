@@ -37,6 +37,9 @@
 #       - fixed listing links (double encoding, repositories preview) and zips without directory entries
 # 1.1.5
 #       - bound the entries, inflated size and depth walked in archives and the size of extracted and stored assets
+# 1.1.6
+#       - open listing links in the top window, so a click downloads the entry
+#       - store an entry named like the listing apart from it
 
 require_relative 'lib/array'
 require_relative 'lib/zippy'
@@ -45,7 +48,7 @@ RedmineMorePreviews::Converter.register :zippy do
   name           'Zippy'
   author         'Stephan Wenzel'
   description    'Zip Converter'
-  version        '1.1.5'
+  version        '1.1.6'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_zippy'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_zippy'
                    

@@ -118,6 +118,31 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_displayed_as 'ファイル名', response
   end
 
+  # see HtmlPreviewDownloadsTest#test_zippy_listing_cached_by_the_browser_before_the_fix_is_sent_again
+  def test_zippy_listing_cached_by_the_browser_before_the_fix_is_sent_again
+    RedmineMorePreviews::ControllerHelper.stubs(:preview_content_type).returns('text/html')
+    get :more_preview, params: entry_params(format: 'html') # converts: the ETag follows the cache
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :success
+    old_etag = response.headers['ETag']
+    # the old ETag is stable: without the change it would still be answered with 304
+    @request.headers['If-None-Match'] = old_etag
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :not_modified
+
+    RedmineMorePreviews::ControllerHelper.unstub(:preview_content_type)
+    @request.headers['If-None-Match'] = old_etag
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :success
+    assert_equal 'text/html; charset=utf-8', response.headers['Content-Type']
+    new_etag = response.headers['ETag']
+    assert_not_equal old_etag, new_etag
+
+    @request.headers['If-None-Match'] = new_etag
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :not_modified
+  end
+
   def test_preview_reads_the_entry_once
     bytes = File.binread(File.join(@repo_dir, 'a.zip'))
     Repository::Filesystem.any_instance.expects(:cat).once.returns(bytes)

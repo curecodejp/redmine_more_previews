@@ -143,18 +143,52 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  # a browser that kept a listing served before the fix sends its old ETag:
+  # it must get the listing again with the charset, not a 304 that keeps the
+  # old headers. The current ETag still gets a 304.
+  def test_zippy_listing_cached_by_the_browser_before_the_fix_is_sent_again
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'a.zip'), 'file.txt' => 'x'), 'application/zip')
+      RedmineMorePreviews::ControllerHelper.stubs(:preview_content_type).returns('text/html')
+      get :more_preview, params: {id: a.id, format: 'html'} # converts: the ETag follows the cache
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      old_etag = response.headers['ETag']
+      # the old ETag is stable: without the change it would still be answered with 304
+      @request.headers['If-None-Match'] = old_etag
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :not_modified
+
+      RedmineMorePreviews::ControllerHelper.unstub(:preview_content_type)
+      @request.headers['If-None-Match'] = old_etag
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      assert_equal 'text/html; charset=utf-8', response.headers['Content-Type']
+      new_etag = response.headers['ETag']
+      assert_not_equal old_etag, new_etag
+
+      @request.headers['If-None-Match'] = new_etag
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :not_modified
+    end
+  end
+
   # an uploaded page may be in any encoding: Pass serves it as it is, and the
   # browser reads the page's own <meta charset>
   def test_uploaded_html_gets_no_charset_from_the_plugin
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'page.html')
-      File.binwrite(path, "<!DOCTYPE html><html><head><meta charset=\"shift_jis\"></head><body>#{'表'.encode('Shift_JIS').b}</body></html>".b)
+      File.binwrite(path, '<!DOCTYPE html><html><head><meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>'.b +
+                          "<body>#{'表'.encode('Shift_JIS').b}</body></html>".b)
       a = attach(path, 'text/html')
       assert_equal 'pass', RedmineMorePreviews::Converter.responsible(a.diskfile).id.to_s
       get :more_preview, params: {id: a.id, format: 'html'}
       assert_response :success
       assert_equal 'text/html', response.media_type
       assert_no_match(/charset/i, response.headers['Content-Type'].to_s)
+      # the page's own http-equiv declaration decides, as in a browser
+      assert_equal 'shift_jis', declared_charset(response)
+      assert_displayed_as '表', response
     end
   end
 

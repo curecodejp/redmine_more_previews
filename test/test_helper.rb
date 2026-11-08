@@ -104,6 +104,7 @@ module RedmineMorePreviews
       header = response.headers['Content-Type'].to_s[/;\s*charset=["']?([^;"'\s]+)/i, 1]
       return header.downcase if header
       head = response.body.to_s.b[0, 1024]
+      # <meta charset="x"> and <meta http-equiv="Content-Type" content="text/html; charset=x">
       head[/<meta[^>]+charset\s*=\s*["']?([A-Za-z0-9_\-]+)/i, 1]&.downcase
     end
 

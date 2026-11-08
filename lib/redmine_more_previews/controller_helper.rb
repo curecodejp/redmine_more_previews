@@ -39,7 +39,13 @@ module RedmineMorePreviews
     # without any click. The browser applies the union of the iframe attribute
     # and the CSP sandbox directive, so both must carry the flag (see
     # ApplicationHelperPatch#more_previews_tag).
+    # The links open in the top window (Zippy#entry_link): a request from the
+    # opaque-origin frame carries no SameSite=Lax session cookie. So these
+    # previews may also navigate the top window, after a click only.
     DOWNLOAD_PREVIEW_CONVERTERS = %w(zippy).freeze
+
+    # the sandbox flags of such a preview, for the iframe and the CSP alike
+    DOWNLOAD_PREVIEW_SANDBOX = "allow-downloads allow-top-navigation-by-user-activation".freeze
 
     # +file+ and +options+ must select the converter the same way the conversion
     # does (Converter.convert -> Converter.responsible(file), content detection
@@ -55,7 +61,7 @@ module RedmineMorePreviews
 
     def self.html_preview_csp(file, options = {})
       return HTML_PREVIEW_CSP unless preview_allows_downloads?(file, options)
-      HTML_PREVIEW_CSP.sub(/\Asandbox;/, 'sandbox allow-downloads;')
+      HTML_PREVIEW_CSP.sub(/\Asandbox;/, "sandbox #{DOWNLOAD_PREVIEW_SANDBOX};")
     end
 
     # only these media types may be served inline as assets; everything else

@@ -121,16 +121,22 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     end
   end
 
+  # the frame is an opaque origin, so a link followed inside it carries no
+  # SameSite=Lax session cookie and got the login page: the links open in the
+  # top window, which the sandbox allows after a click only
   def test_zippy_listing_allows_downloads_in_iframe_and_csp
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'a.zip'), 'dir/' => '', 'dir/file.txt' => 'x'), 'application/zip')
       get :more_preview, params: {id: a.id, format: 'html'}
       assert_response :success
-      assert_match(/\Asandbox allow-downloads; /, csp)
-      assert_no_match(/allow-(scripts|forms|same-origin|top-navigation|popups)/, csp)
+      assert_match(/\Asandbox allow-downloads allow-top-navigation-by-user-activation; /, csp)
+      assert_no_match(/allow-(scripts|forms|same-origin|popups|top-navigation(?!-by-user-activation))/, csp)
       assert_includes csp, "style-src 'self' 'unsafe-inline'", 'same-origin CSS stays allowed (#19139)'
+      link = Nokogiri::HTML.fragment(response.body).css('a').find { |l| l.text == 'file.txt' }
+      assert link, 'the entry is linked'
+      assert_equal '_top', link['target']
       get :show, params: {id: a.id, filename: a.filename, format: 'html'}
-      assert_select 'iframe[sandbox="allow-downloads"]'
+      assert_select 'iframe[sandbox="allow-downloads allow-top-navigation-by-user-activation"]'
     end
   end
 

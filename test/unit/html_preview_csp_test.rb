@@ -67,7 +67,7 @@ class HtmlPreviewCspTest < ActiveSupport::TestCase
     end
 
     assert_equal html_csp, xml_csp
-    assert_includes html_csp, 'sandbox allow-downloads;'
+    assert_includes html_csp, 'sandbox allow-downloads allow-top-navigation-by-user-activation;'
   end
 
   private

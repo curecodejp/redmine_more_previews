@@ -21,7 +21,8 @@
 # 1.0.0
 #       - initial version
 # 1.0.5
-#       - HEIC/HEIF and TIFF, first image or page, when enabled and readable
+#       - HEIC/HEIF and TIFF, first image or page, when enabled and readable, up to
+#         max_megapixels
 
 class Maggie < RedmineMorePreviews::Conversion
 
@@ -52,15 +53,26 @@ class Maggie < RedmineMorePreviews::Conversion
                :extensions => %w(heic heif),
                :magic      => :valid_heif_magic?,
                :coder      => "HEIC",
+               :dimensions => :heif_dimensions,
                :options    => "+profile exif"},
     "tiff" => {:label      => "TIFF",
                :mimes      => %w(image/tiff),
                :extensions => %w(tif tiff),
                :magic      => :valid_tiff_magic?,
                :coder      => "TIFF",
+               :dimensions => :tiff_dimensions,
                :options    => "-auto-orient +profile exif -colorspace sRGB"}
   }.freeze
   IMAGE_FORMAT_MIMES = IMAGE_FORMATS.values.flat_map{|f| f[:mimes] }.freeze
+  
+  # libheif and libtiff allocate memory for the size an image declares while
+  # decoding it, outside ImageMagick's limits (some bytes per pixel: a 10-bit HEIC
+  # image takes about 6). A HEIC or TIFF image is converted only when the size its
+  # header declares (see RedmineMorePreviews.heif_dimensions / tiff_dimensions)
+  # can be read and is at most max_megapixels (millions of pixels); a larger one is
+  # answered with 413. The default lets 48 and 50 megapixel photos of phones pass.
+  # A converter setting overrides it.
+  SIZE_LIMITS = {'max_megapixels' => 64}.freeze
   
   # the formats (labels) whose coder ImageMagick lacks among the given extensions
   def self.unreadable_formats( extensions )
@@ -89,7 +101,7 @@ class Maggie < RedmineMorePreviews::Conversion
     
     when *IMAGE_FORMAT_MIMES
       format = IMAGE_FORMATS.values.find{|f| f[:mimes].include?(mime_type) }
-      if readable?(format)
+      if readable?(format) && within_limits?(format)
         "#{convert_command} -density 72x72 #{shell_quote "#{format[:coder].downcase}:#{source}[0]"} #{format[:options]} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
       end
       
@@ -112,6 +124,29 @@ class Maggie < RedmineMorePreviews::Conversion
     format[:extensions].any?{|ext| [true, 1, "1"].include?(enabled.dig(ext, "active")) } &&
       RedmineMorePreviews.send(format[:magic], source) &&
       RedmineMorePreviews.imagemagick_reads?(format[:coder])
+  end #def
+  
+  # whether the size the image declares can be read and is within max_megapixels
+  def within_limits?( format )
+    width, height = RedmineMorePreviews.send(format[:dimensions], source)
+    return false unless width && height
+    if width * height > limit('max_megapixels') * 1_000_000
+      raise RedmineMorePreviews::Exceptions::ConverterTooLarge,
+            "#{File.basename(source)} declares #{width}x#{height} pixels, more than #{limit('max_megapixels')} megapixels"
+    end
+    true
+  end #def
+  
+  def limit( key )
+    Maggie.size_limit(converter_settings, key)
+  end #def
+  
+  # the setting when it is a whole positive number (f.i. "100" or 100), else
+  # the default: "1.5", "100xyz", a hash or an array are not taken in part
+  def self.size_limit( settings, key )
+    value = settings.to_h[key]
+    value = value.to_s.strip if value.is_a?(String) || value.is_a?(Integer)
+    value.is_a?(String) && value.match?(/\A0*[1-9]\d*\z/) ? value.to_i : SIZE_LIMITS[key]
   end #def
   
   def get_density

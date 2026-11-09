@@ -24,3 +24,5 @@ ja:
   redmine_more_previews:
     maggie:
       text_explanation:          "画像ファイルの変換・縮小"
+      label_max_megapixels:      "HEIC / TIFF の画素数の上限（メガピクセル）"
+      text_help_limits:          "HEIC / TIFF は、ヘッダーから寸法が読めて、画素数が上限以内のときだけ変換します。上限を超える画像には 413（大きすぎる）を返します。これらの画像をデコードするライブラリは、ImageMagick の上限の外で画像全体分のメモリを使います。"

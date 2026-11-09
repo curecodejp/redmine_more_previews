@@ -7,6 +7,7 @@ require 'shellwords'
 # input nor the output may be interpreted by ImageMagick as anything other than
 # the image type the converter was chosen for.
 class MaggieCommandTest < ActiveSupport::TestCase
+  extend RedmineMorePreviews::TestHelper
   PNG  = "\x89PNG\r\n\x1a\n".b + ("\0" * 32)
   JPEG = "\xFF\xD8\xFF\xE0\x00\x10JFIF\x00".b + ("\0" * 32)
   GIF  = 'GIF89a'.b + ("\0" * 32)
@@ -21,13 +22,14 @@ class MaggieCommandTest < ActiveSupport::TestCase
     ([8 + body.bytesize].pack('N') + 'ftyp' + body).b + ("\0" * 32)
   end
 
-  HEIC = ftyp('heic', %w(mif1 heic))
-  HEIF = ftyp('mif1', %w(mif1 heic))
-  HEIC_SEQUENCE = ftyp('hevc', %w(msf1 hevc))
-  HEIF_SEQUENCE = ftyp('msf1', %w(msf1 hevc))
+  # headers that declare a size (see RedmineMorePreviews.heif_dimensions)
+  HEIC = heic_header({1 => [64, 64]})
+  HEIF = heic_header({1 => [64, 64]}, major: 'mif1')
+  HEIC_SEQUENCE = heic_header({1 => [64, 64]}, major: 'hevc')
+  HEIF_SEQUENCE = heic_header({1 => [64, 64]}, major: 'msf1')
   AVIF = ftyp('avif', %w(avif mif1 miaf))
-  TIFF = "II*\0".b + ("\0" * 32)
-  BIGTIFF = "MM\0+".b + ("\0" * 32)
+  TIFF = tiff_header(32, 16)
+  BIGTIFF = tiff_header(32, 16, order: 'MM', big: true)
   FIXTURES = File.expand_path('../../fixtures/maggie', __FILE__)
   # every image format enabled, as an administrator who previews all of them
   ALL_ENABLED = {'mime_types' => %w(png jpg gif bmp pdf heic heif tif tiff).
@@ -142,7 +144,7 @@ class MaggieCommandTest < ActiveSupport::TestCase
   # Canon's HEIF, hevc and msf1 of sequences)
   def test_heif_is_read_with_the_heic_coder_first_image_only
     {'a.heic' => HEIC, 'a.heif' => HEIF, 'burst.heic' => HEIC_SEQUENCE, 'burst.heif' => HEIF_SEQUENCE,
-     'IMG_0001.HEIC' => HEIC, 'canon.heif' => self.class.ftyp('heix', %w(mif1 heix))}.each do |name, bytes|
+     'IMG_0001.HEIC' => HEIC, 'canon.heif' => self.class.heic_header({1 => [64, 64]}, major: 'heix')}.each do |name, bytes|
       worker = worker_for(name, bytes)
       convert, move = commands(worker)
       assert_includes convert, "heic:#{worker.source}[0]", name
@@ -228,6 +230,69 @@ class MaggieCommandTest < ActiveSupport::TestCase
     end
   end
 
+  # libheif and libtiff allocate memory for the size the header declares: a
+  # larger image than max_megapixels is answered with 413, without a conversion
+  def test_an_image_larger_than_the_limit_is_not_converted
+    {'big.heic' => self.class.heic_header({1 => [16, 16], 2 => [10_000, 10_000]}, primary: 2),
+     'big.tif' => self.class.tiff_header(10_000, 10_000),
+     'wide.tiff' => self.class.tiff_header(100_000, 641, big: true)}.each do |name, bytes|
+      worker = worker_for(name, bytes)
+      worker.expects(:command).never
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge, name) { worker.convert }
+      assert_not File.exist?(worker.tmptarget), name
+    end
+  end
+
+  # the photos of phones (48 and 50 megapixels) and the limit itself pass
+  def test_an_image_within_the_limit_is_converted
+    {'iphone.heic' => [self.class.heic_header({1 => [8064, 6048]}), 'heic'],
+     'pixel.heif' => [self.class.heic_header({1 => [8160, 6144]}, major: 'mif1'), 'heic'],
+     'limit.tif' => [self.class.tiff_header(8000, 8000), 'tiff']}.each do |name, (bytes, coder)|
+      convert, = commands(worker_for(name, bytes))
+      assert_includes convert.join(' '), "#{coder}:", name
+    end
+  end
+
+  def test_the_limit_is_a_setting
+    @settings = ALL_ENABLED.merge('max_megapixels' => '100')
+    convert, = commands(worker_for('big.tif', self.class.tiff_header(10_000, 10_000)))
+    assert_includes convert.join(' '), 'tiff:'
+
+    @settings = ALL_ENABLED.merge('max_megapixels' => '1')
+    worker = worker_for('small.tif', self.class.tiff_header(1001, 1000))
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { worker.convert }
+
+    @settings = ALL_ENABLED.merge('max_megapixels' => 100)
+    convert, = commands(worker_for('big.tif', self.class.tiff_header(10_000, 10_000)))
+    assert_includes convert.join(' '), 'tiff:'
+
+    # not a whole positive number: the default, not a part of it
+    ['', ' ', '0', '-5', 'x', '1.5', '100xyz', '1e3', 100.5, {'a' => '100'}, ['100'], nil].each do |value|
+      @settings = ALL_ENABLED.merge('max_megapixels' => value)
+      worker = worker_for('big.tif', self.class.tiff_header(10_000, 10_000))
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge, value.inspect) { worker.convert }
+      convert, = commands(worker_for('limit.tif', self.class.tiff_header(8000, 8000)))
+      assert_includes convert.join(' '), 'tiff:', value.inspect
+    end
+  end
+
+  # a size that cannot be read (f.i. a sequence without a primary image, a cut
+  # header) is not converted; the other images do not declare one
+  def test_an_image_whose_size_cannot_be_read_is_not_converted
+    {'burst.heic' => self.class.iso_box('ftyp', 'hevc' + "\0\0\0\0" + 'msf1hevc') + self.class.iso_box('moov', "\0" * 32),
+     'cut.tif' => "II*\0".b + ("\0" * 32),
+     'no-ispe.heic' => HEIC.sub('ispe'.b, 'pixi'.b)}.each do |name, bytes|
+      worker = worker_for(name, bytes)
+      worker.expects(:command).never
+      assert_nil worker.convert, name
+    end
+    {'a.png' => [PNG, 'png'], 'a.jpg' => [JPEG, 'jpeg']}.each do |name, (bytes, coder)|
+      worker = worker_for(name, bytes)
+      convert, = commands(worker)
+      assert_includes convert, "#{coder}:#{worker.source}", name
+    end
+  end
+
   # real conversions: skipped where ImageMagick reads no HEIC (or TIFF).
   # RMP_TEST_CONVERT_BIN runs them with another program, f.i. magick
   def test_heic_and_heif_are_converted
@@ -294,8 +359,20 @@ class MaggieCommandTest < ActiveSupport::TestCase
   private
 
   # the file cut after 200 bytes: its header is intact, its image data is not
+  # the header stays readable (the size it declares is read first): the image
+  # data of the HEIC file is cut short, the TIFF file names an unknown
+  # compression (with broken data, ImageMagick writes an empty image)
   def assert_broken_fails(fixture)
-    broken = File.binread(File.join(FIXTURES, fixture))[0, 200]
+    bytes = File.binread(File.join(FIXTURES, fixture))
+    broken = if fixture.end_with?('.tif')
+               ifd = bytes[4, 4].unpack1('V')
+               entry = (0...bytes[ifd, 2].unpack1('v')).map {|i| ifd + 2 + (i * 12) }.find {|e| bytes[e, 2].unpack1('v') == 259 }
+               bytes.dup.tap {|b| b[entry + 8, 2] = [0x7777].pack('v') }
+             else
+               mdat = bytes.index('mdat'.b) - 4
+               bytes[0, mdat + 24]
+             end
+    assert RedmineMorePreviews.send(fixture.end_with?('.tif') ? :tiff_dimensions : :heif_dimensions, write_fixture(broken)), fixture
     assert_raises(RedmineMorePreviews::Exceptions::ConverterShellError) do
       real_conversion(fixture, 'png', broken)
     end
@@ -357,6 +434,12 @@ class MaggieCommandTest < ActiveSupport::TestCase
     data = File.binread(path)
     assert_not data.include?('eXIf'.b), 'PNG preview carries EXIF'
     assert_not data.include?("Exif\0\0".b), 'preview carries EXIF'
+  end
+
+  def write_fixture(bytes)
+    path = File.join(Dir.mktmpdir('fixture', @dir), 'image')
+    File.binwrite(path, bytes)
+    path
   end
 
   def worker_for(name, bytes)

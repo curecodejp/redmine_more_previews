@@ -127,6 +127,27 @@ class PluginSettingsImageFormatsTest < Redmine::ControllerTest
     end
   end
 
+  # the largest HEIC or TIFF image: the default until it is set, then saved
+  def test_the_largest_image_is_a_setting
+    get :plugin, params: {id: 'redmine_more_previews'}
+    assert_select 'input[type=number][name=?][value=?]', 'settings[converter][maggie][max_megapixels]', '64'
+
+    updated = @settings.deep_dup
+    updated['converter']['maggie']['max_megapixels'] = '100'
+    post :plugin, params: {id: 'redmine_more_previews', settings: updated}
+    assert flash[:error].blank?
+    assert_equal '100', Setting.plugin_redmine_more_previews.dig('converter', 'maggie', 'max_megapixels')
+
+    get :plugin, params: {id: 'redmine_more_previews'}
+    assert_select 'input[name=?][value=?]', 'settings[converter][maggie][max_megapixels]', '100'
+
+    # a value that is not used shows the default that is
+    updated['converter']['maggie']['max_megapixels'] = '1.5'
+    Setting.plugin_redmine_more_previews = updated
+    get :plugin, params: {id: 'redmine_more_previews'}
+    assert_select 'input[name=?][value=?]', 'settings[converter][maggie][max_megapixels]', '64'
+  end
+
   private
 
   def enable(*extensions)

@@ -74,6 +74,51 @@ module RedmineMorePreviews
       path
     end
 
+    # An ISO BMFF box
+    def iso_box(type, payload = ''.b, size: nil)
+      ([size || (8 + payload.bytesize)].pack('N') + type.b + payload.b).b
+    end
+
+    # The start of a HEIC file: an "ftyp" box, then a "meta" box whose primary
+    # item (+primary+) and other items each have an "ispe" property of the size
+    # +images+ gives (item id => [width, height]); +before+ comes between them
+    # (f.i. an "mdat" box). No image data: only the header is read.
+    def heic_header(images = {1 => [64, 64]}, primary: images.keys.first, major: 'heic', before: ''.b)
+      ftyp  = iso_box('ftyp', major + "\0\0\0\0" + 'mif1heic')
+      ipco  = images.values.map {|w, h| iso_box('ispe', [0, w, h].pack('NNN')) }.join
+      ipma  = [0, images.size].pack('NN') + images.keys.each_with_index.map {|id, i| [id, 1, 0x81 + i].pack('nCC') }.join
+      meta  = iso_box('meta', [0].pack('N') + iso_box('hdlr', [0, 0].pack('NN') + 'pict' + ("\0" * 13)) +
+                              iso_box('pitm', [0, primary].pack('Nn')) +
+                              iso_box('iprp', iso_box('ipco', ipco) + iso_box('ipma', ipma)))
+      ftyp + before + meta
+    end
+
+    # The start of a TIFF file: a first IFD with ImageWidth and ImageLength of
+    # the given types (3 SHORT, 4 LONG, 16 LONG8), little (II) or big (MM)
+    # endian, classic or BigTIFF, the IFD after +pad+ bytes of image data
+    def tiff_header(width, height, order: 'II', big: false, type: 4, pad: 16, count: 1)
+      u16, u32, u64 = order == 'II' ? %w(v V Q<) : %w(n N Q>)
+      value = lambda do |v, size|
+        bytes = case type when 3 then [v].pack(u16) when 4 then [v].pack(u32) else [v].pack(u64) end
+        bytes.ljust(size, "\0")
+      end
+      entries = {256 => width, 257 => height, 259 => 1}.map do |tag, v|
+        t = tag == 259 ? 3 : type
+        if big
+          [tag, t].pack(u16 * 2) + [tag == 259 ? 1 : count].pack(u64) + (tag == 259 ? [v].pack(u16).ljust(8, "\0") : value.call(v, 8))
+        else
+          [tag, t].pack(u16 * 2) + [tag == 259 ? 1 : count].pack(u32) + (tag == 259 ? [v].pack(u16).ljust(4, "\0") : value.call(v, 4))
+        end
+      end.join
+      if big
+        offset = 16 + pad
+        (order + [43, 8, 0].pack(u16 * 3) + [offset].pack(u64) + ("\0" * pad) + [3].pack(u64) + entries + [0].pack(u64)).b
+      else
+        offset = 8 + pad
+        (order + [42].pack(u16) + [offset].pack(u32) + ("\0" * pad) + [3].pack(u16) + entries + [0].pack(u32)).b
+      end
+    end
+
     def zippy_worker(options = {})
       RedmineMorePreviews::Converter.find(:zippy).worker(
         { preview_format: 'html', object: {} }.merge(options)

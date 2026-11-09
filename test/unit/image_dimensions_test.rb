@@ -78,11 +78,14 @@ class ImageDimensionsTest < ActiveSupport::TestCase
   end
 
   # a box that ends beyond the end of the file is the last one, as for libheif
-  # (f.i. a file cut short within its mdat box); a 64-bit size beyond any file
-  # is no error
+  # (f.i. a file cut short within its mdat box); so are a box up to the end of
+  # the file (size 0) and a header cut short. A 64-bit size beyond any file
+  # raises nothing here (libheif refuses it)
   def test_a_box_beyond_the_end_of_the_file_ends_the_walk
     header = heic_header({1 => [4000, 3000]})
     assert_equal [4000, 3000], heif(header + iso_box('mdat', "\0" * 16, size: 4096))
+    assert_equal [4000, 3000], heif(header + iso_box('mdat', "\0" * 16, size: 0) + header[header.index('meta'.b) - 4..])
+    assert_equal [4000, 3000], heif(header + "\0\0\0".b)
     huge = [1].pack('N') + 'mdat' + [0xFFFF_FFFF_FFFF_FFFF].pack('Q>')
     assert_nil heif(iso_box('ftyp', 'heic' + "\0\0\0\0") + huge.b + header)
     assert_equal [4000, 3000], heif(header + huge.b)

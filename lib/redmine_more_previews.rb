@@ -225,7 +225,7 @@ module RedmineMorePreviews
         entry = entries[i * entry_size, entry_size]
         tag, type = entry[0, 4].unpack(u16 * 2)
         next unless tag == 256 || tag == 257
-        # libtiff takes the first of a tag that comes twice
+        # libtiff takes the first of a tag that comes twice: such a file is not read
         return nil if size.key?(tag)
         size[tag] = case type
                     when 3  then entry[value_at, 2].unpack1(u16)

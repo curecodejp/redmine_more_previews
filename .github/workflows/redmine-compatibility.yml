@@ -17,6 +17,8 @@ jobs:
     timeout-minutes: 40
     env:
       RMP_LIBRE_REQUIRE_SANDBOX: '1'
+      # the real HEIC and TIFF conversions of Maggie fail rather than skip
+      RMP_REQUIRE_IMAGE_CODERS: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +51,17 @@ jobs:
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsqlite3-dev pandoc imagemagick fonts-liberation bubblewrap libreoffice-writer poppler-utils
+          sudo apt-get install -y libsqlite3-dev pandoc imagemagick fonts-liberation bubblewrap libreoffice-writer poppler-utils libheif1 libheif-plugin-libde265
+
+      # Maggie previews HEIC/HEIF and TIFF only where ImageMagick reads them;
+      # the "heic" of the delegates line does not tell whether it does; the
+      # module column may be empty ("HEIC            r--")
+      - name: Verify ImageMagick reads HEIC and TIFF
+        run: |
+          convert -version | head -1
+          convert -list format | grep -E '^\s*(HEIC|HEIF|TIFF)\*?\s'
+          convert -list format | grep -qE '^\s*HEIC\*?\s+([A-Z0-9]\S*\s+)?r[w-][+-]'
+          convert -list format | grep -qE '^\s*TIFF\*?\s+([A-Z0-9]\S*\s+)?r[w-][+-]'
 
       - name: Allow bubblewrap user namespaces on ephemeral CI runner
         run: |

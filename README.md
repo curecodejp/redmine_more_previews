@@ -15,7 +15,7 @@ Preview files directly from **Redmine issue attachments, documents, files, and r
 | **Cliff** | Email (`.eml`, `.mime`) and attachments | Mail headers, body, and attachments. Time and memory bounds require process isolation; without Ruby `fork`, these bounds do not apply. See [Converter details](#converter-details) |
 | **Mark** | Markdown, Textile, HTML | [Pandoc](https://pandoc.org/) |
 | **Zippy** | ZIP, TAR, TGZ archives | Browse archive listings and download individual entries |
-| **Maggie / Peek** | Images and PDF previews | ImageMagick; Ghostscript for PDF rendering |
+| **Maggie / Peek** | Images and PDF previews | ImageMagick; Ghostscript for PDF rendering; libheif for HEIC/HEIF (see [Maggie](#converter-details)) |
 | **Vince** | vCard (`.vcf`) | Requires Ruby `fork`. Child-process timeout; 512 MiB additional-memory budget is enforced only on supported Linux hosts |
 | **Pass** | HTML passthrough | Optional converter |
 | **Teddie** | Plain text (`.txt`) | Text preview |
@@ -235,6 +235,17 @@ Maggie hands uploaded files and repository files to ImageMagick, and PDF files t
  - use Redmine 6.0.10 / 6.1.3 or later: the PDF thumbnails of earlier versions can pass PostScript to Ghostscript ([Redmine issue 44145](https://www.redmine.org/issues/44145))
  - disable the coders that no preview needs in ImageMagick's `policy.xml`, f.i. `<policy domain="coder" rights="none" pattern="{PS,PS2,PS3,EPS,EPI,EPSI,EPSF,MVG,MSL,TEXT,URL,HTTP,HTTPS,FTP}" />`. Keep `PDF` enabled if PDF previews are wanted. This does not stop PostScript that reaches Ghostscript through the PDF coder; the check of the start of the file does.
 
+**HEIC/HEIF and TIFF.** Maggie previews HEIC/HEIF images (f.i. iPhone photos) and TIFF images (f.i. scans), which browsers other than Safari do not show. It converts the first image only: the primary image of a HEIC file, the first page of a TIFF file. There is no list of the other images or pages. The image is shown upright: libheif applies the rotation of a HEIC image, Maggie applies the orientation of a TIFF image, and the EXIF orientation is removed from the preview so that the browser does not rotate it again. AVIF and WebP images are not converted: browsers show them themselves.
+
+ - **What ImageMagick needs.** For HEIC/HEIF, ImageMagick's HEIC coder with libheif and a HEVC decoder plugin (f.i. on Ubuntu 24.04 `libheif1 libheif-plugin-libde265`; other distributions may package the HEIC coder of ImageMagick separately). For TIFF, the TIFF coder (libtiff), which most ImageMagick packages include.
+ - **HEIC on Enterprise Linux.** Fedora ships libheif without a HEVC decoder. On EL9, a HEVC decoder for libheif comes with `libheif-freeworld` from RPM Fusion (libheif 1.23, libde265 1.0.15 at the time of writing). On EL8, neither the distribution, EPEL nor Remi provides libheif, which Remi's `ImageMagick-heic` needs, and RPM Fusion has only libheif 1.7.0 (2020). Previews parse files that anyone who can attach files supplies, so do not enable HEIC with that version: leave HEIC disabled on EL8.
+ - **Patents and licenses.** libheif and libde265 are licensed under the LGPL. HEVC is covered by patents, which is why some distributions do not ship a HEVC decoder. This plugin contains no decoder: whoever installs one checks whether it may be used for their purpose.
+ - **How to check.** `convert -list format | grep -E 'HEIC|TIFF'` (ImageMagick 7: `magick -list format | grep -E 'HEIC|TIFF'`) must list the format with an `r` in the mode column, f.i. `HEIC* HEIC rw+`. The `heic` in the delegates line of `convert -version` does not tell whether ImageMagick reads HEIC.
+ - **Which program runs.** The program Redmine's `imagemagick_convert_command` names in `config/configuration.yml`, `convert` (ImageMagick 6) unless it is set; set it to `magick` to use ImageMagick 7. The Maggie settings show the program and whether it reads each format. The check runs once per Redmine process: restart Redmine after installing a coder.
+ - **Where ImageMagick cannot read them.** While Maggie is enabled, the settings cannot be saved with HEIC/HEIF or TIFF enabled for it, and a preview is never converted: the preview fails as for a broken image, and the other formats are converted as before. If ImageMagick loses the coder later (f.i. after an upgrade), uncheck the format to save the settings again. A `policy.xml` that denies the coder fails the conversion in the same way; do not open the policy for previews. `-list format` may list HEIC where libheif has no HEVC decoder plugin: the settings are then saved, and the conversions fail.
+ - **What is checked.** Maggie converts a file only when the format is enabled, the file starts as that format and ImageMagick reads it: a HEIC/HEIF file must name HEVC brands and no AVIF brand, a TIFF file must start with a TIFF header. The codec of the image inside a HEIC file is not checked: a file with HEVC brands that holds an AV1 (or other) image is decoded if libheif has a decoder for it.
+ - **Limits.** The ImageMagick limits apply as for the other images (an image over 16K pixels wide or high is not previewed). libheif and libtiff allocate memory of their own while decoding, outside these limits; the time limit of the conversion stops them.
+
 ---
 
 ![Pass](doc/pass/logo.png "Pass")
@@ -272,6 +283,12 @@ NilText is a development and diagnostics converter for understanding the plugin'
 Native speakers: please help to improve localizations
 
 ## Change-Log
+
+**6.1.9**
+
+- **Maggie:** preview HEIC/HEIF and TIFF images: the primary image of a HEIC file, the first page of a TIFF file, upright. They are converted only where ImageMagick reads them (HEIC needs libheif), and the settings refuse to enable them elsewhere. Check with `convert -list format` (`magick -list format` for ImageMagick 7); see [Maggie](#converter-details).
+- A file is still matched by its content first; of the extensions of its type (f.i. `tif` and `tiff`), the output format and the switch of the file's own extension apply.
+- Maggie 1.0.5.
 
 **6.1.8**
 

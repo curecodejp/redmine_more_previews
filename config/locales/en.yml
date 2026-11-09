@@ -48,6 +48,7 @@ en:
   text_more_previews_too_large:                            "The file is too large to be previewed."
   text_more_previews_image_failed:                         "The preview could not be shown. The image may be too large (the limits are 16,000 pixels wide or high and 128 megapixels in all), or the conversion may have failed. Download the file to view it."
   error_more_previews_invalid_libre_format:                "Invalid LibreOffice conversion format; settings were not saved."
+  error_more_previews_unreadable_image_format:            "ImageMagick cannot read %{formats} (check with: convert -list format, or magick -list format for ImageMagick 7); settings were not saved."
   
   label_redmine_more_previews_plugins_settings:            "Plugins settings"
   

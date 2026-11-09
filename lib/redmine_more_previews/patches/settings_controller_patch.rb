@@ -12,11 +12,34 @@ module RedmineMorePreviews
             flash[:error] = l(:error_more_previews_invalid_libre_format)
             return redirect_to(plugin_settings_path(params[:id]))
           end
+          unreadable = unreadable_maggie_formats(params.dig(:settings, :converter, :maggie))
+          if unreadable.any?
+            flash[:error] = l(:error_more_previews_unreadable_image_format, :formats => unreadable.join(', '))
+            return redirect_to(plugin_settings_path(params[:id]))
+          end
         end
         super
       end
 
       private
+
+      # Maggie's HEIC/HEIF and TIFF previews need a coder ImageMagick may lack:
+      # enabling them there is refused. The form sends the format checkboxes of
+      # a converter that is off, so only an enabled Maggie is checked.
+      def unreadable_maggie_formats(maggie)
+        return [] unless settings_hash?(maggie) && maggie[:active].to_s == '1' && defined?(::Maggie)
+
+        formats = maggie[:mime_types]
+        return [] unless settings_hash?(formats)
+
+        enabled = formats.each_pair.select {|_ext, config| settings_hash?(config) && config[:active].to_s == '1'}.map(&:first)
+        ::Maggie.unreadable_formats(enabled)
+      end
+
+      # a String answers [] too: malformed parameters are not checked here
+      def settings_hash?(value)
+        value.is_a?(ActionController::Parameters) || value.is_a?(Hash)
+      end
 
       def valid_libre_formats?(formats)
         return false unless formats.respond_to?(:each_pair)

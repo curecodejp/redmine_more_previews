@@ -1,0 +1,122 @@
+# frozen_string_literal: true
+
+require File.expand_path('../../test_helper', __FILE__)
+
+# HEIC/HEIF and TIFF previews need a coder ImageMagick may lack (f.i. without
+# libheif): enabling them for Maggie is refused there, so they do not fail on
+# every preview. Turning Maggie off, or any other setting, is still saved.
+class PluginSettingsImageFormatsTest < Redmine::ControllerTest
+  tests SettingsController
+  fixtures :users, :email_addresses
+
+  def setup
+    @request.session[:user_id] = 1 # administrator
+    @previous = Setting.plugin_redmine_more_previews
+    @settings = {
+      'converter' => {
+        'maggie' => {
+          'active' => '1',
+          'mime_types' => {
+            'png' => {'active' => '1', 'format' => 'png'},
+            'heic' => {'active' => '0', 'format' => 'png'},
+            'tif' => {'active' => '0', 'format' => 'png'}
+          }
+        }
+      }
+    }
+    Setting.plugin_redmine_more_previews = @settings
+    Setting.clear_cache
+    RedmineMorePreviews.stubs(:imagemagick_reads?).returns(false)
+  end
+
+  def teardown
+    Setting.plugin_redmine_more_previews = @previous
+    Setting.clear_cache
+  end
+
+  def test_enabling_heic_without_the_coder_is_not_saved
+    updated = enable('heic')
+    post :plugin, params: {id: 'redmine_more_previews', settings: updated}
+    assert_response :redirect
+    assert_equal I18n.t(:error_more_previews_unreadable_image_format, formats: 'HEIC/HEIF', locale: :en), flash[:error]
+    assert_equal @settings, Setting.plugin_redmine_more_previews
+  end
+
+  def test_enabling_tiff_without_the_coder_is_not_saved
+    post :plugin, params: {id: 'redmine_more_previews', settings: enable('tif')}
+    assert_includes flash[:error].to_s, 'TIFF'
+    assert_equal @settings, Setting.plugin_redmine_more_previews
+  end
+
+  def test_error_names_each_unreadable_format_in_the_user_language
+    User.find(1).update!(language: 'ja')
+    post :plugin, params: {id: 'redmine_more_previews', settings: enable('heic', 'tif')}
+    assert_equal I18n.t(:error_more_previews_unreadable_image_format, formats: 'HEIC/HEIF, TIFF', locale: :ja), flash[:error]
+  end
+
+  def test_enabling_with_the_coder_is_saved
+    RedmineMorePreviews.stubs(:imagemagick_reads?).with('HEIC').returns(true)
+    RedmineMorePreviews.stubs(:imagemagick_reads?).with('TIFF').returns(true)
+    updated = enable('heic', 'tif')
+    post :plugin, params: {id: 'redmine_more_previews', settings: updated}
+    assert flash[:error].blank?
+    assert_equal updated, Setting.plugin_redmine_more_previews
+  end
+
+  # the form sends the hidden format checkboxes of a converter that is off
+  def test_turning_maggie_off_is_saved_with_heic_still_checked
+    updated = enable('heic')
+    updated['converter']['maggie']['active'] = '0'
+    post :plugin, params: {id: 'redmine_more_previews', settings: updated}
+    assert flash[:error].blank?
+    assert_equal updated, Setting.plugin_redmine_more_previews
+  end
+
+  def test_other_formats_are_saved_without_the_coder
+    updated = @settings.deep_dup
+    updated['converter']['maggie']['mime_types']['png']['format'] = 'jpg'
+    post :plugin, params: {id: 'redmine_more_previews', settings: updated}
+    assert flash[:error].blank?
+    assert_equal updated, Setting.plugin_redmine_more_previews
+  end
+
+  def test_libre_formats_are_still_checked
+    updated = @settings.deep_dup
+    updated['converter']['libre'] = {'mime_types' => {'docx' => {'active' => '1', 'format' => 'xml'}}}
+    post :plugin, params: {id: 'redmine_more_previews', settings: updated}
+    assert_equal I18n.t(:error_more_previews_invalid_libre_format, locale: :en), flash[:error]
+    assert_equal @settings, Setting.plugin_redmine_more_previews
+  end
+
+  # a string where a hash belongs answers [] as well: no TypeError (500)
+  def test_malformed_maggie_settings_do_not_fail
+    [{'active' => '1', 'mime_types' => 'x'},
+     {'active' => '1', 'mime_types' => {'heic' => 'x'}}].each do |maggie|
+      post :plugin, params: {id: 'redmine_more_previews', settings: {'converter' => {'maggie' => maggie}}}
+      assert_response :redirect, maggie.inspect
+    end
+  end
+
+  # the program Redmine runs, and whether it reads each format
+  def test_settings_show_whether_imagemagick_reads_each_format
+    RedmineMorePreviews.stubs(:imagemagick_reads?).with('HEIC').returns(false)
+    RedmineMorePreviews.stubs(:imagemagick_reads?).with('TIFF').returns(true)
+    RedmineMorePreviews.stubs(:convert_bin).returns('/usr/local/bin/magick')
+    get :plugin, params: {id: 'redmine_more_previews'}
+    assert_response :success
+    assert_select '#converter_settings_maggie p', text: /HEIC\/HEIF \(magick\)/ do
+      assert_select 'span.icon-error'
+    end
+    assert_select '#converter_settings_maggie p', text: /TIFF \(magick\)/ do
+      assert_select 'span.icon-ok'
+    end
+  end
+
+  private
+
+  def enable(*extensions)
+    updated = @settings.deep_dup
+    extensions.each {|ext| updated['converter']['maggie']['mime_types'][ext]['active'] = '1'}
+    updated
+  end
+end

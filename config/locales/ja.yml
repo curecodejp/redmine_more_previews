@@ -48,6 +48,7 @@ ja:
   text_more_previews_too_large:                            "ファイルが大きすぎるため、プレビューできません。"
   text_more_previews_image_failed:                         "プレビューを表示できませんでした。画像が大きすぎる（上限は幅・高さ 16,000 ピクセル、面積 128 メガピクセル）か、変換に失敗した可能性があります。ファイルをダウンロードして確認してください。"
   error_more_previews_invalid_libre_format:                "LibreOffice の変換形式が正しくないため、設定を保存しませんでした。"
+  error_more_previews_unreadable_image_format:            "ImageMagick が %{formats} を読めないため、設定を保存しませんでした（確認: convert -list format、ImageMagick 7 では magick -list format）。"
   
   label_redmine_more_previews_plugins_settings:            "プラグインの設定"
   

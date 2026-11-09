@@ -3,3 +3,7 @@
   <label><%= l(:label_resample) %></label>
   <%= select_tag "settings[converter][maggie][density]", options_for_select(Maggie::DENSITIES, settings['density']) %>
 </p>
+<%# whether the ImageMagick program Redmine runs has the coder of each format %>
+<% Maggie::IMAGE_FORMATS.each_value do |format| %>
+<p><%= format[:label] %> (<%= File.basename(RedmineMorePreviews.convert_bin.to_s) %>) <span class="icon-only <%= RedmineMorePreviews.imagemagick_reads?(format[:coder]) ? 'icon-ok' : 'icon-error' %>"></span></p>
+<% end %>

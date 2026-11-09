@@ -20,6 +20,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
+require 'open3'
+
 module RedmineMorePreviews
   
   # Whether a file starts as a PDF: Ghostscript runs a file as PostScript unless
@@ -44,11 +46,93 @@ module RedmineMorePreviews
   IMAGEMAGICK_LIMITS = [["width", "16KP"], ["height", "16KP"], ["area", "128MP"],
                         ["memory", "256MiB"], ["map", "512MiB"], ["disk", "1GiB"]].freeze
   
+  # the ImageMagick program the previews run: Redmine's imagemagick_convert_command,
+  # "convert" (ImageMagick 6) unless it is set, f.i. to "magick" (ImageMagick 7)
+  def self.convert_bin
+    CONVERT_BIN
+  end #def
+
   # ImageMagick's convert with the limits above, for Maggie and Peek
   def self.convert_command
-    ([Redmine::Utils::Shell.shell_quote(CONVERT_BIN)] + IMAGEMAGICK_LIMITS.map{|resource, value| "-limit #{resource} #{value}"}).join(" ")
+    ([Redmine::Utils::Shell.shell_quote(convert_bin)] + IMAGEMAGICK_LIMITS.map{|resource, value| "-limit #{resource} #{value}"}).join(" ")
+  end #def
+
+  # Whether a file starts as a HEIC image: an ISO BMFF "ftyp" box whose major brand
+  # is a HEVC brand, or "mif1" / "msf1" with a HEVC brand among the compatible ones.
+  # Marcel reports image/heic for a file named so whatever it holds, and libheif
+  # decodes whatever codec an image item names, not only HEVC: a file that names
+  # an AVIF brand anywhere is not handed to the HEIC coder. A file that hides an
+  # AV1 (or other) item behind HEVC brands is decoded if libheif has a decoder for it.
+  HEVC_BRANDS = %w(heic heix hevc hevx heim heis hevm hevs).freeze
+  AVIF_BRANDS = %w(avif avis).freeze
+
+  def self.valid_heif_magic?(path)
+    head = File.binread(path, 256).to_s
+    return false unless head.bytesize >= 16 && head[4, 4] == "ftyp".b
+    size   = head[0, 4].unpack1("N")
+    # the whole box is read, or its brands cannot all be checked
+    return false unless size >= 16 && size % 4 == 0 && size <= head.bytesize
+    major  = head[8, 4]
+    brands = head[16...size].to_s.scan(/.{4}/m)
+    return false if ([major] + brands).any?{|brand| AVIF_BRANDS.include?(brand) }
+    HEVC_BRANDS.include?(major) || (%w(mif1 msf1).include?(major) && brands.any?{|brand| HEVC_BRANDS.include?(brand) })
+  rescue SystemCallError
+    false
+  end #def
+
+  # Whether a file starts as a TIFF image (little or big endian, classic or BigTIFF)
+  TIFF_MAGICS = ["II*\0", "MM\0*", "II+\0", "MM\0+"].map(&:b).freeze
+
+  def self.valid_tiff_magic?(path)
+    TIFF_MAGICS.include?(File.binread(path, 4).to_s)
+  rescue SystemCallError
+    false
+  end #def
+
+  # Whether the ImageMagick program has a coder that reads the format (f.i. "HEIC"):
+  # the format column of "-list format" (ImageMagick 6 and 7 alike), mode "r".
+  # Asked once per program and process, as Redmine::Thumbnail.convert_available?.
+  # It tells whether the coder is installed: a policy.xml that denies the coder
+  # still fails the conversion.
+  def self.imagemagick_reads?(coder)
+    imagemagick_formats.match?(/^\s*#{Regexp.escape(coder)}\*?\s+\S+\s+r/)
+  end #def
+
+  # cached once it succeeds: a failure (a fork error, a program being upgraded)
+  # is asked again, rather than keeping HEIC and TIFF off until Redmine restarts
+  def self.imagemagick_formats
+    @imagemagick_formats ||= {}
+    bin = convert_bin
+    return @imagemagick_formats[bin] if @imagemagick_formats.key?(bin)
+    out = imagemagick_list_formats
+    out ? (@imagemagick_formats[bin] = out) : ""
   end #def
   
+  # "-list format" of the program, nil when it fails or runs longer than
+  # imagemagick_list_timeout seconds: it is asked within a request
+  def self.imagemagick_list_formats
+    Open3.popen2e(convert_bin, "-list", "format", :pgroup => true) do |stdin, out, wait|
+      stdin.close
+      reader = Thread.new { out.read }
+      unless wait.join(imagemagick_list_timeout)
+        begin; Process.kill("KILL", -wait.pid); rescue SystemCallError; end
+        wait.join
+        return nil
+      end
+      wait.value.success? ? reader.value : nil
+    end
+  rescue SystemCallError, IOError
+    nil
+  end #def
+  
+  def self.imagemagick_list_timeout
+    10
+  end #def
+  
+  def self.reset_imagemagick_formats
+    @imagemagick_formats = nil
+  end #def
+
 end
 
 require_relative "redmine_more_previews/constants"

@@ -91,11 +91,12 @@ module RedmineMorePreviews
 
   # Whether the ImageMagick program has a coder that reads the format (f.i. "HEIC"):
   # the format column of "-list format" (ImageMagick 6 and 7 alike), mode "r".
-  # Asked once per program and process, as Redmine::Thumbnail.convert_available?.
-  # It tells whether the coder is installed: a policy.xml that denies the coder
-  # still fails the conversion.
+  # The module column may be empty (f.i. HEIC of ImageMagick 6.9.12 on Ubuntu
+  # 24.04: "HEIC            r--"). Asked once per program and process, as
+  # Redmine::Thumbnail.convert_available?. It tells whether the coder is
+  # installed: a policy.xml that denies the coder still fails the conversion.
   def self.imagemagick_reads?(coder)
-    imagemagick_formats.match?(/^\s*#{Regexp.escape(coder)}\*?\s+\S+\s+r/)
+    imagemagick_formats.match?(/^\s*#{Regexp.escape(coder)}\*?\s+(?:[A-Z0-9]\S*\s+)?r[w-][+-](?:\s|$)/)
   end #def
 
   # cached once it succeeds: a failure (a fork error, a program being upgraded)

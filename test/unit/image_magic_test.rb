@@ -97,6 +97,15 @@ class ImageMagicTest < ActiveSupport::TestCase
          TIFF  TIFF      rw+   Tagged Image File Format (LIBTIFF, Version 4.7.0)
   LIST
 
+  # ImageMagick 6.9.12-98 on Ubuntu 24.04 (libheif1): no module for HEIC
+  UBUNTU_IM6_FORMATS = <<~LIST
+       Format  Module    Mode  Description
+    -------------------------------------------------------------------------------
+         HEIC            r--   Apple High efficiency Image Format (1.17.6)
+         HEIF            r--   Apple High efficiency Image Format (1.17.6)
+         TIFF* TIFF      rw+   Tagged Image File Format (LIBTIFF, Version 4.5.1)
+  LIST
+
   NO_HEIC = <<~LIST
        Format  Module    Mode  Description
     -------------------------------------------------------------------------------
@@ -105,7 +114,7 @@ class ImageMagicTest < ActiveSupport::TestCase
   LIST
 
   def test_coders_listed_as_readable_by_imagemagick_6_and_7
-    [IM6_FORMATS, IM7_FORMATS].each do |list|
+    [IM6_FORMATS, IM7_FORMATS, UBUNTU_IM6_FORMATS].each do |list|
       with_formats(list) do
         assert RedmineMorePreviews.imagemagick_reads?('HEIC')
         assert RedmineMorePreviews.imagemagick_reads?('TIFF')
@@ -119,6 +128,14 @@ class ImageMagicTest < ActiveSupport::TestCase
       assert_not RedmineMorePreviews.imagemagick_reads?('HEIC')
       assert_not RedmineMorePreviews.imagemagick_reads?('HEIF')
       assert RedmineMorePreviews.imagemagick_reads?('TIFF')
+    end
+  end
+
+  # an empty module column: the description does not count as the mode
+  def test_a_coder_without_a_module_is_read_by_its_mode
+    with_formats("     HEIC            ---   reads nothing\n     TIFF            -w-   rw+ in the description\n") do
+      assert_not RedmineMorePreviews.imagemagick_reads?('HEIC')
+      assert_not RedmineMorePreviews.imagemagick_reads?('TIFF')
     end
   end
 

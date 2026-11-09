@@ -155,6 +155,15 @@ class ImageMagicTest < ActiveSupport::TestCase
     end
   end
 
+  # Windows has no process groups: pgroup raises ArgumentError there
+  def test_imagemagick_is_asked_in_a_new_process_group_on_windows
+    Redmine::Platform.stubs(:mswin?).returns(true)
+    Open3.expects(:popen2e).with('convert', '-list', 'format', {:new_pgroup => true}).returns(IM6_FORMATS)
+    with_bin('convert') do
+      assert RedmineMorePreviews.imagemagick_reads?('HEIC')
+    end
+  end
+
   # asked within a request (the settings, the first conversion): it is stopped
   def test_a_hanging_imagemagick_is_stopped
     RedmineMorePreviews.stubs(:imagemagick_list_timeout).returns(1)

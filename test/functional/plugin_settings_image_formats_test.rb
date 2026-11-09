@@ -54,6 +54,21 @@ class PluginSettingsImageFormatsTest < Redmine::ControllerTest
     assert_equal I18n.t(:error_more_previews_unreadable_image_format, formats: 'HEIC/HEIF, TIFF', locale: :ja), flash[:error]
   end
 
+  # true and 1, which a JSON body keeps as they are, enable a converter as
+  # "1" does (Converter.select_active): the settings are not saved with them
+  def test_enabling_heic_with_json_values_is_not_saved
+    [[true, true], ['1', true], [true, '1'], [1, 1]].each do |maggie, heic|
+      updated = enable('heic')
+      updated['converter']['maggie']['active'] = maggie
+      updated['converter']['maggie']['mime_types']['heic']['active'] = heic
+      @request.headers['Content-Type'] = 'application/json'
+      post :plugin, params: {id: 'redmine_more_previews'}, body: {settings: updated}.to_json
+      assert_response :redirect, [maggie, heic].inspect
+      assert_includes flash[:error].to_s, 'HEIC/HEIF', [maggie, heic].inspect
+      assert_equal @settings, Setting.plugin_redmine_more_previews, [maggie, heic].inspect
+    end
+  end
+
   def test_enabling_with_the_coder_is_saved
     RedmineMorePreviews.stubs(:imagemagick_reads?).with('HEIC').returns(true)
     RedmineMorePreviews.stubs(:imagemagick_reads?).with('TIFF').returns(true)

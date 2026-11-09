@@ -27,13 +27,19 @@ module RedmineMorePreviews
       # enabling them there is refused. The form sends the format checkboxes of
       # a converter that is off, so only an enabled Maggie is checked.
       def unreadable_maggie_formats(maggie)
-        return [] unless settings_hash?(maggie) && maggie[:active].to_s == '1' && defined?(::Maggie)
+        return [] unless settings_hash?(maggie) && setting_active?(maggie[:active]) && defined?(::Maggie)
 
         formats = maggie[:mime_types]
         return [] unless settings_hash?(formats)
 
-        enabled = formats.each_pair.select {|_ext, config| settings_hash?(config) && config[:active].to_s == '1'}.map(&:first)
+        enabled = formats.each_pair.select {|_ext, config| settings_hash?(config) && setting_active?(config[:active])}.map(&:first)
         ::Maggie.unreadable_formats(enabled)
+      end
+
+      # what the converters take for enabled (Converter.select_active): also
+      # true and 1, which a JSON request sends as they are
+      def setting_active?(value)
+        [true, 1, '1'].include?(value)
       end
 
       # a String answers [] too: malformed parameters are not checked here

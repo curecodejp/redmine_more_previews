@@ -111,11 +111,14 @@ module RedmineMorePreviews
   # "-list format" of the program, nil when it fails or runs longer than
   # imagemagick_list_timeout seconds: it is asked within a request
   def self.imagemagick_list_formats
-    Open3.popen2e(convert_bin, "-list", "format", :pgroup => true) do |stdin, out, wait|
+    # Windows has no process groups to signal (see Lib::RmpProcess)
+    windows = Redmine::Platform.mswin?
+    group = windows ? {:new_pgroup => true} : {:pgroup => true}
+    Open3.popen2e(convert_bin, "-list", "format", **group) do |stdin, out, wait|
       stdin.close
       reader = Thread.new { out.read }
       unless wait.join(imagemagick_list_timeout)
-        begin; Process.kill("KILL", -wait.pid); rescue SystemCallError; end
+        begin; Process.kill("KILL", windows ? wait.pid : -wait.pid); rescue SystemCallError; end
         wait.join
         return nil
       end

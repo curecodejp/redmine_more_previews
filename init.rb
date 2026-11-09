@@ -162,6 +162,8 @@
 #       - Let text and PDF preview frames scroll and fit the window; run inline previews without Vince
 #       - Show a message when an image preview fails to load
 #       - Zippy: download entries from the listing, including one named like the listing, and send it as UTF-8
+# 6.1.9
+#       - Maggie: preview HEIC/HEIF and TIFF images, within a size limit set by the administrator
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -169,7 +171,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.8'
+  version      '6.1.9'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

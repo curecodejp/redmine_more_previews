@@ -277,11 +277,14 @@ module RedmineMorePreviews
       source    = options[:content] ? StringIO.new(options[:content]) : Pathname.new(filepath)
       mime_type = Marcel::MimeType.for source, name: File.basename(filepath)
       if mime_type
-        # several extensions of one type (f.i. tif and tiff): the settings of
-        # the file's own extension, and none when that one is turned off
-        matches = active_mime_types.select{|m,opts| mime_type == opts["mime"] }
-        mime    = matches[extension_of(filepath)] ||
-                  (matches.values.first unless turned_off?(extension_of(filepath), mime_type))
+        # several extensions of one type (f.i. tif and tiff), or of related types
+        # (heic and heif, see :related): the settings of the file's own extension,
+        # and none when that one is turned off. Under another name, the first
+        # extension of the type itself
+        ext     = extension_of(filepath)
+        own     = active_mime_types[ext]
+        mime    = (own if own && of_type?(own, mime_type)) ||
+                  (active_mime_types.values.find{|opts| mime_type == opts["mime"] } unless turned_off?(ext, mime_type))
         return mime if mime
       end
       end
@@ -300,13 +303,19 @@ module RedmineMorePreviews
     end #def
     private_class_method :extension_of
     
-    # whether the extension is one of the type of an active converter, and is
-    # turned off there
+    # whether the extension is one of the type (or a related type) of an active
+    # converter, and is turned off there
     def self.turned_off?( ext, mime_type )
       configured = mime_types_of(active_converters).reduce({}, :merge)[ext]
-      configured.present? && configured["mime"] == mime_type && select_active(ext => configured).empty?
+      configured.present? && of_type?(configured, mime_type) && select_active(ext => configured).empty?
     end #def
     private_class_method :turned_off?
+    
+    # whether the settings of an extension are for the type, or a related one
+    def self.of_type?( opts, mime_type )
+      opts["mime"] == mime_type || Array(opts["related"]).include?(mime_type)
+    end #def
+    private_class_method :of_type?
     
     def self.conversion_mime( filepath, options={} )
       FORMAT_MIMES[mime( filepath, options )["format"]].presence || "application/octet-stream"
@@ -359,6 +368,7 @@ module RedmineMorePreviews
               "converter" => id, 
               "mime"      => find(id).mime_types.to_h.dig(m.to_sym, :mime),
               "synonyms"  => find(id).mime_types.to_h.dig(m.to_sym, :synonyms),
+              "related"   => find(id).mime_types.to_h.dig(m.to_sym, :related),
               "icon"      => find(id).mime_types.to_h.dig(m.to_sym, :icon)
             )]
           end.to_h
@@ -443,7 +453,9 @@ module RedmineMorePreviews
         @mime_types
       else
         if args.first.is_a?(Hash)
-          args.first.each{|mime, opts| opts.assert_valid_keys(:mime, :synonyms, :formats, :icon, :active)}
+          # :related are types (not registered with Rails, as :synonyms are) a file
+          # of the extension may be detected as, f.i. image/heif for heic
+          args.first.each{|mime, opts| opts.assert_valid_keys(:mime, :synonyms, :related, :formats, :icon, :active)}
           @mime_types.merge!(args.first).symbolize_keys!
         elsif %w(String Symbol).include? args.first.class.name
           if args[1].is_a?(Hash)

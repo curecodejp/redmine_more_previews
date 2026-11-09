@@ -51,7 +51,43 @@ class ConverterMimeExtensionTest < ActiveSupport::TestCase
     assert_equal 'gif', RedmineMorePreviews::Converter.conversion_ext(png)
   end
 
+  # Marcel reports image/heif for a HEIC file of major brand mif1, and image/heic
+  # for a HEIF file of major brand heic: heic and heif are each other's related
+  # type, and the settings of the file's own extension apply
+  def test_heic_and_heif_keep_the_settings_of_their_own_extension
+    configure('heic' => {'active' => '1', 'format' => 'jpg'}, 'heif' => {'active' => '1', 'format' => 'gif'})
+    assert_equal 'jpg', RedmineMorePreviews::Converter.conversion_ext(fixture('plain.heif', 'photo.heic'))
+    assert_equal 'gif', RedmineMorePreviews::Converter.conversion_ext(fixture('plain.heic', 'photo.heif'))
+    assert_equal 'jpg', RedmineMorePreviews::Converter.conversion_ext(fixture('plain.heic', 'photo.heic'))
+    assert_equal 'gif', RedmineMorePreviews::Converter.conversion_ext(fixture('plain.heif', 'photo.heif'))
+  end
+
+  def test_a_heic_extension_that_is_turned_off_is_not_previewed
+    configure('heic' => {'active' => '0', 'format' => 'jpg'}, 'heif' => {'active' => '1', 'format' => 'gif'})
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterNotFound) do
+      RedmineMorePreviews::Converter.mime(fixture('plain.heif', 'photo.heic'))
+    end
+    configure('heic' => {'active' => '1', 'format' => 'jpg'}, 'heif' => {'active' => '0', 'format' => 'gif'})
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterNotFound) do
+      RedmineMorePreviews::Converter.mime(fixture('plain.heic', 'photo.heif'))
+    end
+  end
+
+  # under another name, the type of the content decides, as before
+  def test_a_heif_under_another_name_takes_its_own_type
+    configure('heic' => {'active' => '1', 'format' => 'jpg'}, 'heif' => {'active' => '1', 'format' => 'gif'},
+              'png' => {'active' => '1', 'format' => 'png'})
+    assert_equal 'gif', RedmineMorePreviews::Converter.conversion_ext(fixture('plain.heif', 'photo.png'))
+    assert_equal 'jpg', RedmineMorePreviews::Converter.conversion_ext(fixture('plain.heic', 'photo.png'))
+  end
+
   private
+
+  def fixture(source, name)
+    path = File.join(@dir, name)
+    FileUtils.cp(File.join(FIXTURES, source), path)
+    path
+  end
 
   def configure(mime_types)
     Setting.plugin_redmine_more_previews = {

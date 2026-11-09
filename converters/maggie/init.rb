@@ -28,6 +28,8 @@
 #       - validate PDF headers, explicit ImageMagick formats, resource limits
 # 1.0.4
 #       - share the ImageMagick resource limits with Peek
+# 1.0.5
+#       - HEIC/HEIF and TIFF (first image or page), when ImageMagick reads them
 #
 require_relative 'lib/maggie'
 
@@ -35,7 +37,7 @@ RedmineMorePreviews::Converter.register :maggie do
   name           'Maggie'
   author         'Stephan Wenzel'
   description    'Convert images'
-  version        '1.0.4'
+  version        '1.0.5'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_maggie'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_maggie'
                  
@@ -47,6 +49,10 @@ RedmineMorePreviews::Converter.register :maggie do
                  :gif  =>    {:formats => [:png, :jpg, :gif], :mime => "image/gif",        :icon => "gif.png" },
                  :bmp  =>    {:formats => [:png, :jpg, :gif], :mime => "image/bmp",        :icon => "bmp.png" },
                  :pdf  =>    {:formats => [:png, :jpg, :gif], :mime => "application/pdf",  :icon => "pdf.png" },
+                 :heic =>    {:formats => [:png, :jpg, :gif], :mime => "image/heic" },
+                 :heif =>    {:formats => [:png, :jpg, :gif], :mime => "image/heif" },
+                 :tif  =>    {:formats => [:png, :jpg, :gif], :mime => "image/tiff" },
+                 :tiff =>    {:formats => [:png, :jpg, :gif], :mime => "image/tiff" },
             )
 end
 

@@ -20,6 +20,8 @@
 #
 # 1.0.0
 #       - initial version
+# 1.0.5
+#       - HEIC/HEIF and TIFF, first image or page, when enabled and readable
 
 class Maggie < RedmineMorePreviews::Conversion
 
@@ -35,6 +37,37 @@ class Maggie < RedmineMorePreviews::Conversion
   
   # see RedmineMorePreviews::IMAGEMAGICK_LIMITS
   LIMITS      = RedmineMorePreviews::IMAGEMAGICK_LIMITS
+  
+  # Formats that need a coder (and library) ImageMagick may lack, each converted
+  # only when one of its extensions is enabled for Maggie, the file starts as the
+  # format (Marcel reports the type of an unknown file by its name) and
+  # ImageMagick reads the format. Only the first image ([0]: the primary image of
+  # a HEIC file, the first page of a TIFF file) is converted. libheif applies the
+  # rotation of a HEIC image itself; ImageMagick does not apply the orientation
+  # of a TIFF image. The EXIF orientation the source carries is dropped, or the
+  # browser would rotate the preview once more.
+  IMAGE_FORMATS = {
+    "heif" => {:label      => "HEIC/HEIF",
+               :mimes      => %w(image/heic image/heif image/heic-sequence image/heif-sequence),
+               :extensions => %w(heic heif),
+               :magic      => :valid_heif_magic?,
+               :coder      => "HEIC",
+               :options    => "+profile exif"},
+    "tiff" => {:label      => "TIFF",
+               :mimes      => %w(image/tiff),
+               :extensions => %w(tif tiff),
+               :magic      => :valid_tiff_magic?,
+               :coder      => "TIFF",
+               :options    => "-auto-orient +profile exif -colorspace sRGB"}
+  }.freeze
+  IMAGE_FORMAT_MIMES = IMAGE_FORMATS.values.flat_map{|f| f[:mimes] }.freeze
+  
+  # the formats (labels) whose coder ImageMagick lacks among the given extensions
+  def self.unreadable_formats( extensions )
+    IMAGE_FORMATS.values.
+      select{|f| (f[:extensions] & extensions.map(&:to_s)).any? && !RedmineMorePreviews.imagemagick_reads?(f[:coder]) }.
+      map{|f| f[:label] }
+  end #def
     
   def status
     [:text_convert_available, Redmine::Thumbnail.convert_available?]
@@ -42,6 +75,9 @@ class Maggie < RedmineMorePreviews::Conversion
   
   def convert
     mime_type = Marcel::MimeType.for(Pathname.new(source), name: File.basename(source))
+    # Marcel reports video/quicktime for HEIF with most HEVC brands but heic (heix,
+    # hevc, hevx, heim, heis, msf1, ...)
+    mime_type = "image/heic" if mime_type == "video/quicktime" && RedmineMorePreviews.valid_heif_magic?(source)
     output    = thisdir("#{OUTPUT}.#{preview_format}")
     
     cmd = case mime_type
@@ -51,6 +87,12 @@ class Maggie < RedmineMorePreviews::Conversion
     when "image/gif", "image/bmp"
       "#{convert_command} -density 72x72 #{shell_quote "#{CODERS[mime_type]}:#{source}"} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
     
+    when *IMAGE_FORMAT_MIMES
+      format = IMAGE_FORMATS.values.find{|f| f[:mimes].include?(mime_type) }
+      if readable?(format)
+        "#{convert_command} -density 72x72 #{shell_quote "#{format[:coder].downcase}:#{source}[0]"} #{format[:options]} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
+      end
+      
     when "application/pdf"
       # Without Ghostscript a PDF cannot be rasterized. Never copy the
       # source PDF under a PNG/JPEG/GIF preview filename.
@@ -63,6 +105,13 @@ class Maggie < RedmineMorePreviews::Conversion
   
   def convert_command
     RedmineMorePreviews.convert_command
+  end #def
+  
+  def readable?( format )
+    enabled = converter_settings.to_h.dig("mime_types").to_h
+    format[:extensions].any?{|ext| [true, 1, "1"].include?(enabled.dig(ext, "active")) } &&
+      RedmineMorePreviews.send(format[:magic], source) &&
+      RedmineMorePreviews.imagemagick_reads?(format[:coder])
   end #def
   
   def get_density

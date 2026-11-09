@@ -287,6 +287,7 @@ Native speakers: please help to improve localizations
 **6.1.9**
 
 - **Maggie:** preview HEIC/HEIF and TIFF images: the primary image of a HEIC file, the first page of a TIFF file, upright. They are converted only where ImageMagick reads them (HEIC needs libheif), and the settings refuse to enable them elsewhere. Check with `convert -list format` (`magick -list format` for ImageMagick 7); see [Maggie](#converter-details).
+- A file is still matched by its content first; of the extensions of its type (f.i. `tif` and `tiff`), the output format and the switch of the file's own extension apply.
 - Maggie 1.0.5.
 
 **6.1.8**

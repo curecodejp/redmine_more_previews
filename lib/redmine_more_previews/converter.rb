@@ -276,18 +276,37 @@ module RedmineMorePreviews
       # try by file content
       source    = options[:content] ? StringIO.new(options[:content]) : Pathname.new(filepath)
       mime_type = Marcel::MimeType.for source, name: File.basename(filepath)
-      mime      = active_mime_types.select{|m,opts| mime_type == opts["mime"] }.values.first if mime_type
-      return mime if mime
+      if mime_type
+        # several extensions of one type (f.i. tif and tiff): the settings of
+        # the file's own extension, and none when that one is turned off
+        matches = active_mime_types.select{|m,opts| mime_type == opts["mime"] }
+        mime    = matches[extension_of(filepath)] ||
+                  (matches.values.first unless turned_off?(extension_of(filepath), mime_type))
+        return mime if mime
+      end
       end
       
       # try by file extension
-      ext       = File.extname( filepath.downcase ).gsub(/\A\./,"")
+      ext       = extension_of(filepath)
       mime      = active_mime_types[ext] if ext.present?
       return mime if mime
       
       # give up
       raise ConverterNotFound
     end #def
+    
+    def self.extension_of( filepath )
+      File.extname( filepath.downcase ).delete_prefix(".")
+    end #def
+    private_class_method :extension_of
+    
+    # whether the extension is one of the type of an active converter, and is
+    # turned off there
+    def self.turned_off?( ext, mime_type )
+      configured = mime_types_of(active_converters).reduce({}, :merge)[ext]
+      configured.present? && configured["mime"] == mime_type && select_active(ext => configured).empty?
+    end #def
+    private_class_method :turned_off?
     
     def self.conversion_mime( filepath, options={} )
       FORMAT_MIMES[mime( filepath, options )["format"]].presence || "application/octet-stream"

@@ -158,6 +158,17 @@ class ImageMagicTest < ActiveSupport::TestCase
     assert_not File.exist?(File.join(@dir, 'pwned'))
   end
 
+  # requests that come together at the start ask the program once
+  def test_concurrent_first_requests_ask_imagemagick_once
+    calls = File.join(@dir, 'calls')
+    bin = script('convert', "echo run >> #{calls.shellescape}\nsleep 0.5\ncat <<'LIST'\n#{IM6_FORMATS}LIST\n")
+    with_bin(bin) do
+      results = Array.new(4) { Thread.new { RedmineMorePreviews.imagemagick_reads?('HEIC') } }.map(&:value)
+      assert_equal [true] * 4, results
+    end
+    assert_equal ["run\n"], File.readlines(calls)
+  end
+
   # a failure is asked again: one that passes (a fork error, a program being
   # upgraded) must not turn HEIC and TIFF off until Redmine restarts
   def test_a_missing_or_failing_imagemagick_reads_nothing_and_is_asked_again

@@ -101,12 +101,17 @@ module RedmineMorePreviews
 
   # cached once it succeeds: a failure (a fork error, a program being upgraded)
   # is asked again, rather than keeping HEIC and TIFF off until Redmine restarts
+  # once per program also when the first requests come together
+  IMAGEMAGICK_FORMATS_LOCK = Mutex.new
+
   def self.imagemagick_formats
-    @imagemagick_formats ||= {}
     bin = convert_bin
-    return @imagemagick_formats[bin] if @imagemagick_formats.key?(bin)
-    out = imagemagick_list_formats
-    out ? (@imagemagick_formats[bin] = out) : ""
+    IMAGEMAGICK_FORMATS_LOCK.synchronize do
+      @imagemagick_formats ||= {}
+      return @imagemagick_formats[bin] if @imagemagick_formats.key?(bin)
+      out = imagemagick_list_formats
+      out ? (@imagemagick_formats[bin] = out) : ""
+    end
   end #def
   
   # "-list format" of the program, nil when it fails or runs longer than
@@ -134,7 +139,7 @@ module RedmineMorePreviews
   end #def
   
   def self.reset_imagemagick_formats
-    @imagemagick_formats = nil
+    IMAGEMAGICK_FORMATS_LOCK.synchronize { @imagemagick_formats = nil }
   end #def
 
 end

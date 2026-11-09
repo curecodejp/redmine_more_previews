@@ -96,7 +96,7 @@ module RedmineMorePreviews
     # The start of a TIFF file: a first IFD with ImageWidth and ImageLength of
     # the given types (3 SHORT, 4 LONG, 16 LONG8), little (II) or big (MM)
     # endian, classic or BigTIFF, the IFD after +pad+ bytes of image data
-    def tiff_header(width, height, order: 'II', big: false, type: 4, pad: 16)
+    def tiff_header(width, height, order: 'II', big: false, type: 4, pad: 16, count: 1)
       u16, u32, u64 = order == 'II' ? %w(v V Q<) : %w(n N Q>)
       value = lambda do |v, size|
         bytes = case type when 3 then [v].pack(u16) when 4 then [v].pack(u32) else [v].pack(u64) end
@@ -105,9 +105,9 @@ module RedmineMorePreviews
       entries = {256 => width, 257 => height, 259 => 1}.map do |tag, v|
         t = tag == 259 ? 3 : type
         if big
-          [tag, t].pack(u16 * 2) + [1].pack(u64) + (tag == 259 ? [v].pack(u16).ljust(8, "\0") : value.call(v, 8))
+          [tag, t].pack(u16 * 2) + [tag == 259 ? 1 : count].pack(u64) + (tag == 259 ? [v].pack(u16).ljust(8, "\0") : value.call(v, 8))
         else
-          [tag, t].pack(u16 * 2) + [1].pack(u32) + (tag == 259 ? [v].pack(u16).ljust(4, "\0") : value.call(v, 4))
+          [tag, t].pack(u16 * 2) + [tag == 259 ? 1 : count].pack(u32) + (tag == 259 ? [v].pack(u16).ljust(4, "\0") : value.call(v, 4))
         end
       end.join
       if big

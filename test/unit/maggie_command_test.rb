@@ -262,13 +262,17 @@ class MaggieCommandTest < ActiveSupport::TestCase
     worker = worker_for('small.tif', self.class.tiff_header(1001, 1000))
     assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { worker.convert }
 
-    # not a positive number: the default
-    ['', '0', '-5', 'x'].each do |value|
+    @settings = ALL_ENABLED.merge('max_megapixels' => 100)
+    convert, = commands(worker_for('big.tif', self.class.tiff_header(10_000, 10_000)))
+    assert_includes convert.join(' '), 'tiff:'
+
+    # not a whole positive number: the default, not a part of it
+    ['', ' ', '0', '-5', 'x', '1.5', '100xyz', '1e3', 100.5, {'a' => '100'}, ['100'], nil].each do |value|
       @settings = ALL_ENABLED.merge('max_megapixels' => value)
       worker = worker_for('big.tif', self.class.tiff_header(10_000, 10_000))
-      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge, value) { worker.convert }
+      assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge, value.inspect) { worker.convert }
       convert, = commands(worker_for('limit.tif', self.class.tiff_header(8000, 8000)))
-      assert_includes convert.join(' '), 'tiff:', value
+      assert_includes convert.join(' '), 'tiff:', value.inspect
     end
   end
 

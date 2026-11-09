@@ -119,6 +119,18 @@ class ImageDimensionsTest < ActiveSupport::TestCase
     assert_equal [640, 480], tiff(tiff_header(640, 480, pad: 1024 * 1024))
   end
 
+  # libtiff reads the size from an entry of one value: with more values (or
+  # none) the value field of a LONG or LONG8 entry is an offset, not the size
+  def test_a_size_of_more_or_fewer_than_one_value_is_not_read
+    [{}, {order: 'MM'}, {type: 3}, {big: true}, {big: true, order: 'MM'}, {big: true, type: 3},
+     {big: true, type: 16}].each do |options|
+      [0, 2, 0x1_0000].each do |count|
+        assert_nil tiff(tiff_header(640, 480, count: count, **options)), [options, count].inspect
+      end
+      assert_equal [640, 480], tiff(tiff_header(640, 480, count: 1, **options)), options.inspect
+    end
+  end
+
   def test_a_size_that_cannot_be_read_is_nil_for_tiff
     header = tiff_header(640, 480)
     {

@@ -138,8 +138,15 @@ class Maggie < RedmineMorePreviews::Conversion
   end #def
   
   def limit( key )
-    value = converter_settings.to_h[key].to_i
-    value > 0 ? value : SIZE_LIMITS[key]
+    Maggie.size_limit(converter_settings, key)
+  end #def
+  
+  # the setting when it is a whole positive number (f.i. "100" or 100), else
+  # the default: "1.5", "100xyz", a hash or an array are not taken in part
+  def self.size_limit( settings, key )
+    value = settings.to_h[key]
+    value = value.to_s.strip if value.is_a?(String) || value.is_a?(Integer)
+    value.is_a?(String) && value.match?(/\A0*[1-9]\d*\z/) ? value.to_i : SIZE_LIMITS[key]
   end #def
   
   def get_density

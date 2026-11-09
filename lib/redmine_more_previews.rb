@@ -227,6 +227,9 @@ module RedmineMorePreviews
         next unless tag == 256 || tag == 257
         # libtiff takes the first of a tag that comes twice: such a file is not read
         return nil if size.key?(tag)
+        # libtiff reads the size from an entry of one value only; with more
+        # values the value field is an offset, not the size
+        return nil unless entry[4, value_at - 4].unpack1(entry_size == 20 ? u64 : u32) == 1
         size[tag] = case type
                     when 3  then entry[value_at, 2].unpack1(u16)
                     when 4  then entry[value_at, 4].unpack1(u32)

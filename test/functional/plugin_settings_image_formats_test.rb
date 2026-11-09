@@ -140,6 +140,12 @@ class PluginSettingsImageFormatsTest < Redmine::ControllerTest
 
     get :plugin, params: {id: 'redmine_more_previews'}
     assert_select 'input[name=?][value=?]', 'settings[converter][maggie][max_megapixels]', '100'
+
+    # a value that is not used shows the default that is
+    updated['converter']['maggie']['max_megapixels'] = '1.5'
+    Setting.plugin_redmine_more_previews = updated
+    get :plugin, params: {id: 'redmine_more_previews'}
+    assert_select 'input[name=?][value=?]', 'settings[converter][maggie][max_megapixels]', '64'
   end
 
   private

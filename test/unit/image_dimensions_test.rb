@@ -51,6 +51,7 @@ class ImageDimensionsTest < ActiveSupport::TestCase
       'zero size'    => heic_header({1 => [0, 3000]}),
       'other item'   => heic_header({1 => [4000, 3000]}, primary: 7),
       'many boxes'   => iso_box('ftyp', 'heic' + "\0\0\0\0") + (iso_box('free') * 16) + header,
+      'box 17'       => header + (iso_box('free') * 15),
       'meta to end'  => iso_box('ftyp', 'heic' + "\0\0\0\0") + iso_box('meta', "\0" * 16, size: 0),
       'huge meta'    => iso_box('ftyp', 'heic' + "\0\0\0\0") + iso_box('meta', ''.b, size: 8 + RedmineMorePreviews::HEIF_META_LIMIT + 1),
       'bad box size' => iso_box('ftyp', 'heic' + "\0\0\0\0") + iso_box('meta', [0].pack('N') + iso_box('pitm', ''.b, size: 4)),
@@ -60,6 +61,31 @@ class ImageDimensionsTest < ActiveSupport::TestCase
       assert_nil heif(bytes), label
     end
     assert_nil RedmineMorePreviews.heif_dimensions(File.join(@dir, 'missing.heic'))
+  end
+
+  # the top-level boxes are walked to the end of the file, at most HEIF_TOP_BOXES
+  def test_up_to_sixteen_top_level_boxes_are_walked
+    header = heic_header({1 => [4000, 3000]})
+    assert_equal [4000, 3000], heif(header + (iso_box('free') * 14))
+    assert_nil heif(header + (iso_box('free') * 15))
+  end
+
+  # libheif takes the last meta box: a small one before a large one would pass
+  def test_a_file_with_two_meta_boxes_is_not_read
+    small = heic_header({1 => [16, 16]})
+    large = heic_header({1 => [10_000, 10_000]})
+    assert_nil heif(small + large[large.index('meta'.b) - 4..])
+  end
+
+  # a box that ends beyond the end of the file is the last one, as for libheif
+  # (f.i. a file cut short within its mdat box); a 64-bit size beyond any file
+  # is no error
+  def test_a_box_beyond_the_end_of_the_file_ends_the_walk
+    header = heic_header({1 => [4000, 3000]})
+    assert_equal [4000, 3000], heif(header + iso_box('mdat', "\0" * 16, size: 4096))
+    huge = [1].pack('N') + 'mdat' + [0xFFFF_FFFF_FFFF_FFFF].pack('Q>')
+    assert_nil heif(iso_box('ftyp', 'heic' + "\0\0\0\0") + huge.b + header)
+    assert_equal [4000, 3000], heif(header + huge.b)
   end
 
   # flags 1: property indices of two bytes; version 1: item ids of four bytes
@@ -102,6 +128,8 @@ class ImageDimensionsTest < ActiveSupport::TestCase
       'no height'     => header.sub([257].pack('v').b, [258].pack('v').b),
       'rational'      => header.dup.tap {|h| h[24 + 2 + 2, 2] = [5].pack('v') },
       'long8 classic' => tiff_header(640, 480, type: 16),
+      # libtiff takes the first of a tag that comes twice
+      'width twice'   => header.dup.tap {|h| h[26 + 24, 2] = [256].pack('v') },
       'bigtiff bytes' => tiff_header(640, 480, big: true).tap {|h| h[4, 2] = [4].pack('v') },
       'not tiff'      => "IM*\0".b + ("\0" * 32),
       'empty'         => ''

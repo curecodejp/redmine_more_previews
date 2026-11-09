@@ -92,8 +92,10 @@ module RedmineMorePreviews
   # The size [width, height] a HEIC file declares for its primary image (the
   # "ispe" property of the "pitm" item, the coded size before "clap" crops it),
   # nil when it cannot be read: libheif allocates memory for this size while
-  # decoding, outside ImageMagick's limits. The top-level boxes are walked up to
-  # the "meta" box, which is read whole when it is at most HEIF_META_LIMIT bytes.
+  # decoding, outside ImageMagick's limits. The top-level boxes are walked to the
+  # end of the file, at most HEIF_TOP_BOXES of them: libheif takes the last "meta"
+  # box, so a file with more than one is not read. The "meta" box is read whole
+  # when it is at most HEIF_META_LIMIT bytes.
   # It is what the file declares: a crafted file may code a larger image than
   # it declares, which only the time limit of the conversion stops.
   HEIF_META_LIMIT = 1024 * 1024
@@ -120,29 +122,34 @@ module RedmineMorePreviews
     nil
   end #def
 
-  # the payload of the top-level "meta" box, nil when it is not found among the
-  # first HEIF_TOP_BOXES boxes, is larger than HEIF_META_LIMIT or is cut short
+  # the payload of the only top-level "meta" box, nil when there is none or more
+  # than one, it is larger than HEIF_META_LIMIT or cut short, or the file has more
+  # than HEIF_TOP_BOXES boxes. As for libheif, the walk ends with the file, or with
+  # a box that reaches its end (size 0) or beyond it (f.i. a file cut short)
   def self.heif_meta(io)
+    meta = nil
     HEIF_TOP_BOXES.times do
       header = io.read(8).to_s
-      return nil unless header.bytesize == 8
+      return meta if header.bytesize < 8
       size, type = header.unpack('Na4')
       length = 8
       if size == 1
         large = io.read(8).to_s
-        return nil unless large.bytesize == 8
+        return meta if large.bytesize < 8
         size, length = large.unpack1('Q>'), 16
       end
-      # a box up to the end of the file (size 0) is the last one
-      return nil if size == 0 || size < length
+      return (type == 'meta' ? nil : meta) if size == 0
+      return nil if size < length
+      beyond = size - length > io.size - io.pos
       if type == 'meta'
-        return nil if size - length > HEIF_META_LIMIT
-        payload = io.read(size - length).to_s
-        return payload.bytesize == size - length ? payload : nil
+        return nil if meta || beyond || size - length > HEIF_META_LIMIT
+        meta = io.read(size - length)
+      else
+        return meta if beyond
+        io.seek(size - length, IO::SEEK_CUR)
       end
-      io.seek(size - length, IO::SEEK_CUR)
     end
-    nil
+    io.eof? ? meta : nil
   end #def
   private_class_method :heif_meta
 
@@ -218,6 +225,8 @@ module RedmineMorePreviews
         entry = entries[i * entry_size, entry_size]
         tag, type = entry[0, 4].unpack(u16 * 2)
         next unless tag == 256 || tag == 257
+        # libtiff takes the first of a tag that comes twice
+        return nil if size.key?(tag)
         size[tag] = case type
                     when 3  then entry[value_at, 2].unpack1(u16)
                     when 4  then entry[value_at, 4].unpack1(u32)

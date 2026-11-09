@@ -275,7 +275,8 @@ class MaggieCommandTest < ActiveSupport::TestCase
   # a size that cannot be read (f.i. a sequence without a primary image, a cut
   # header) is not converted; the other images do not declare one
   def test_an_image_whose_size_cannot_be_read_is_not_converted
-    {'burst.heic' => self.class.ftyp('hevc', %w(msf1 hevc)), 'cut.tif' => "II*\0".b + ("\0" * 32),
+    {'burst.heic' => self.class.iso_box('ftyp', 'hevc' + "\0\0\0\0" + 'msf1hevc') + self.class.iso_box('moov', "\0" * 32),
+     'cut.tif' => "II*\0".b + ("\0" * 32),
      'no-ispe.heic' => HEIC.sub('ispe'.b, 'pixi'.b)}.each do |name, bytes|
       worker = worker_for(name, bytes)
       worker.expects(:command).never

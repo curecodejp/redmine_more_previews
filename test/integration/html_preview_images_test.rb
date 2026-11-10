@@ -84,8 +84,11 @@ class HtmlPreviewImagesTest < Redmine::IntegrationTest
     base = "/projects/#{PRJ_ID}/repository/#{repository.id}/preview/mail.eml@"
     get "#{base}/index.html"
     assert_response :success
-    # an encoded "/" survives the routing ("//etc" would be squeezed)
+    # an encoded "/" survives the routing ("//etc" would be squeezed); only
+    # the one "/" after the "@" is dropped, even for an asset that exists
     get "#{base}/%2Fetc/hostname.png"
+    assert_response :not_found
+    get "#{base}/%2Fimage001.png"
     assert_response :not_found
     get "#{base}//etc/hostname.png"
     assert_response :not_found

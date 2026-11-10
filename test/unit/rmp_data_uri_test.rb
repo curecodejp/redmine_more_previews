@@ -90,6 +90,13 @@ class RmpDataUriTest < ActiveSupport::TestCase
     assert_equal %(<img src="#{png_uri}"><img src="b.png">), embedded
   end
 
+  # LibreOffice keeps a "'" of a document's name in the names of its images
+  def test_embed_takes_a_src_holding_the_other_quote
+    write("a'b_html_1.png")
+    embedded = DataUri.embed(%(<img src="a'b_html_1.png" name="x">), @dir, BUDGET)
+    assert_equal %(<img src="#{png_uri}" name="x">), embedded
+  end
+
   def test_embed_keeps_a_page_that_is_not_utf8
     write('a.png')
     html = "<p>\xE9t\xE9</p><img src=\"a.png\">".b
@@ -105,5 +112,34 @@ class RmpDataUriTest < ActiveSupport::TestCase
     worker.tmpdir = @dir
     worker.send(:embed_images, page)
     assert_includes File.read(page), %(<img src="#{png_uri}" name="x">)
+  end
+
+  # a page already larger than a preview is left as it is, without being read
+  def test_libre_leaves_a_page_larger_than_a_preview
+    write('minutes_html_1.png')
+    page = write('minutes.html', '<img src="minutes_html_1.png">' + ' ' * (1024 * 1024))
+    worker = Libre.allocate
+    worker.tmpdir = @dir
+    RedmineMorePreviews::Converter.stubs(:max_output).returns(1024 * 1024)
+    File.expects(:binread).with(page).never
+    worker.send(:embed_images, page)
+    assert_includes File.read(page), '<img src="minutes_html_1.png">'
+  end
+
+  # the HTML LibreOffice writes is converted with its images embedded
+  def test_libre_conversion_to_html_embeds_the_images
+    worker = Libre.allocate
+    worker.tmpdir = @dir
+    worker.tmptarget = File.join(@dir, 'index.html')
+    worker.source = write('minutes.docx', 'fake docx')
+    worker.preview_format = 'html'
+    worker.stubs(:sandbox_available?).returns(true)
+    worker.stubs(:soffice).returns('fake soffice')
+    worker.expects(:command).once.returns(true)
+    # command is stubbed: write what LibreOffice would write
+    write('minutes_html_1.png')
+    write('minutes.html', '<html><body><img src="minutes_html_1.png"></body></html>')
+    worker.convert
+    assert_includes File.read(worker.tmptarget), %(<img src="#{png_uri}">)
   end
 end

@@ -183,10 +183,11 @@ class Libre < RedmineMorePreviews::Conversion
   # beside the page (see RmpDataUri): they are embedded, as long as the page
   # stays within the size of a preview.
   def embed_images(page)
-    html = File.binread(page)
-    budget = RedmineMorePreviews::Converter.max_output - html.bytesize
+    # a page larger than a preview is refused later without being read
+    budget = RedmineMorePreviews::Converter.max_output - File.size(page)
     return unless budget > 0
 
+    html = File.binread(page)
     embedded = RedmineMorePreviews::Lib::RmpDataUri.embed(html, tmpdir, budget)
     File.binwrite(page, embedded) unless embedded == html
   end

@@ -35,8 +35,9 @@ module RedmineMorePreviews
       # raster images only, judged by their content, never by their name
       MIME_TYPES = %w(image/png image/jpeg image/gif image/webp image/bmp).freeze
 
-      # an image element and the value of its src attribute
-      IMG_SRC = /(<img\b[^>]*?\bsrc\s*=\s*)(["'])([^"'<>]*)\2/i
+      # an image element and the value of its src attribute, which may hold the
+      # other quote (LibreOffice writes a "'" of a name as it is)
+      IMG_SRC = /(<img\b[^>]*?\bsrc\s*=\s*)(["'])((?:(?!\2)[^<>])*)\2/i
 
       class << self
         # a data: URI of the image at path, or nil when path is not a regular

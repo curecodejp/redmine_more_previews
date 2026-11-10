@@ -153,7 +153,10 @@ class Cliff < RedmineMorePreviews::Conversion
       # modify cid:links in html and save: the images are embedded, as the
       # frame of the preview cannot request them (see RmpDataUri). If the page
       # would be larger than a preview may be, they link to the files instead
-      embedded = link( Nokogiri::HTML( html ), Array(attachments), max_output - html.bytesize ).to_html
+      # an image referenced many times is embedded each time: the images
+      # embedded add no more than twice the email, which holds them in base64
+      budget   = [max_output - html.bytesize, 2 * File.size( source )].min
+      embedded = link( Nokogiri::HTML( html ), Array(attachments), budget ).to_html
       html     = embedded.bytesize <= max_output ? embedded : link( Nokogiri::HTML( html ), Array(attachments) ).to_html
       
       # create list of attachments and save

@@ -67,4 +67,16 @@ class CliffInlineImagesTest < ActiveSupport::TestCase
     assert_includes html, 'src="image001.png"'
     assert_not_includes html, 'data:image/png'
   end
+
+  # an image referenced many times is not embedded each time: the images
+  # embedded add no more than twice the email
+  def test_an_image_referenced_many_times_is_embedded_while_it_stays_within_the_email
+    image = PNG.byteslice(0, 16) + Random.new(2).bytes(30 * 1024)
+    mail = mail_with_image(image).sub('<img src="cid:img1@x">', '<img src="cid:img1@x">' * 10)
+    html = convert(mail)
+    embedded = html.scan('src="data:image/png;base64,').size
+    assert_operator embedded, :>=, 1
+    assert_operator embedded, :<=, 2
+    assert_equal 10 - embedded, html.scan('src="image001.png"').size
+  end
 end

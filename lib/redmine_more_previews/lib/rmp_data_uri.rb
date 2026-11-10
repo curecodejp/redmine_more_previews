@@ -19,6 +19,7 @@
 #
 
 require 'base64'
+require 'cgi'
 require 'marcel'
 
 module RedmineMorePreviews
@@ -35,9 +36,9 @@ module RedmineMorePreviews
       # raster images only, judged by their content, never by their name
       MIME_TYPES = %w(image/png image/jpeg image/gif image/webp image/bmp).freeze
 
-      # an image element and the value of its src attribute, which may hold the
-      # other quote (LibreOffice writes a "'" of a name as it is)
-      IMG_SRC = /(<img\b[^>]*?\bsrc\s*=\s*)(["'])((?:(?!\2)[^<>])*)\2/i
+      # an image element and the value of its src attribute (not of data-src),
+      # which may hold the other quote (LibreOffice writes a "'" of a name as it is)
+      IMG_SRC = /(<img\b[^>]*?\ssrc\s*=\s*)(["'])((?:(?!\2)[^<>])*)\2/i
 
       class << self
         # a data: URI of the image at path, or nil when path is not a regular
@@ -72,11 +73,15 @@ module RedmineMorePreviews
         end #def
 
         # the file a relative src names in directory, nil for any other src.
-        # A src is percent-encoded (Libre encodes the names it writes, Nokogiri
-        # the non-ASCII characters of a src it serializes)
+        # A src is read as a browser reads it: its character references (&amp;)
+        # decoded first, then its percent-encoding (Libre encodes the names it
+        # writes, Nokogiri the non-ASCII characters of a src it serializes)
         def local_path( directory, src )
+          src = src.dup.force_encoding( Encoding::UTF_8 )
+          return nil unless src.valid_encoding?
+          src = CGI.unescapeHTML( src )
           return nil if src.blank? || src =~ /\A[A-Za-z][A-Za-z0-9+.\-]*:/ || src =~ /[?#]/
-          name = src.gsub( /%\h\h/ ) {|code| code[1, 2].hex.chr }.force_encoding( Encoding::UTF_8 )
+          name = src.b.gsub( /%\h\h/ ) {|code| code[1, 2].hex.chr }.force_encoding( Encoding::UTF_8 )
           return nil unless name.valid_encoding?
           name = RmpFile.safe_relative_path( name )
           name && File.join( directory, name )

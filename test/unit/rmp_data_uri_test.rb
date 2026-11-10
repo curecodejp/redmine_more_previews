@@ -97,6 +97,37 @@ class RmpDataUriTest < ActiveSupport::TestCase
     assert_equal %(<img src="#{png_uri}" name="x">), embedded
   end
 
+  # only the src attribute names the image, not data-src
+  def test_embed_leaves_data_src
+    write('lazy.png')
+    write('a.png')
+    assert_equal '<img data-src="lazy.png">', DataUri.embed('<img data-src="lazy.png">', @dir, BUDGET)
+    assert_equal %(<img data-src="lazy.png" src="#{png_uri}">),
+                 DataUri.embed('<img data-src="lazy.png" src="a.png">', @dir, BUDGET)
+  end
+
+  # a browser decodes the character references of an attribute before the URL
+  def test_embed_decodes_character_references
+    write('report&chart_html_1.png')
+    write(%(a"b'c_html_1.png))
+    assert_equal %(<img src="#{png_uri}">), DataUri.embed('<img src="report&amp;chart_html_1.png">', @dir, BUDGET)
+    assert_equal %(<img src="#{png_uri}">), DataUri.embed('<img src="a&quot;b&#39;c_html_1.png">', @dir, BUDGET)
+  end
+
+  # a decoded reference is checked like any other name
+  def test_embed_keeps_a_reference_to_an_unsafe_name
+    outside = Dir.mktmpdir('rmp-data-uri-outside')
+    File.binwrite(File.join(outside, 'b.png'), PNG)
+    name = File.basename(outside)
+    ["&#47;#{outside[1..]}/b.png", "..&#x2F;#{name}/b.png", "javascript&#58;x", "a.png&#63;x"].each do |src|
+      write('a.png')
+      html = %(<img src="#{src}">)
+      assert_equal html, DataUri.embed(html, @dir, BUDGET), src
+    end
+  ensure
+    FileUtils.rm_rf(outside)
+  end
+
   def test_embed_keeps_a_page_that_is_not_utf8
     write('a.png')
     html = "<p>\xE9t\xE9</p><img src=\"a.png\">".b

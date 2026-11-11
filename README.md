@@ -81,7 +81,7 @@ Do not run `git pull origin main` from a tag checkout: that moves the detached c
 **Before restarting**, check the version you are upgrading **from**:
 
 - **6.1.3 or later:** Cached previews are versioned and regenerated as needed; no full cache purge is normally needed.
-- **6.1.7 or earlier, with Zippy archive listings in HTML format:** 6.1.8 does not change the cache format, so a listing cached before the upgrade keeps its old links, and clicking an entry there shows the login page inside the frame. Such a listing is fixed when it is converted again: an administrator can use the *Update* link above the preview, or the cached listings can be removed from the preview cache directory.
+- **6.1.8 or earlier:** 6.1.9 changes the preview cache format, so every preview is converted again when it is first viewed after the upgrade. This also renews Zippy listings cached by 6.1.7 or earlier, whose links showed the login page inside the frame. The older cache files stay on disk until the cache cleanup removes them.
 - **6.1.2 or earlier, including older upstream/JVsup builds:** Read the **6.1.3 Upgrade precaution** in the [Change-Log](#change-log). If converter debug mode was ever enabled, stop Redmine and preview workers and carefully clear the *plugin's actual preview cache directory* before restarting, because old diagnostic files may still contain sensitive data. The routine age-based cache task does not immediately remove all such files. Verify the directory path before deletion.
 - **Libre enabled:** Review the [Linux `bubblewrap` sandbox requirements](#libre-converter-sandbox); conversion fails closed without a working sandbox.
 

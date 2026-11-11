@@ -192,6 +192,28 @@ class PreviewFormatSelectionTest < Redmine::ControllerTest
     end
   end
 
+  # `tar cf` writes the GNU format, which Marcel names application/x-gtar
+  def test_a_gnu_tar_archive_under_another_name_is_listed
+    File.binwrite(File.join(@dir, 'f.txt'), 'entry')
+    path = File.join(@dir, 'gnu.tgz')
+    skip 'tar is not installed' unless system('tar', '-C', @dir, '-cf', path, 'f.txt', err: File::NULL)
+    assert_equal 'application/x-gtar', Marcel::MimeType.for(Pathname.new(path), name: 'gnu.tgz')
+    a = attach(path, 'application/gzip')
+    get :more_preview, params: {id: a.id, format: 'html'}
+    assert_response :success
+    assert_select 'a', text: 'f.txt'
+  end
+
+  # a kind of archive that is turned off is not listed under the name of another
+  def test_an_archive_of_a_kind_turned_off_is_not_listed_under_another_name
+    settings = SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['active'] = '0'
+    use_settings(settings)
+    a = attach(build_zip(File.join(@dir, 'archive.tar'), 'f.txt' => 'entry'), 'application/x-tar')
+    get :more_preview, params: {id: a.id, format: 'html'}
+    assert_response :not_found
+  end
+
   # --- requests that name no format -----------------------------------------------------
 
   # a request without a format is one for the configured format: it is stored

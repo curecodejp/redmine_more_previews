@@ -97,14 +97,26 @@ class Zippy < RedmineMorePreviews::Conversion
   
   # the kind of archive, by its content as Zippy is chosen for it (a zip
   # archive named a.tar is a zip archive); by the extension of its name where
-  # the content does not tell
-  ARCHIVE_TYPES      = {"application/zip" => :zip, "application/gzip" => :tgz, "application/x-tar" => :tar}.freeze
+  # the content does not tell. The types are those Marcel gives: for it,
+  # application/x-gtar is a tar archive in the GNU format (as `tar cf` writes
+  # it), not a compressed one
+  ARCHIVE_TYPES      = {"application/zip"   => :zip, "application/gzip"   => :tgz,
+                        "application/x-tar" => :tar, "application/x-gtar" => :tar}.freeze
   ARCHIVE_EXTENSIONS = {".zip" => :zip, ".tgz" => :tgz, ".tar" => :tar}.freeze
   
   def archive_type
-    ARCHIVE_TYPES[Marcel::MimeType.for( Pathname.new( source ), name: File.basename( source ) )] ||
+    by_content = ARCHIVE_TYPES[Marcel::MimeType.for( Pathname.new( source ), name: File.basename( source ) )]
+    # a kind of archive that is turned off is not listed under the name of another
+    (by_content if enabled_archive_types.include?( by_content )) ||
       ARCHIVE_EXTENSIONS[File.extname( source ).downcase]
   end #def
+  
+  def enabled_archive_types
+    RedmineMorePreviews::Converter.active_mime_types.
+      select{|_ext, opts| opts["converter"].to_s == "zippy" }.
+      keys.map{|ext| ARCHIVE_EXTENSIONS[".#{ext}"] }.compact
+  end #def
+  private :enabled_archive_types
   
   ########################################################################################
   #

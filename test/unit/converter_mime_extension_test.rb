@@ -35,6 +35,23 @@ class ConverterMimeExtensionTest < ActiveSupport::TestCase
     end
   end
 
+  # an entry of a repository is given by its name and its content: no file of
+  # that name is read, also when there is no content
+  def test_a_name_with_content_given_is_never_read_as_a_path
+    Setting.plugin_redmine_more_previews = {'converter' => {
+      'teddie' => {'active' => '1', 'mime_types' => {'txt' => {'active' => '1', 'format' => 'txt'}}},
+      'pass'   => {'active' => '1', 'mime_types' => {'html' => {'active' => '1', 'format' => 'html'}}}}}
+    Setting.clear_cache
+    File.binwrite(File.join(@dir, 'page.txt'), '<!DOCTYPE html><html><body>on the server</body></html>')
+    Dir.chdir(@dir) do
+      assert_equal 'pass', RedmineMorePreviews::Converter.mime('page.txt')['converter'], 'the file itself'
+      [nil, '', 'plain text'].each do |content|
+        assert_equal 'teddie', RedmineMorePreviews::Converter.mime('page.txt', :content => content)['converter'], content.inspect
+        assert_equal :teddie, RedmineMorePreviews::Converter.responsible('page.txt', :content => content)&.id, content.inspect
+      end
+    end
+  end
+
   # a name of another type, or none: the first extension of the type, as before
   def test_a_tiff_under_another_name_takes_the_first_tiff_extension
     configure('tif' => {'active' => '1', 'format' => 'png'}, 'tiff' => {'active' => '1', 'format' => 'jpg'},

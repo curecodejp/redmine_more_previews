@@ -182,8 +182,11 @@ module RedmineMorePreviews
           # asset / assets select an archive entry and are only meaningful for
           # asset requests; forwarded from the preview page they made the inline
           # preview ask for the entry instead of the listing (nil once cached).
+          # format names the output format, which the pages take from the
+          # settings: forwarded from the page, it replaced the format in the URL
+          # of the preview of a repository entry
           def preview_query_parameters
-            request.query_parameters.except('asset', 'assets')
+            request.query_parameters.except('asset', 'assets', 'format')
           end
 
           # options of an inline preview, converted while the page is rendered.

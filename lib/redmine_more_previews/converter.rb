@@ -269,12 +269,14 @@ module RedmineMorePreviews
     private_class_method :positive_setting
     
     # options[:pathonly] skips content detection; options[:content] detects on
-    # that string instead of reading filepath (repository entries are not on disk)
+    # that string instead of reading filepath (repository entries are not on
+    # disk: filepath is their name, and no file of that name is ever read,
+    # also when the SCM gave no content)
     def self.mime( filepath, options={} )
     
       unless options[:pathonly]
       # try by file content
-      source    = options[:content] ? StringIO.new(options[:content]) : Pathname.new(filepath)
+      source    = options.key?(:content) ? StringIO.new(options[:content].to_s) : Pathname.new(filepath)
       mime_type = Marcel::MimeType.for source, name: File.basename(filepath)
       if mime_type
         # several extensions of one type (f.i. tif and tiff), or of related types

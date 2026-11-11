@@ -71,6 +71,7 @@ class PreviewPageFormatTest < Redmine::IntegrationTest
   def follow_preview_url(page)
     url = response.body[/(?:src|data)="([^"]*(?:more_preview|@\/index)[^"]*)"/, 1]
     assert url, "#{page}: no preview URL in the page"
+    assert_not_includes url, 'format=', "#{page}: the format of the page is not forwarded"
     get CGI.unescapeHTML(url)
     assert_response :success, "#{page} -> #{url}"
     assert_equal 'text/plain', response.media_type, url

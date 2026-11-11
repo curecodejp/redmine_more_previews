@@ -964,7 +964,7 @@ module RedmineMorePreviews
         obj = erb.result(binding)
       when "jpg", "jpeg", "gif", "png"
         erb = ERB.new(File.read(File.join(__dir__, 'conversion', 'convert.pango.erb')))
-        obj = RmpImg.to_img(erb.result(binding), format)
+        obj = RmpImg.to_img(erb.result(binding), preview_format)
       else
         raise ConverterWrongArgument
       end

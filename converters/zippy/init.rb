@@ -40,6 +40,8 @@
 # 1.1.6
 #       - open listing links in the top window, so a click downloads the entry
 #       - store an entry named like the listing apart from it
+# 1.1.7
+#       - list an archive as what its content is, whatever the extension of its name
 
 require_relative 'lib/array'
 require_relative 'lib/zippy'
@@ -48,7 +50,7 @@ RedmineMorePreviews::Converter.register :zippy do
   name           'Zippy'
   author         'Stephan Wenzel'
   description    'Zip Converter'
-  version        '1.1.6'
+  version        '1.1.7'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_zippy'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_zippy'
                    

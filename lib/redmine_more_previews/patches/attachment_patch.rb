@@ -39,6 +39,7 @@ module RedmineMorePreviews
               preview_filepath(options),
               options.merge(
                 :object => {:type => :attachment, :object => self},
+                :converter => preview_selection["converter"],
                 :preview_format => preview_format
               ), 
               &block
@@ -52,6 +53,7 @@ module RedmineMorePreviews
               preview_assetpath(options),
               options.merge(
                 :object => {:type => :attachment, :object => self},
+                :converter => preview_selection["converter"],
                 :preview_format => preview_format
               ), 
               &block
@@ -70,10 +72,32 @@ module RedmineMorePreviews
             File.exist?(preview_assetpath(options))
           end #def
           
-          # class specific
+          # how this file is converted (see Converter.selection): decided once,
+          # on the content of the file as the conversion decides it, so that the
+          # converter, the format it is given, the directory its preview is
+          # stored in and the URL of the preview cannot disagree. A file that
+          # cannot be read is not converted
+          def preview_selection
+            @preview_selections ||= {}
+            @preview_selections.fetch(diskfile) do
+              @preview_selections[diskfile] =
+                begin
+                  RedmineMorePreviews::Converter.selection(diskfile)
+                rescue SystemCallError
+                  {}
+                end
+            end
+          end #def
+          
+          # the output format configured for the converter of this file. A
+          # request names a format only to be compared with it
           def preview_format
-            extension = File.extname(filename).to_s[1..-1].downcase
-            RedmineMorePreviews::Converter.conversion_extension(extension)
+            preview_selection["format"]
+          end #def
+          
+          # the media type of the preview
+          def preview_mime
+            RedmineMorePreviews::Converter::FORMAT_MIMES[preview_format].presence || "application/octet-stream"
           end #def
           
           def preview_mtime(options={})
@@ -133,10 +157,10 @@ module RedmineMorePreviews
             File.join(previews_storagepath, id.to_s)
           end #def
           
-          # directory containing all preview files and assets
+          # directory containing all preview files and assets, named after the
+          # configured format: the format of a request names no directory
           def preview_dirname(options={})
-            format = options[:format].presence || preview_format.presence
-            File.join(preview_storagepath, ["preview", format ].compact.join("."))
+            File.join(preview_storagepath, ["preview", preview_format.presence ].compact.join("."))
           end #def
           
           #
@@ -145,8 +169,7 @@ module RedmineMorePreviews
           
           # preview file name
           def preview_filename(options={})
-            format = options[:format].presence || preview_format.presence
-            ["index", format].compact.join(".")
+            ["index", preview_format.presence].compact.join(".")
           end #def
           
           # full path to preview file on disk
@@ -162,8 +185,7 @@ module RedmineMorePreviews
           
           # full path to asset file on disk
           def preview_assetpath(options={})
-#            File.join(preview_dirname(options.merge(:format => preview_format)), preview_filename(options) )
-             File.join(preview_dirname(options.merge(:format => preview_format)), preview_assetname(options) )
+             File.join(preview_dirname(options), preview_assetname(options) )
          end #def
           
           ################################################################################

@@ -58,7 +58,9 @@ class Mark < RedmineMorePreviews::Conversion
     mime    = RedmineMorePreviews::Converter.mime( source )
     frompts = PANDOC_FRM[mime["mime"]]
     
-    case format
+    # the configured format (the format of the request is compared with it
+    # before a conversion, and an asset request names none)
+    case preview_format
     when "html"
       base_url = case object["object"]
       when Repository

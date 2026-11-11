@@ -59,6 +59,7 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
       File.binwrite(path, 'synthetic spreadsheet')
       a = attach(path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       Attachment.any_instance.stubs(:preview_convertible?).returns(true)
+      Attachment.any_instance.stubs(:preview_format).returns('pdf')
       Attachment.any_instance.stubs(:more_preview).returns('%PDF-1.4 synthetic')
 
       get :more_preview, params: {id: a.id, format: 'pdf'}
@@ -75,6 +76,7 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
       File.binwrite(path, 'synthetic spreadsheet')
       attachment = attach(path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       Attachment.any_instance.stubs(:preview_convertible?).returns(true)
+      Attachment.any_instance.stubs(:preview_format).returns('pdf')
       Attachment.any_instance.stubs(:preview_mtime).returns(Time.utc(2026, 11, 5))
       Attachment.any_instance.stubs(:more_preview).returns('%PDF-1.4 synthetic')
 
@@ -112,6 +114,7 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
       Setting.plugin_redmine_more_previews = settings
       Setting.clear_cache
       Attachment.any_instance.stubs(:preview_convertible?).returns(true)
+      Attachment.any_instance.stubs(:preview_format).returns('pdf')
       Attachment.any_instance.stubs(:more_preview).yields('%PDF-1.4 synthetic')
 
       get :more_preview, params: {id: a.id, format: 'pdf'}

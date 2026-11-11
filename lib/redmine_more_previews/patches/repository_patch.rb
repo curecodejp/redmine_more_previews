@@ -56,6 +56,7 @@ module RedmineMorePreviews
                     preview_filepath(path, rev, options),
                     options.merge(
                       :object => {:type => :repository, :object => self, :path => path, :rev => rev},
+                      :converter => preview_selection(path, rev)["converter"],
                       :preview_format => preview_format(path, rev)
                     ), 
                     &block
@@ -86,6 +87,7 @@ module RedmineMorePreviews
                     preview_assetpath(path, rev, options),
                     options.merge(
                       :object => {:type => :repository, :object => self, :path => path, :rev => rev},
+                      :converter => preview_selection(path, rev)["converter"],
                       :preview_format => preview_format(path, rev)
                     ), 
                     &block
@@ -127,12 +129,31 @@ module RedmineMorePreviews
             File.exist?(preview_assetpath(path, rev, options))
           end #def
           
-          # class specific
+          # how the entry is converted (see Converter.selection): decided once per
+          # repository instance (i.e. per request), on the bytes the conversion
+          # runs on (see preview_content), so that the converter, the format it is
+          # given, the directory its preview is stored in and the URL of the
+          # preview cannot disagree. An entry the SCM gives no content for is
+          # converted as an empty file (see more_preview), and decided as one:
+          # never on a file of its name on the server
+          def preview_selection(path, rev)
+            @preview_selections ||= {}
+            key = [path, rev]
+            return @preview_selections[key] if @preview_selections.key?(key)
+            e = entry(path, rev)
+            @preview_selections[key] =
+              e ? RedmineMorePreviews::Converter.selection(e.name, :content => preview_content(path, rev).to_s) : {}
+          end #def
+          
+          # the output format configured for the converter of the entry. A
+          # request names a format only to be compared with it
           def preview_format(path, rev)
-            if e = entry(path, rev)
-              extension = File.extname(e.name)[1..-1].downcase
-              RedmineMorePreviews::Converter.conversion_extension(extension) if extension
-            end
+            preview_selection(path, rev)["format"]
+          end #def
+          
+          # the media type of the preview
+          def preview_mime(path, rev)
+            RedmineMorePreviews::Converter::FORMAT_MIMES[preview_format(path, rev)].presence || "application/octet-stream"
           end #def
           
           def preview_mtime(path, rev, options={})
@@ -249,9 +270,10 @@ module RedmineMorePreviews
           # per revision and content: the same path holds other content at another
           # revision (and a Filesystem repository has no revision), and a preview
           # links to the revision it was generated for (f.i. Zippy's asset links)
+          # named after the configured format: the format of a request names no
+          # directory
           def preview_dirname(path, rev, options={})
-            format = options[:format].presence || preview_format(path, rev).presence
-            File.join(preview_storagepath, path, preview_digest(path, rev), ["preview", format ].compact.join("."))
+            File.join(preview_storagepath, path, preview_digest(path, rev), ["preview", preview_format(path, rev).presence ].compact.join("."))
           end #def
           
           def preview_digest(path, rev)
@@ -266,8 +288,7 @@ module RedmineMorePreviews
           
           # preview file name
           def preview_filename(path, rev, options={})
-            format = options[:format].presence || preview_format(path, rev).presence
-            ["index", format].compact.join(".")
+            ["index", preview_format(path, rev).presence].compact.join(".")
           end #def
           
           # full path to preview file on disk
@@ -285,8 +306,7 @@ module RedmineMorePreviews
           
           # full path to asset file on disk
           def preview_assetpath(path, rev, options={})
-#           File.join(preview_dirname(path, rev, options.merge(:format => preview_format(path, rev))), preview_filename(path, rev, options) )
-            File.join(preview_dirname(path, rev, options.merge(:format => preview_format(path, rev))), preview_assetname(path, rev, options) )
+            File.join(preview_dirname(path, rev, options), preview_assetname(path, rev, options) )
           end #def
           
         end #base

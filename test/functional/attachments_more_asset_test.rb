@@ -147,7 +147,7 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     Dir.mktmpdir do |dir|
       a = attach(build_tar(File.join(dir, 'a.tar'), 'safe.txt' => 'safe'))
       with_zippy_format('tar', 'html') do
-        RedmineMorePreviews::Converter.stubs(:conversion_ext).returns('png')
+        Attachment.any_instance.stubs(:preview_format).returns('png')
         get :show, params: {id: a.id, filename: a.filename, format: 'html'}
         assert_response :success
         assert_select 'img[onerror]', 1

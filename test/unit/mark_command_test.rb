@@ -34,7 +34,7 @@ class MarkCommandTest < ActiveSupport::TestCase
     File.write(input, body)
     worker = Mark.allocate
     worker.source = input
-    worker.format = 'inline'
+    worker.object = {}
     worker.preview_format = 'html'
     worker.tmpdir = Dir.mktmpdir('out', @dir)
     worker.tmptarget = File.join(worker.tmpdir, filename.sub(/\.[^.]+\z/, '.html'))

@@ -180,9 +180,11 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
     )
   end
 
+  # the configured format only: a request may name none (an asset, a request
+  # without a format), and the debug output is made in the configured one
   def render_debug(format)
     @worker.preview_format = format
-    @worker.format = format
+    @worker.format = ''
     @worker.tmpdir = @dir
     @worker.tmptarget = File.join(@dir, "debug.#{format}")
     @worker.debug

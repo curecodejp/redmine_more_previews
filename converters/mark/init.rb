@@ -30,6 +30,8 @@
 #       - added internationalization for de, en, es, fr, pt, ru, jp, zh
 # 1.1.1
 #       - fixed japanese localization
+# 1.1.2
+#       - convert to the configured format, not to the format of the request
 ##
 
 require_relative 'lib/mark'
@@ -38,7 +40,7 @@ RedmineMorePreviews::Converter.register :mark do
   name           'Mark'
   author         'Stephan Wenzel'
   description    'Preview markup text files'
-  version        '1.1.1'
+  version        '1.1.2'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_mark'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_mark'
                  

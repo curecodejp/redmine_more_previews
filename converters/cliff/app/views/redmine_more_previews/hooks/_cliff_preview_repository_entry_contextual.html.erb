@@ -1,4 +1,4 @@
-<%-if User.current.admin? && RedmineMorePreviews::Converter.responsible( entry.name, :pathonly => true )&.id == :cliff %>
+<%-if User.current.admin? && repository.preview_selection(path, rev)["converter"].to_s == "cliff" %>
 <%- unsafereloadpath = url_for(
       :controller    => "repositories",
       :action        => "entry",

@@ -51,7 +51,9 @@ module RedmineMorePreviews
           ################################################################################
           def more_preview
             @entry = @repository.entry(@path, @rev)
-            if @entry&.convertible?
+            # see ControllerHelper#preview_format_requested?; the entry is read
+            # here, once (a file too large to read is answered with 413)
+            if @entry&.convertible? && preview_format_requested?(@repository.preview_format(@path, @rev))
               if params[:asset]
                 @disposition = "attachment"
                 respond_to do |format|
@@ -232,7 +234,7 @@ module RedmineMorePreviews
             else
               # only the html preview is sandboxed, so only that page needs the
               # download decision (made on the entry's content, like the conversion)
-              if (RedmineMorePreviews::Converter.conversion_ext(@entry.name, :pathonly => true) rescue nil) == 'html'
+              if @repository.preview_format(@path, @rev) == 'html'
                 @preview_allows_downloads = RedmineMorePreviews::ControllerHelper.
                   preview_allows_downloads?(@entry.name, :content => @repository.preview_content(@path, @rev))
               end

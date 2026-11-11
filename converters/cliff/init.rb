@@ -49,6 +49,8 @@
 #       - preserve Japanese encodings and repair HTML meta charset after conversion
 # 1.1.7
 #       - embed the inline images of HTML previews as data: URIs
+# 1.1.8
+#       - show the header boxes for the file Cliff converts, selected by its content
 #
 
 require_relative 'lib/cliff'
@@ -58,7 +60,7 @@ RedmineMorePreviews::Converter.register :cliff do
   name           'Cliff'
   author         'Stephan Wenzel'
   description    'Preview email files in preview pane'
-  version        '1.1.7'
+  version        '1.1.8'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_cliff'
                  

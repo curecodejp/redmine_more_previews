@@ -1,5 +1,6 @@
-<%- converter = RedmineMorePreviews::Converter.responsible( entry.name, :pathonly => true ) %>
-<%-if converter&.id == :cliff %>
+<%# the converter of the entry as the conversion selects it, by its content (see Repository#preview_selection) %>
+<%-if repository.preview_selection(path, rev)["converter"].to_s == "cliff" %>
+  <%- converter = RedmineMorePreviews::Converter.find(:cliff) %>
   <%# emitted here, once, rather than inside headers.html / fields.html:
       those fragments pass the inline sanitiser (a <link> in them would live
       only while its path matched PLUGIN_STYLESHEET_HREF), there are three of

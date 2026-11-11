@@ -83,7 +83,8 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   # listings cached before linked the entries of a listing shown inline to the page
-  # of the attachment (see entry_link): they are listed again
+  # of the attachment (see entry_link), and showed names in CP932 garbled (see
+  # name_to_utf8): they are listed again
   def self.cache_revision
     "zippy-1"
   end #def
@@ -214,7 +215,7 @@ class Zippy < RedmineMorePreviews::Conversion
         list_name( entry.full_name )
         arr << [("&nbsp;" * 2 * level + tarlink(entry))]
       elsif entry.directory?
-        arr << [("&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(File.basename(RmpText.to_utf8(entry.full_name)))) + "</strong>"]
+        arr << [("&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(File.basename(name_to_utf8(entry.full_name)))) + "</strong>"]
       end
     end
   end #def
@@ -246,6 +247,49 @@ class Zippy < RedmineMorePreviews::Conversion
     normalized = RmpFile.safe_relative_path( name )
     @names << normalized if normalized
   end #def
+  
+  #---------------------------------------------------------------------------------------
+  # name_to_utf8: the name of an entry, as it is shown. A name in UTF-8 is taken as it
+  # is (zip archives flag it, tar archives are mostly written so). A name that is not is
+  # read as CP932, as Windows in Japan writes it, where it reads as a Japanese name: in
+  # characters of Japanese only, without halfwidth katakana, and with a character of
+  # a lead byte 0x81-0x9F (kana and the common kanji), a byte that is a control
+  # character in ISO-8859-1, and no letter. Other names are guessed as before
+  # (RmpText.to_utf8, mostly ISO-8859-1). A name of a western zip archive in CP850
+  # may read as Japanese too: it is garbled either way
+  #---------------------------------------------------------------------------------------
+  JAPANESE_NAME = /\A[\p{Hiragana}\p{Katakana}\p{Han}ー々〆〇・「」『』（）［］【】〜＿－＋＆＠！？、。　０-９Ａ-Ｚａ-ｚ\u0020-\u007E]*\z/
+  
+  # in \p{Katakana}: the single bytes 0xA1-0xDF, which are letters in ISO-8859-1
+  HALFWIDTH_KATAKANA = /[\uFF61-\uFF9F]/
+  
+  def name_to_utf8( name )
+    japanese = japanese_name( name.to_s.b )
+    japanese || RmpText.to_utf8( name.to_s )
+  end #def
+  
+  def japanese_name( bytes )
+    return nil if bytes.dup.force_encoding( "UTF-8" ).valid_encoding?
+    name = bytes.dup.force_encoding( "Windows-31J" )
+    return nil unless name.valid_encoding?
+    name = name.encode( "UTF-8" )
+    return nil unless name.match?( JAPANESE_NAME ) && !name.match?( HALFWIDTH_KATAKANA ) && common_lead_byte?( bytes )
+    name
+  rescue EncodingError
+    nil
+  end #def
+  private :japanese_name
+  
+  def common_lead_byte?( bytes )
+    i = 0
+    while i < bytes.bytesize
+      byte = bytes.getbyte( i )
+      return true if byte.between?( 0x81, 0x9F )
+      i += (byte < 0x80 || byte.between?( 0xA1, 0xDF )) ? 1 : 2
+    end
+    false
+  end #def
+  private :common_lead_byte?
   
   #---------------------------------------------------------------------------------------
   # tarlink
@@ -280,7 +324,7 @@ class Zippy < RedmineMorePreviews::Conversion
   # so the page stays as it is (see ControllerHelper::DOWNLOAD_PREVIEW_CONVERTERS).
   #---------------------------------------------------------------------------------------
   def entry_link( name )
-    basename = File.basename(RmpText.to_utf8(name))
+    basename = File.basename(name_to_utf8(name))
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
     query  = {:asset => safe}
@@ -503,7 +547,7 @@ class Zippy < RedmineMorePreviews::Conversion
     tree = {}
     zip_file.entries.each do |entry|
       next unless [:file, :directory].include?( entry.ftype )
-      segments = RmpText.to_utf8( entry.name ).split('/').reject(&:empty?)
+      segments = name_to_utf8( entry.name ).split('/').reject(&:empty?)
       next if segments.empty?
       # a deeper path is listed as one name below MAX_DEPTH directories
       segments = segments[0...MAX_DEPTH] + [segments[MAX_DEPTH..].join('/')] if segments.size > MAX_DEPTH + 1

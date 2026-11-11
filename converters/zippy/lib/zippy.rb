@@ -82,6 +82,12 @@ class Zippy < RedmineMorePreviews::Conversion
     true
   end #def
   
+  # listings cached before linked the entries of a listing shown inline to the page
+  # of the attachment (see entry_link): they are listed again
+  def self.cache_revision
+    "zippy-1"
+  end #def
+  
   def convert
     case archive_type
     when :zip
@@ -251,12 +257,16 @@ class Zippy < RedmineMorePreviews::Conversion
   # entry names are attacker controlled. Only names that stay inside the archive root
   # get a download link (the asset parameter is validated again server side); other
   # entries are listed by name only.
-  # The link is the preview request itself plus ?asset=<name>: both the attachments and
-  # the repositories preview actions serve the asset when the parameter is present, so
-  # no named route is needed (more_preview_path is the attachments route and produced
-  # /attachments/... links inside repository previews). Using request.path rather than a
-  # url helper with request.params also keeps query parameters such as script_name /
-  # host / anchor, which url helpers interpret as options, out of the (cached) listing.
+  # The link is the preview of the attachment plus ?asset=<name>, which the preview
+  # action serves. Of a repository entry it is the request itself plus ?asset=<name>:
+  # the preview action and the page of the entry both serve the asset (more_preview_path
+  # is the attachments route and produced /attachments/... links inside repository
+  # previews). The page of an attachment does not: a listing shown inline in it linked
+  # to the page, and the page was saved under the name of the entry. The link of an
+  # attachment is built from its id and the sub-URI only, so a cached listing does not
+  # depend on the page that converted it. Using request.path rather than a url helper
+  # with request.params also keeps query parameters such as script_name / host /
+  # anchor, which url helpers interpret as options, out of the (cached) listing.
   # The name is passed unencoded (to_query encodes it once); an extra
   # URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
   # Only the rev parameter is kept: a revision the route's :rev does not take (a slash,
@@ -271,10 +281,14 @@ class Zippy < RedmineMorePreviews::Conversion
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
     query  = {:asset => safe}
-    rev    = request.query_parameters["rev"]
-    query[:rev] = rev if rev.is_a?( String ) && rev.present?
-    path   = "#{request.path}?#{ query.to_query }"
-    link_to basename, path, :download => basename, :target => "_top"
+    if object['type'] == :attachment
+      path = url_helpers.more_preview_path( object['object'].id, :script_name => request.script_name )
+    else
+      rev  = request.query_parameters["rev"]
+      query[:rev] = rev if rev.is_a?( String ) && rev.present?
+      path = request.path
+    end
+    link_to basename, "#{path}?#{ query.to_query }", :download => basename, :target => "_top"
   end #def
   
   #---------------------------------------------------------------------------------------

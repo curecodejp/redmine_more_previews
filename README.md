@@ -290,10 +290,14 @@ Native speakers: please help to improve localizations
 - The converter, the output format, the cache directory and the URL of a preview are decided once, on the content of the file. A file whose content and extension disagree (HTML, an email or a zip archive saved as `.txt`, with a converter of both types enabled) is now previewed in the format of its converter; it was answered with `404`. On the page of a repository file, the entry is now read once for this, also when the preview is not HTML.
 - The page of a file takes over only `reload` and `unsafe` from its query, into the URL of its preview. Other parameters of the query were taken over into that URL, and into the options of a preview converted inline.
 - **Zippy:** an archive is listed as what its content is (a zip archive named `.tar`, a tar archive named `.tgz`), where that kind of archive is enabled.
+- **Zippy:** the links of a listing shown inline on the page of an attachment give the entries; they gave the page, saved under the name of the entry. Listings cached before are listed again when they are first viewed (the previews of the other converters are kept).
+- **Zippy:** the walk through a tar or tgz archive stops at the time limit of the conversion, as a command does; it was bounded by the number and the size of the entries only.
+- **Zippy:** names of entries written in CP932 (as Windows in Japan writes them in zip archives) are shown in Japanese where they read as Japanese names; they were garbled. Other names are shown as before.
+- **Maggie:** an animated GIF previewed as PNG or JPEG is its first frame; the conversion failed. Previewed as GIF, it keeps its frames.
 - **Mark:** converts to the configured format, as the other converters do, not to the format of the request.
 - **Cliff:** the header boxes and the *unsafe* link are shown for the file Cliff converts, also under another extension.
 - The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
-- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8.
+- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6.
 
 **6.1.9**
 

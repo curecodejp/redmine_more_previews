@@ -215,7 +215,7 @@ class Zippy < RedmineMorePreviews::Conversion
         list_name( entry.full_name )
         arr << [("&nbsp;" * 2 * level + tarlink(entry))]
       elsif entry.directory?
-        arr << [("&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(File.basename(name_to_utf8(entry.full_name)))) + "</strong>"]
+        arr << [("&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(name_to_utf8(File.basename(entry.full_name.b)))) + "</strong>"]
       end
     end
   end #def
@@ -258,7 +258,8 @@ class Zippy < RedmineMorePreviews::Conversion
   # (RmpText.to_utf8, mostly ISO-8859-1). A name of a western zip archive in CP850
   # may read as Japanese too: it is garbled either way
   #---------------------------------------------------------------------------------------
-  JAPANESE_NAME = /\A[\p{Hiragana}\p{Katakana}\p{Han}ー々〆〇・「」『』（）［］【】〜＿－＋＆＠！？、。　０-９Ａ-Ｚａ-ｚ\u0020-\u007E]*\z/
+  # the symbols of CP932 that names are written with, as well
+  JAPANESE_NAME = /\A[\p{Hiragana}\p{Katakana}\p{Han}ー々〆〇ヶ・「」『』（）［］【】〔〕〈〉《》｛｝〜～＿－＋＆＠！？、。，．：；＝＜＞／＼｜＃＄％＊＾￥‘’“”…‥※〒→←↑↓○●◎△▲▽▼□■◇◆☆★♪×÷±①-⑳Ⅰ-Ⅹⅰ-ⅹ㈱㈲㈹　０-９Ａ-Ｚａ-ｚ\u0020-\u007E]*\z/
   
   # in \p{Katakana}: the single bytes 0xA1-0xDF, which are letters in ISO-8859-1
   HALFWIDTH_KATAKANA = /[\uFF61-\uFF9F]/
@@ -324,7 +325,8 @@ class Zippy < RedmineMorePreviews::Conversion
   # so the page stays as it is (see ControllerHelper::DOWNLOAD_PREVIEW_CONVERTERS).
   #---------------------------------------------------------------------------------------
   def entry_link( name )
-    basename = File.basename(name_to_utf8(name))
+    # the name is decoded by itself: the guess is made on the bytes of each name
+    basename = name_to_utf8(File.basename(name.to_s.b))
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
     query  = {:asset => safe}
@@ -546,24 +548,27 @@ class Zippy < RedmineMorePreviews::Conversion
     zipnode( ziptree( zip_file ), arr, level )
   end #def
   
-  # {name => {:dir => true, :children => {...}} | {:dir => false, :entry => entry}}
-  # in the order the entries appear in the archive
+  # {bytes => {:dir => true, :label => name, :children => {...}} | {:dir => false, :entry => entry}}
+  # in the order the entries appear in the archive. The tree is keyed on the bytes
+  # of the names, and each name is decoded by itself (see name_to_utf8): a folder
+  # whose entries are guessed apart is one folder, and two names that read alike
+  # in two charsets are two entries. "/" is not a byte of a character in CP932
   def ziptree( zip_file )
     tree = {}
     zip_file.entries.each do |entry|
       next unless [:file, :directory].include?( entry.ftype )
-      segments = name_to_utf8( entry.name ).split('/').reject(&:empty?)
+      segments = entry.name.to_s.b.split('/').reject(&:empty?)
       next if segments.empty?
       # a deeper path is listed as one name below MAX_DEPTH directories
       segments = segments[0...MAX_DEPTH] + [segments[MAX_DEPTH..].join('/')] if segments.size > MAX_DEPTH + 1
       node = tree
       segments[0...-1].each do |segment|
         child = node[segment]
-        child = node[segment] = {:dir => true, :children => {}} unless child && child[:dir]
+        child = node[segment] = {:dir => true, :label => name_to_utf8( segment ), :children => {}} unless child && child[:dir]
         node  = child[:children]
       end
       if entry.ftype == :directory
-        node[segments.last] ||= {:dir => true, :children => {}}
+        node[segments.last] ||= {:dir => true, :label => name_to_utf8( segments.last ), :children => {}}
       else
         node[segments.last] = {:dir => false, :entry => entry}
       end
@@ -572,9 +577,9 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   def zipnode( node, arr, level )
-    node.each do |name, item|
+    node.each do |_bytes, item|
       if item[:dir]
-        arr << ["&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(name) + "</strong>", "", ""]
+        arr << ["&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(item[:label]) + "</strong>", "", ""]
         zipnode( item[:children], arr, level + 1 )
       else
         entry = item[:entry]

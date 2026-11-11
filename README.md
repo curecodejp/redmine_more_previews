@@ -292,7 +292,7 @@ Native speakers: please help to improve localizations
 - **Zippy:** an archive is listed as what its content is (a zip archive named `.tar`, a tar archive named `.tgz`), where that kind of archive is enabled.
 - **Zippy:** the links of a listing shown inline on the page of an attachment give the entries; they gave the page, saved under the name of the entry. Listings cached before are listed again when they are first viewed (the previews of the other converters are kept).
 - **Zippy:** the walk through a tar or tgz archive stops at the time limit of the conversion, as a command does; it was bounded by the number and the size of the entries only.
-- **Zippy:** names of entries written in CP932 (as Windows in Japan writes them in zip archives) are shown in Japanese where they read as Japanese names; they were garbled. Other names are shown as before.
+- **Zippy:** names of entries written in CP932 (as Windows in Japan writes them in zip archives) are shown in Japanese where they read as Japanese names; they were garbled. Other names are shown as before. An entry is still saved under its name as it was guessed before.
 - **Maggie:** an animated GIF previewed as PNG or JPEG is its first frame; the conversion failed. Previewed as GIF, it keeps its frames.
 - **Mark:** converts to the configured format, as the other converters do, not to the format of the request.
 - **Cliff:** the header boxes and the *unsafe* link are shown for the file Cliff converts, also under another extension.

@@ -10,6 +10,8 @@ class ZippyEntryNamesTest < ActiveSupport::TestCase
 
   JAPANESE = %w(テスト資料.txt 議事録_2026.xlsx 見積書.pdf 報告書.docx 漢字だけ.txt
                 鬱.txt 東京/大阪.txt ソフト表示.txt 申込書（控）.pdf).freeze
+  SYMBOLS  = %w(1月～3月.xlsx ①議事録.txt ※注意.txt 達成率％.xlsx ＃1報告.txt 件名：会議.txt
+                手順→結果.txt ○×表.xlsx ㈱見積.pdf 第Ⅱ期.docx).freeze
   WESTERN  = ['école.txt', 'café.txt', 'Ärger.txt', 'naïve.txt', 'señor.txt', 'Größe.txt',
               'résumé.pdf', 'über.txt', 'déjà vu.txt', 'façade.txt'].freeze
 
@@ -24,6 +26,12 @@ class ZippyEntryNamesTest < ActiveSupport::TestCase
 
   def test_a_name_in_cp932_is_shown_in_japanese
     JAPANESE.each do |name|
+      assert_equal name, @worker.name_to_utf8(name.encode('Windows-31J').b), name
+    end
+  end
+
+  def test_a_name_with_the_symbols_of_cp932_is_shown_in_japanese
+    SYMBOLS.each do |name|
       assert_equal name, @worker.name_to_utf8(name.encode('Windows-31J').b), name
     end
   end
@@ -64,5 +72,55 @@ class ZippyEntryNamesTest < ActiveSupport::TestCase
     worker.preview(File.new(tar)) { |preview| html = preview }
     html = html.to_s.dup.force_encoding(Encoding::UTF_8)
     assert_includes html, '>テスト.txt</a>'
+  end
+
+  # each name is decoded by itself: a folder whose entries are guessed apart is
+  # listed once, under its own name
+  def test_a_zip_folder_is_listed_once
+    html = zip_listing('資料/テスト.txt' => 'a', '資料/ｱｲｳ.txt' => 'b')
+    assert_equal 1, html.scan('<strong>資料</strong>').size
+    assert_equal 1, html.scan('<strong>').size
+    assert_includes html, '>テスト.txt</a>'
+  end
+
+  # the name of an entry is decoded without its folders: a folder of halfwidth
+  # katakana does not garble the names below it
+  def test_a_tar_name_is_decoded_without_its_folders
+    tar = File.join(@tmp, 'b.tar')
+    File.open(tar, 'wb') do |io|
+      Gem::Package::TarWriter.new(io) do |writer|
+        writer.mkdir('ｱｲｳ/資料'.encode('Windows-31J').b, 0o755)
+        writer.add_file_simple('ｱｲｳ/資料/テスト.txt'.encode('Windows-31J').b, 0o644, 5) { |f| f.write('entry') }
+      end
+    end
+    html = listing(tar)
+    assert_includes html, '<strong>資料</strong>'
+    assert_includes html, '>テスト.txt</a>'
+  end
+
+  # a name in UTF-8 and the same name in CP932 are two entries
+  def test_names_that_read_alike_in_two_charsets_are_two_entries
+    html = zip_listing({'テスト.txt' => 'utf-8'}, {'テスト.txt' => 'cp932'})
+    assert_equal 2, html.scan('>テスト.txt</a>').size
+  end
+
+  private
+
+  # a zip archive of names in CP932 (and of names in UTF-8), without the flag of UTF-8
+  def zip_listing(cp932, utf8 = {})
+    zip = File.join(@tmp, 'a.zip')
+    Zip::File.open(zip, create: true) do |file|
+      utf8.each { |name, content| file.get_output_stream(name) { |io| io.write(content) } }
+      cp932.each { |name, content| file.get_output_stream(name.encode('Windows-31J').b) { |io| io.write(content) } }
+    end
+    listing(zip)
+  end
+
+  def listing(archive)
+    worker = zippy_worker(target: File.join(@tmp, 'cache', File.basename(archive), 'preview.html', 'index.html'),
+                          request: ActionDispatch::TestRequest.create('PATH_INFO' => '/attachments/more_preview/1.html'))
+    html = nil
+    worker.preview(File.new(archive)) { |preview| html = preview }
+    html.to_s.dup.force_encoding(Encoding::UTF_8)
   end
 end

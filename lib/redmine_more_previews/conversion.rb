@@ -802,6 +802,15 @@ module RedmineMorePreviews
       raise
     end #def
     
+    # for a converter that reads the file in Ruby, between steps of its own: the
+    # conversion fails (ConverterTimeout) once its time limit has passed, as a
+    # command that runs out of it does
+    def ensure_time_left
+      return unless @deadline && Lib::RmpProcess.now >= @deadline
+      Rails.logger.error("Creating preview with #{name} timed out after #{conversion_timeout}s")
+      raise ConverterTimeout, "no time left"
+    end #def
+    
     # runs the block in a child process within the time left for the conversion
     # and, where it can be bounded, memory bytes (see Lib::RmpProcess.fork): for a
     # converter that parses the file in Ruby. The block's results must be files

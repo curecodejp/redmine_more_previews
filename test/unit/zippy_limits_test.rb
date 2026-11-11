@@ -47,6 +47,20 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # the walk runs in Ruby: the time limit of the conversion is checked at each
+  # entry, and a walk that outlasts it fails, as a command does, rather than
+  # storing a listing cut short by the load of the server
+  def test_tgz_walk_beyond_the_time_limit_fails
+    tgz = build_tgz(path('a.tgz'), (1..20).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    # the clock stands still at first, then the time limit has long passed
+    RedmineMorePreviews::Lib::RmpProcess.stubs(:now).returns(*([0.0] * 6), 10_000.0)
+    Zippy.any_instance.expects(:list_name).at_least_once
+    # the conversion fails: nothing is stored, the failure is remembered
+    assert_equal '', listing(tgz)
+    assert_not File.exist?(target_of(tgz))
+    assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(target_of(tgz))
+  end
+
   def test_complete_tar_list_is_not_marked_truncated
     tar = build_tar(path('a.tar'), 'a.txt' => 'a')
     assert_not_includes listing(tar), CGI.escapeHTML(I18n.translate(:"redmine_more_previews.zippy.text_list_truncated"))

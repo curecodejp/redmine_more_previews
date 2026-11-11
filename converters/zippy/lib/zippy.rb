@@ -223,11 +223,14 @@ class Zippy < RedmineMorePreviews::Conversion
   # each_tar_entry: the entries within the limits. Each entry takes a 512 byte
   # header and its data rounded up to 512 bytes, all of which is inflated to get
   # past it; the size is taken from the header before the data is read. Returns
-  # false if the walk stops at a limit, true if the archive ends before
+  # false if the walk stops at a limit, true if the archive ends before. The walk
+  # runs in Ruby, where the time limit of the conversion stops no command: it is
+  # checked at each entry, and the conversion fails when it has passed
   #---------------------------------------------------------------------------------------
   def each_tar_entry( tarball )
     entries, bytes = 0, 0
     tarball.each do |entry|
+      ensure_time_left
       entries += 1
       bytes   += 512 + (entry.header.size + 511) / 512 * 512
       return false if entries > limit('max_entries') || bytes > limit_bytes('max_inflated')

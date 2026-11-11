@@ -96,6 +96,16 @@ module RedmineMorePreviews
     end
     private :preview_unsafe?
 
+    # A request names the format of a preview only to be compared with the one
+    # configured for the file's converter: for another format nothing is
+    # converted, locked or stored, and no failure is remembered. A request
+    # without a format is one for the configured format
+    def preview_format_requested?( configured )
+      requested = params[:format].to_s.downcase
+      requested.blank? || requested == configured.to_s
+    end #def
+    private :preview_format_requested?
+
     def preview_params
       params.permit(:format, :asset).
       merge({:request => request, 
@@ -184,8 +194,9 @@ module RedmineMorePreviews
     # is an ordinary asset.
     def cliff_embedded_fragment_asset?
       return false unless RedmineMorePreviews::Conversion::CLIFF_EMBEDDED_FRAGMENTS.include?(@asset.to_s)
-      source_name = @attachment&.filename || @entry&.name
-      source_name.present? && RedmineMorePreviews::Converter.responsible(source_name, :pathonly => true)&.id.to_s == 'cliff'
+      # the converter the conversion selects, by the content of the file
+      selection = @attachment ? @attachment.preview_selection : (@entry ? @repository.preview_selection(@path, @rev) : {})
+      selection["converter"].to_s == 'cliff'
     end
     private :cliff_embedded_fragment_asset?
 

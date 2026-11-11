@@ -329,8 +329,23 @@ module RedmineMorePreviews
       find(mime( file, options )["converter"]) rescue nil
     end #def
     
+    # how a file is converted: the settings of its type, with the converter
+    # ("converter"), the output format ("format") and the media type ("mime"),
+    # or an empty Hash when no active converter takes it. file and options as
+    # for mime. The one decision the converter, the format, the name of the
+    # cache directory and the URL of a preview are taken from (see
+    # Attachment#preview_selection, Repository#preview_selection)
+    def self.selection( file, options={} )
+      mime( file, options )
+    rescue ConverterNotFound
+      {}
+    end #def
+    
+    # options[:converter] names the converter already selected for the file
+    # (see selection): it is not selected a second time
     def self.convert( file, storage_path, options={}, &block )
-      worker = responsible( file )&.worker(options.merge(:target => storage_path))
+      converter = options[:converter].present? ? (find( options[:converter] ) rescue nil) : responsible( file )
+      worker    = converter&.worker(options.except(:converter).merge(:target => storage_path))
       raise ConverterNotFound unless worker
       worker.preview( File.new(file), &block )
     end #def

@@ -41,6 +41,7 @@ module RedmineMorePreviews
           before_action :read_authorize_for_more_preview,  :only => [:more_preview, :more_asset]
           before_action :ensure_more_previews_module_enabled, :only => [:more_preview, :more_asset]
           before_action :find_asset_param,                 :only => [:more_preview, :more_asset]
+          before_action :ensure_configured_preview_format, :only => [:more_preview]
           rescue_from   RedmineMorePreviews::Exceptions::ConverterLockTimeOut, :with => :render_more_preview_busy
           rescue_from   RedmineMorePreviews::Exceptions::ConverterTooLarge,    :with => :render_more_preview_too_large
           
@@ -101,6 +102,12 @@ module RedmineMorePreviews
             render_404 unless @attachment.project&.module_enabled?('redmine_more_previews')
           end
           private :ensure_more_previews_module_enabled
+
+          # see ControllerHelper#preview_format_requested?
+          def ensure_configured_preview_format
+            render_404 unless preview_format_requested?(@attachment.preview_format)
+          end
+          private :ensure_configured_preview_format
 
           def send_more_preview
             apply_preview_security_headers(@attachment.diskfile)

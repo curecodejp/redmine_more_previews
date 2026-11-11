@@ -284,6 +284,16 @@ Native speakers: please help to improve localizations
 
 ## Change-Log
 
+**6.1.10** (unreleased)
+
+- A preview is requested in the output format configured for the file's converter only. A request for another format (f.i. `/attachments/more_preview/ID.pdf` for a file previewed as HTML) is answered with `404` before anything is converted: before, each such format ran the whole conversion, left a cache directory that was never served and remembered a failure.
+- The converter, the output format, the cache directory and the URL of a preview are decided once, on the content of the file. A file whose content and extension disagree (HTML, an email or a zip archive saved as `.txt`, with a converter of both types enabled) is now previewed in the format of its converter; it was answered with `404`. On the page of a repository file, the entry is now read once for this, also when the preview is not HTML.
+- **Zippy:** an archive is listed as what its content is (a zip archive named `.tar`, a tar archive named `.tgz`).
+- **Mark:** converts to the configured format, as the other converters do, not to the format of the request.
+- **Cliff:** the header boxes and the *unsafe* link are shown for the file Cliff converts, also under another extension.
+- The preview cache format is not changed. Cache directories left by requests for other formats are removed by the cache cleanup.
+- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8.
+
 **6.1.9**
 
 - **Maggie:** preview HEIC/HEIF and TIFF images: the primary image of a HEIC file, the first page of a TIFF file, upright. They are converted only where ImageMagick reads them (HEIC needs libheif), and the settings refuse to enable them elsewhere. Check with `convert -list format` (`magick -list format` for ImageMagick 7); see [Maggie](#converter-details).

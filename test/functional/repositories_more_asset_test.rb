@@ -54,6 +54,7 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     @repository.fetch_changesets
     # No office converter is run: verify the download filename in the controller.
     Redmine::Scm::Adapters::Entry.any_instance.stubs(:convertible?).returns(true)
+    Repository::Filesystem.any_instance.stubs(:preview_format).returns('pdf')
     Repository::Filesystem.any_instance.stubs(:more_preview).returns('%PDF-1.4 synthetic')
 
     get :more_preview, params: entry_params(path: repository_path_hash([name])[:param], format: 'pdf')
@@ -187,7 +188,7 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
   # A browser only shows a broken image when the preview request fails, for
   # example for an image beyond the limits of the conversion
   def test_image_preview_has_a_message_for_when_it_fails_to_load
-    RedmineMorePreviews::Converter.stubs(:conversion_ext).returns('png')
+    Repository::Filesystem.any_instance.stubs(:preview_format).returns('png')
     get :entry, params: entry_params(format: 'html')
     assert_response :success
     assert_select 'img[onerror]', 1

@@ -83,16 +83,27 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   def convert
-    case File.extname( source ).downcase
-    when ".zip"
+    case archive_type
+    when :zip
       asset ? zipasset : ziptable 
-    when ".tgz"
+    when :tgz
       asset ? tgzasset : tgztable
-    when ".tar"
+    when :tar
       asset ? tarasset : tartable
     else
       # nothing
     end #def
+  end #def
+  
+  # the kind of archive, by its content as Zippy is chosen for it (a zip
+  # archive named a.tar is a zip archive); by the extension of its name where
+  # the content does not tell
+  ARCHIVE_TYPES      = {"application/zip" => :zip, "application/gzip" => :tgz, "application/x-tar" => :tar}.freeze
+  ARCHIVE_EXTENSIONS = {".zip" => :zip, ".tgz" => :tgz, ".tar" => :tar}.freeze
+  
+  def archive_type
+    ARCHIVE_TYPES[Marcel::MimeType.for( Pathname.new( source ), name: File.basename( source ) )] ||
+      ARCHIVE_EXTENSIONS[File.extname( source ).downcase]
   end #def
   
   ########################################################################################

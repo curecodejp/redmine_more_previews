@@ -27,7 +27,7 @@
   </p>
 </div><div style="clear:both;"></div>
 
-<%- case RedmineMorePreviews::Converter.conversion_ext(@entry.name, :pathonly => true) %>
+<%- case @repository.preview_format(@path, @rev) %>
   <%- when "inline" %>
     <div id="preview_repository_entry_top">
       <%= call_hook(:preview_repository_entry_top, :repository => @repository, :path => @path, :rev => @rev, :entry => @entry, :project => @project, :params => inline_preview_options ) %>
@@ -55,11 +55,11 @@
                 :repository_id => @repository.identifier_param,
                 :rev           => @rev,
                 :path          => @path,
-                :format        => RedmineMorePreviews::Converter.conversion_ext( @entry.name, :pathonly => true), 
+                :format        => @repository.preview_format(@path, @rev), 
                 :only_path     => ::Setting['plugin_redmine_more_previews']['absolute'].to_i == 0
                 }.merge(preview_query_parameters)
           ),
-         :alt => RedmineMorePreviews::Converter.conversion_mime(@entry.name, :pathonly => true),
+         :alt => @repository.preview_mime(@path, @rev),
          :style => "max-width:95%"
         ) %>
   <%- else %>
@@ -82,12 +82,12 @@
                  :repository_id => @repository.identifier_param,
                  :rev           => @rev,
                  :path          => @path,
-                 :format        => RedmineMorePreviews::Converter.conversion_ext( @entry.name, :pathonly => true), 
+                 :format        => @repository.preview_format(@path, @rev), 
                  :only_path     => ::Setting['plugin_redmine_more_previews']['absolute'].to_i == 0
                  }.merge(preview_query_parameters)
            ),
            @entry.name,
-          :type            => RedmineMorePreviews::Converter.conversion_mime(@entry.name, :pathonly => true),
+          :type            => @repository.preview_mime(@path, @rev),
           :allow_downloads => @preview_allows_downloads
         ) %>
     </div>

@@ -36,8 +36,6 @@ module VObject
        #"VCALENDAR" => 'VinceLib::VObject::VCalendar'
       }
       
-      LINE_LENGTH       = 1000 # max length of one line
-      
     end #module
   end #module
 end #module

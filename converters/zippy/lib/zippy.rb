@@ -106,9 +106,10 @@ class Zippy < RedmineMorePreviews::Conversion
   
   def archive_type
     by_content = ARCHIVE_TYPES[Marcel::MimeType.for( Pathname.new( source ), name: File.basename( source ) )]
-    # a kind of archive that is turned off is not listed under the name of another
-    (by_content if enabled_archive_types.include?( by_content )) ||
-      ARCHIVE_EXTENSIONS[File.extname( source ).downcase]
+    return ARCHIVE_EXTENSIONS[File.extname( source ).downcase] unless by_content
+    # a kind of archive that is turned off is not listed, also not as the kind
+    # its name gives: a zip archive named a.tar is not read as a tar archive
+    by_content if enabled_archive_types.include?( by_content )
   end #def
   
   def enabled_archive_types

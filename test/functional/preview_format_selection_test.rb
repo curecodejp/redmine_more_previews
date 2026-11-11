@@ -204,12 +204,15 @@ class PreviewFormatSelectionTest < Redmine::ControllerTest
     assert_select 'a', text: 'f.txt'
   end
 
-  # a kind of archive that is turned off is not listed under the name of another
+  # a kind of archive that is turned off is not listed under the name of another:
+  # it is not read as the kind of its name either
   def test_an_archive_of_a_kind_turned_off_is_not_listed_under_another_name
     settings = SETTINGS.deep_dup
     settings['converter']['zippy']['mime_types']['zip']['active'] = '0'
     use_settings(settings)
     a = attach(build_zip(File.join(@dir, 'archive.tar'), 'f.txt' => 'entry'), 'application/x-tar')
+    Zippy.any_instance.expects(:tartable).never
+    Zippy.any_instance.expects(:ziptable).never
     get :more_preview, params: {id: a.id, format: 'html'}
     assert_response :not_found
   end

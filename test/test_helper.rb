@@ -119,10 +119,11 @@ module RedmineMorePreviews
       end
     end
 
+    # a worker for an archive of any kind, as when each is enabled in the settings
     def zippy_worker(options = {})
       RedmineMorePreviews::Converter.find(:zippy).worker(
         { preview_format: 'html', object: {} }.merge(options)
-      )
+      ).tap { |worker| worker.stubs(:enabled_archive_types).returns(Zippy::ARCHIVE_EXTENSIONS.values) }
     end
 
     private

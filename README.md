@@ -289,7 +289,10 @@ Native speakers: please help to improve localizations
 - **Maggie:** preview HEIC/HEIF and TIFF images: the primary image of a HEIC file, the first page of a TIFF file, upright. They are converted only where ImageMagick reads them (HEIC needs libheif), and the settings refuse to enable them elsewhere. Check with `convert -list format` (`magick -list format` for ImageMagick 7); see [Maggie](#converter-details).
 - **Maggie:** a HEIC or TIFF image larger than the size set in the Maggie settings (default 64 megapixels) is not converted (`413`), because libheif and libtiff allocate memory for it outside the ImageMagick limits. Maggie reads the size from the header of the file first, and does not convert a file whose size cannot be read.
 - A file is still matched by its content first; of the extensions of its type (f.i. `tif` and `tiff`), and of `heic` and `heif` (a HEIC file may be detected as HEIF and the other way round), the output format and the switch of the file's own extension apply.
-- Maggie 1.0.5.
+- **Cliff, Libre:** the images of HTML previews of emails and office documents are shown in projects that are not public. The preview frame is sandboxed, so the browser sends no session with the requests it makes, and linked images were refused. PNG, JPEG, GIF, WebP and BMP images, judged by their content, are now embedded in the page while it stays within the largest preview size (Cliff embeds no more than twice the size of the email). Other images are linked as before.
+- Repository previews: the images an HTML preview links to are served again; their names were refused as absolute paths.
+- The preview cache format changes: previews cached by earlier releases are converted again when they are next shown.
+- Maggie 1.0.5, Cliff 1.1.7, Libre 1.1.5.
 
 **6.1.8**
 

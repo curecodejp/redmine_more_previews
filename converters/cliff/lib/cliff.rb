@@ -82,6 +82,7 @@ class Cliff < RedmineMorePreviews::Conversion
       # what the child needs from the database is read here, before the fork,
       # and the translations loaded, which takes seconds the first time
       LIMITS.each_key {|key| limit( key ) }
+      max_output
       object.to_h["object"].try( :project )
       I18n.translate( :"redmine_more_previews.cliff.text_more_attachments", :count => 0 )
       # Mail warns of a field it cannot parse with the whole field, twice: a
@@ -149,8 +150,14 @@ class Cliff < RedmineMorePreviews::Conversion
       attachments = save_attachments( mail ) 
       omitted     = mail.attachments.size - attachments.size
       
-      # modify cid:links in html and save 
-      html = link( Nokogiri::HTML( html ), Array(attachments) ).to_html
+      # modify cid:links in html and save: the images are embedded, as the
+      # frame of the preview cannot request them (see RmpDataUri). If the page
+      # would be larger than a preview may be, they link to the files instead
+      # an image referenced many times is embedded each time: the images
+      # embedded add no more than twice the email, which holds them in base64
+      budget   = [max_output - html.bytesize, 2 * File.size( source )].min
+      embedded = link( Nokogiri::HTML( html ), Array(attachments), budget ).to_html
+      html     = embedded.bytesize <= max_output ? embedded : link( Nokogiri::HTML( html ), Array(attachments) ).to_html
       
       # create list of attachments and save
       att_html = list( attachments, omitted )
@@ -366,6 +373,11 @@ class Cliff < RedmineMorePreviews::Conversion
     MAX_MEMORY
   end #def
   
+  # the largest preview, read before the fork (it is a setting)
+  def max_output
+    @max_output ||= RedmineMorePreviews::Converter.max_output
+  end #def
+  
   def limit( key )
     @limits ||= {}
     @limits[key] ||= begin
@@ -534,7 +546,9 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   # link
   #---------------------------------------------------------------------------------------
-  def link( xml, attachments )
+  # an image is embedded while its data: URI fits into budget (bytes), else
+  # it is linked to the extracted file
+  def link( xml, attachments, budget = 0 )
     #
     # link src= attribute of images
     #
@@ -543,7 +557,10 @@ class Cliff < RedmineMorePreviews::Conversion
         if attribute =~ /src/i && node[attribute] =~ /\Acid:/i
           cidmatch = node[attribute].match(/^cid:(.*)/i); cid = cidmatch && cidmatch[1]
           if att = attachments.find{|key,value| value && value[:content_id] == cid}
-            node[attribute] = att[1][:filename]
+            filename = att[1][:filename]
+            uri      = budget > 0 && RmpDataUri.image( tmpdir, File.join( tmpdir, filename ), budget )
+            budget  -= uri.bytesize if uri
+            node[attribute] = uri || filename
           end
         end
       end

@@ -37,7 +37,9 @@ module RedmineMorePreviews
     # the persistent Cliff fragment hooks never serve those old fragments.
     # Vince previews also ended the logo with a stray '%>'.
     # Cliff showed the bodies of emails not in UTF-8 in their own charset.
-    CACHE_FORMAT_VERSION = 'maintenance-6.1.7-v1'.freeze
+    # Cliff and Libre HTML previews linked their images, which the sandboxed
+    # frame cannot load; they are embedded now.
+    CACHE_FORMAT_VERSION = 'maintenance-6.1.9-v1'.freeze
     SAFE_DEBUG_FIELDS = %w(converter converter_version plugin_version source_type preview_format).freeze
 
   

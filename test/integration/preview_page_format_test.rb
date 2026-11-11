@@ -65,7 +65,55 @@ class PreviewPageFormatTest < Redmine::IntegrationTest
     end
   end
 
+  # the URL of the preview is built by the page: of the query of the page it
+  # takes over reload and unsafe only, not an option of url_for or a part of
+  # the route
+  QUERY = 'only_path=0&host=elsewhere.example&protocol=ftp&port=81&path=other.txt' \
+          '&id=2&repository_id=other&controller=x&action=y&shell_api=posix_spawn&reload=1'
+
+  def test_attachment_page_takes_over_reload_only
+    attachment = Attachment.create!(container: Issue.find(1), author: User.find(1),
+                                    file: Rack::Test::UploadedFile.new(File.join(@dir, 'notes.txt'), 'text/plain', true))
+    get "/attachments/#{attachment.id}?#{QUERY}"
+    assert_response :success
+    assert_equal "/attachments/more_preview/#{attachment.id}.txt?reload=1", preview_url
+  end
+
+  def test_repository_page_takes_over_reload_only
+    Repository.where(project_id: PRJ_ID).delete_all
+    repository = Repository::Filesystem.create!(project: Project.find(PRJ_ID), url: @dir, path_encoding: '', identifier: 'notes')
+    File.binwrite(File.join(@dir, 'other.txt'), "other\n")
+    project = Project.find(PRJ_ID).identifier
+    get "/projects/#{project}/repository/notes/entry/notes.txt?#{QUERY}"
+    assert_response :success
+    assert_equal "/projects/#{project}/repository/notes/preview/notes.txt@/index.txt?reload=1", preview_url
+  end
+
+  # an inline preview is converted while the page is rendered: nothing of the
+  # query but reload reaches the converter
+  def test_inline_preview_takes_no_options_from_the_query
+    Setting.plugin_redmine_more_previews = {'cache_previews' => '1', 'converter' => {
+      'teddie' => {'active' => '1', 'mime_types' => {'txt' => {'active' => '1', 'format' => 'inline'}}}}}
+    Setting.clear_cache
+    attachment = Attachment.create!(container: Issue.find(1), author: User.find(1),
+                                    file: Rack::Test::UploadedFile.new(File.join(@dir, 'notes.txt'), 'text/plain', true))
+    options = []
+    RedmineMorePreviews::Converter.stubs(:convert).with { |_file, _path, opts| options << opts }.returns(nil)
+    get "/attachments/#{attachment.id}?#{QUERY}"
+    assert_response :success
+    assert_equal 1, options.size
+    assert_equal %i(converter format object preview_format reload request), options.first.keys.sort
+    assert_equal 'inline', options.first[:format]
+    assert_equal true, options.first[:reload]
+  end
+
   private
+
+  def preview_url
+    url = response.body[/(?:src|data)="([^"]*(?:more_preview|@\/index)[^"]*)"/, 1]
+    assert url, 'no preview URL in the page'
+    CGI.unescapeHTML(url)
+  end
 
   # the URL of the preview in the page, requested as the frame requests it
   def follow_preview_url(page)

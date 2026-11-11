@@ -288,6 +288,7 @@ Native speakers: please help to improve localizations
 
 - A preview is requested in the output format configured for the file's converter only. A request for another format (f.i. `/attachments/more_preview/ID.pdf` for a file previewed as HTML) is answered with `404` before anything is converted: before, each such format ran the whole conversion, left a cache directory that was never served and remembered a failure.
 - The converter, the output format, the cache directory and the URL of a preview are decided once, on the content of the file. A file whose content and extension disagree (HTML, an email or a zip archive saved as `.txt`, with a converter of both types enabled) is now previewed in the format of its converter; it was answered with `404`. On the page of a repository file, the entry is now read once for this, also when the preview is not HTML.
+- The page of a file takes over only `reload` and `unsafe` from its query, into the URL of its preview. Other parameters of the query were taken over into that URL, and into the options of a preview converted inline.
 - **Zippy:** an archive is listed as what its content is (a zip archive named `.tar`, a tar archive named `.tgz`), where that kind of archive is enabled.
 - **Mark:** converts to the configured format, as the other converters do, not to the format of the request.
 - **Cliff:** the header boxes and the *unsafe* link are shown for the file Cliff converts, also under another extension.

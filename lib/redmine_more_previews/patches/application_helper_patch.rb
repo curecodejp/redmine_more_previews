@@ -178,27 +178,26 @@ module RedmineMorePreviews
         
           #unloadable 
 
-          # query parameters the preview views may forward to the converters.
-          # asset / assets select an archive entry and are only meaningful for
-          # asset requests; forwarded from the preview page they made the inline
-          # preview ask for the entry instead of the listing (nil once cached).
-          # format names the output format, which the pages take from the
-          # settings: forwarded from the page, it replaced the format in the URL
-          # of the preview of a repository entry
+          # the query parameters of a page that its preview takes over: reload
+          # and unsafe, the two a preview request reads (see
+          # ControllerHelper#preview_reload? and #preview_unsafe?). They are
+          # merged into the options of url_for and given to the hooks, so no
+          # other parameter is: the page builds the URL of its preview itself
           def preview_query_parameters
-            request.query_parameters.except('asset', 'assets', 'format')
+            %w(reload unsafe).select { |key| request.query_parameters[key].present? }.index_with('1')
           end
 
           # options of an inline preview, converted while the page is rendered.
-          # reload takes effect for administrators only, as for a preview request
-          # (see ControllerHelper#preview_reload?); unsafe never does: it converts
+          # Nothing of the query reaches the converter but reload, which takes
+          # effect for administrators only, as for a preview request (see
+          # ControllerHelper#preview_reload?); unsafe never does: it converts
           # without the cache and so needs a block, which the cached view has not
           def inline_preview_options
-            preview_query_parameters.except('reload', 'unsafe').symbolize_keys.merge(
+            {
               :format  => "inline",
               :request => request,
               :reload  => params[:reload].present? && User.current.admin?
-            )
+            }
           end
 
           def sanitize_inline_preview(html)

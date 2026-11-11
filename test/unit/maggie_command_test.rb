@@ -90,12 +90,13 @@ class MaggieCommandTest < ActiveSupport::TestCase
     assert_equal './out.png', move[1]
   end
 
+  # GIF and BMP are read as their first frame (see test_an_animated_gif_is_converted)
   def test_images_are_read_with_their_coder
-    {'a.png' => [PNG, 'png'], 'a.jpg' => [JPEG, 'jpeg'], 'a.gif' => [GIF, 'gif'], 'a.bmp' => [BMP, 'bmp']}.
-      each do |name, (bytes, coder)|
+    {'a.png' => [PNG, 'png', ''], 'a.jpg' => [JPEG, 'jpeg', ''], 'a.gif' => [GIF, 'gif', '[0]'], 'a.bmp' => [BMP, 'bmp', '[0]']}.
+      each do |name, (bytes, coder, frame)|
       worker = worker_for(name, bytes)
       convert, = commands(worker)
-      assert_includes convert, "#{coder}:#{worker.source}", name
+      assert_includes convert, "#{coder}:#{worker.source}#{frame}", name
     end
   end
 
@@ -133,6 +134,24 @@ class MaggieCommandTest < ActiveSupport::TestCase
     worker.convert
     assert File.file?(worker.tmptarget)
     assert_equal "\x89PNG".b, File.binread(worker.tmptarget, 4)
+  end
+
+  # an animated GIF has a frame for each picture: previewed as PNG or JPEG, it is
+  # its first frame (ImageMagick would write out-0.png, out-1.png, ... and the
+  # preview was not found); previewed as GIF, it stays animated
+  def test_an_animated_gif_is_converted
+    skip 'ImageMagick is not available' unless Redmine::Thumbnail.convert_available?
+    source = File.join(@dir, 'anim.gif')
+    assert system(Maggie::CONVERT_BIN, '-size', '8x8', 'xc:red', 'xc:blue', '-loop', '0', "gif:#{source}")
+    %w(png jpg gif).each do |format|
+      worker = worker_for('anim.gif', File.binread(source))
+      worker.preview_format = format
+      worker.tmptarget = File.join(worker.tmpdir, "index.#{format}")
+      worker.convert
+      assert File.file?(worker.tmptarget), format
+      frames, = Open3.capture2(Maggie::CONVERT_BIN, worker.tmptarget, '-format', '%p,', 'info:')
+      assert_equal format == 'gif' ? 2 : 1, frames.split(',').size, format
+    end
   end
 
   # a HEIC file holds several images (a burst, a sequence, an edit and its
@@ -186,11 +205,11 @@ class MaggieCommandTest < ActiveSupport::TestCase
 
   # a file named like a HEIC or TIFF image is read as what it holds
   def test_an_image_named_heic_or_tiff_is_read_as_its_content
-    {'a.heic' => [PNG, 'png'], 'A.HEIC' => [JPEG, 'jpeg'], 'a.tif' => [GIF, 'gif'], 'a.tiff' => [PNG, 'png']}.
-      each do |name, (bytes, coder)|
+    {'a.heic' => [PNG, 'png', ''], 'A.HEIC' => [JPEG, 'jpeg', ''], 'a.tif' => [GIF, 'gif', '[0]'], 'a.tiff' => [PNG, 'png', '']}.
+      each do |name, (bytes, coder, frame)|
       worker = worker_for(name, bytes)
       convert, = commands(worker)
-      assert_includes convert, "#{coder}:#{worker.source}", name
+      assert_includes convert, "#{coder}:#{worker.source}#{frame}", name
     end
   end
 

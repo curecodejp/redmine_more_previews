@@ -373,6 +373,11 @@ class Zippy < RedmineMorePreviews::Conversion
           written   = too_large.nil?
         end
       end
+    rescue ConverterTimeout
+      # the time limit is not the archive's: the conversion fails as a whole, and
+      # the names before it are not stored as a list that stopped at a limit
+      FileUtils.rm_f( tmpasset ) unless written
+      raise
     rescue StandardError => e
       Rails.logger.warn "#{File.basename(source)} could not be read beyond #{@names.size} names: #{e.message}"
       FileUtils.rm_f( tmpasset ) unless written

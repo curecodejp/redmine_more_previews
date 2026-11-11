@@ -61,6 +61,18 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(target_of(tgz))
   end
 
+  # the walk for an asset outlasts the time limit: the conversion fails, and is
+  # not taken for an asset beyond the limits of the archive (413), nor are the
+  # names before it stored as a list that stopped at a limit
+  def test_tgz_asset_walk_beyond_the_time_limit_fails
+    tgz = build_tgz(path('a.tgz'), (1..20).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    RedmineMorePreviews::Lib::RmpProcess.stubs(:now).returns(*([0.0] * 6), 10_000.0)
+    # (no failure is kept for a name not known to be in the archive)
+    assert_nil stored_asset(tgz, 'f20.txt')
+    RedmineMorePreviews::Lib::RmpProcess.unstub(:now)
+    assert_equal 'file 19', stored_asset(tgz, 'f19.txt')
+  end
+
   def test_complete_tar_list_is_not_marked_truncated
     tar = build_tar(path('a.tar'), 'a.txt' => 'a')
     assert_not_includes listing(tar), CGI.escapeHTML(I18n.translate(:"redmine_more_previews.zippy.text_list_truncated"))

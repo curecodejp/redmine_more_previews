@@ -164,6 +164,7 @@
 #       - Zippy: download entries from the listing, including one named like the listing, and send it as UTF-8
 # 6.1.9
 #       - Maggie: preview HEIC/HEIF and TIFF images, within a size limit set by the administrator
+#       - Cliff, Libre: embed the images of HTML previews, so that they are shown in projects that are not public
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------

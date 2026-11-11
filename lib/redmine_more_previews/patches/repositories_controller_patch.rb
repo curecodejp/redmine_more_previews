@@ -186,6 +186,10 @@ module RedmineMorePreviews
           def find_path_param
             @path  = [@path, params[:baseformat]].compact.join(".")
             @asset = params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]
+            # the asset route matches ".../file.ext@/image.png": the name it
+            # takes starts with the "/" after the "@", a link relative to the
+            # preview (".../file.ext@/index.html") always has it
+            @asset = @asset.delete_prefix("/") if action_name == "more_asset" && @asset.is_a?(String)
             @asset = [@asset, params[:assetformat]].compact.join(".").presence
             return if @asset.nil?
             @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)

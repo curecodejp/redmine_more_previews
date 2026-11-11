@@ -128,6 +128,24 @@ class VinceReaderTest < ActiveSupport::TestCase
     assert_equal [['First'], ['Second']], reader.stringall.map { |c| values(c, :fn) }
   end
 
+  # a photo as large as a vCard may be (Vince::MAX_SIZE), on one line or folded,
+  # as a data URI or in base64 (vCard 3): it is read and shown with the rest of
+  # the card, within the memory of the conversion (the URI parser took some 50
+  # bytes for a byte of it)
+  def test_a_large_photo_is_shown
+    photo = 'A' * (Vince::MAX_SIZE * 9 / 10)
+    {'data' => "PHOTO:data:image/png;base64,#{photo}",
+     'b64'  => "PHOTO;ENCODING=b;TYPE=JPEG:#{photo.scan(/.{1,74}/).join("\r\n ")}"}.each do |form, line|
+      source = File.join(@tmp, "#{form}.vcf")
+      File.binwrite(source, vcard("FN:Photographed\r\n#{line}\r\nEMAIL:after@example.com\r\n"))
+      worker = RedmineMorePreviews::Converter.find(:vince).worker(
+        preview_format: 'html', object: {}, target: File.join(@tmp, form, 'index.html'))
+      html = File.open(source) { |io| worker.preview(io) }.to_s
+      assert_includes html, 'after@example.com', form
+      assert_includes html, photo[0, 1000], form
+    end
+  end
+
   private
 
   def vcard(body)

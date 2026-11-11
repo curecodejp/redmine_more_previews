@@ -108,6 +108,7 @@ module VObject
       #   currently, it tries to parse and defaults to value, so nothong is really done
       #
       def get_uri(*val, **att)
+        return val[0].to_s if plain_uri_parts( val[0].to_s )
         begin
           URI.parse(val[0].to_s)
         rescue URI::InvalidURIError
@@ -118,7 +119,7 @@ module VObject
       def get_uri_hash(*val, **att)
         [%i(scheme userinfo host port registry path opaque query fragment full), 
           begin
-            URI.split(val[0].to_s) + [get_uri(*val, **att).to_s]
+            plain_uri_parts( val[0].to_s ) || (URI.split(val[0].to_s) + [get_uri(*val, **att).to_s])
           rescue URI::InvalidURIError
             # a telephone number is text in vCard 3 and may be in vCard 4 (VALUE=text),
             # f.i. "+81 3 1234 5678": it is shown as it is written, without a link.
@@ -127,6 +128,30 @@ module VObject
           end
         ].transpose.to_h
       end #def
+      
+      # an image as a data URI (rfc2397) or in base64 (vCard 3, ENCODING=b) is split
+      # as URI.split splits it, without its parser, which takes some 50 bytes of
+      # memory for a byte of the value: a photo of a few MiB took more than a
+      # conversion may take. A regular expression over the data takes as much, so
+      # its characters are counted
+      DATA_URI_HEAD = %r{\Adata:[!#$&^.+\w-]+/[!#$&^.+\w-]+(?:;[\w.=-]+)*\z}i
+      
+      def plain_uri_parts( str )
+        comma = str.index( "," )
+        if str.start_with?( "data:", "DATA:" ) && comma && comma < 256 &&
+           str[0...comma].match?( DATA_URI_HEAD ) && str[(comma + 1)..-1].count( "^A-Za-z0-9+/=%_.~-" ).zero?
+          ["data", nil, nil, nil, nil, nil, str[5..-1], nil, nil, str]
+        elsif base64?( str )
+          [nil, nil, nil, nil, nil, str, nil, nil, nil, str]
+        end
+      end #def
+      
+      def base64?( str )
+        padding = str.index( "=" )
+        !str.empty? && padding != 0 && str.count( "^A-Za-z0-9+/=" ).zero? && (padding.nil? || str[padding..-1].count( "^=" ).zero?)
+      end #def
+      private :base64?
+      private :plain_uri_parts
       
       def get_uri_array(*val, **att)
         URI.split(val[0].to_s) + [get_uri(*val, **att).to_s]

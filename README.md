@@ -2,7 +2,7 @@
 
 Preview files directly from **Redmine issue attachments, documents, files, and repository entries**. This plugin adds optional converters for office documents, email, archives, Markdown, images, PDFs, and vCards, so users can inspect content without manually downloading every file.
 
-**Current release:** [v6.1.8](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.8) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
+**Current release:** [v6.1.9](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.9) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
 
 > [!NOTE]
 > This is a **Cure Code Corp.-maintained fork**, based on [JVsup's fork](https://github.com/JVsup/redmine_more_previews) of the [original project by HugoHasenbein](https://github.com/HugoHasenbein/redmine_more_previews). It is not an official upstream release. The inherited license is **GNU GPL v2.0 or later**. General-purpose fixes can be proposed upstream separately.
@@ -29,7 +29,7 @@ Select which converters, file types, and output formats to enable in the plugin 
 | --- | --- |
 | **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5**. For PDF previews with Maggie / Peek, use **6.0.10 / 6.1.3 or later**; see [Converter details](#converter-details) |
 | **Ruby** | 3.3.x verified (CI: **3.3.8**); other Ruby versions have not been verified |
-| **Plugin release** | **6.1.8** |
+| **Plugin release** | **6.1.9** |
 | **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork`, and its memory monitoring needs Linux `/proc` support |
 
 Redmine 7 is **not yet verified** by this fork. Support for a Redmine release does not imply that every optional converter is available on every operating system.
@@ -42,7 +42,7 @@ From the Redmine installation directory, install the maintained release into `pl
 
 ```bash
 cd /path/to/redmine
-git clone --branch v6.1.8 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
+git clone --branch v6.1.9 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
 bundle install
 ```
 
@@ -50,7 +50,7 @@ Install the external programs needed by the **converters you intend to enable** 
 
 ### Upgrade an existing installation
 
-Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.8` tag, so its checkout has a **detached HEAD**, not a `main` branch.
+Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.9` tag, so its checkout has a **detached HEAD**, not a `main` branch.
 
 **Before fetching**, check which repository `origin` points to:
 
@@ -66,11 +66,11 @@ If migrating from the original upstream or JVsup fork, change `origin` **before*
 git -C plugins/redmine_more_previews remote set-url origin https://github.com/curecodejp/redmine_more_previews.git
 ```
 
-Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.7):
+Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git`, upgrade a *tag-pinned* installation from an earlier release (for example, v6.1.8):
 
 ```bash
 git -C plugins/redmine_more_previews fetch --tags origin
-git -C plugins/redmine_more_previews switch --detach v6.1.8
+git -C plugins/redmine_more_previews switch --detach v6.1.9
 bundle install
 ```
 
@@ -81,11 +81,11 @@ Do not run `git pull origin main` from a tag checkout: that moves the detached c
 **Before restarting**, check the version you are upgrading **from**:
 
 - **6.1.3 or later:** Cached previews are versioned and regenerated as needed; no full cache purge is normally needed.
-- **6.1.7 or earlier, with Zippy archive listings in HTML format:** 6.1.8 does not change the cache format, so a listing cached before the upgrade keeps its old links, and clicking an entry there shows the login page inside the frame. Such a listing is fixed when it is converted again: an administrator can use the *Update* link above the preview, or the cached listings can be removed from the preview cache directory.
+- **6.1.8 or earlier:** 6.1.9 changes the preview cache format, so every preview is converted again when it is first viewed after the upgrade. This also renews Zippy listings cached by 6.1.7 or earlier, whose links showed the login page inside the frame. The older cache files stay on disk until the cache cleanup removes them.
 - **6.1.2 or earlier, including older upstream/JVsup builds:** Read the **6.1.3 Upgrade precaution** in the [Change-Log](#change-log). If converter debug mode was ever enabled, stop Redmine and preview workers and carefully clear the *plugin's actual preview cache directory* before restarting, because old diagnostic files may still contain sensitive data. The routine age-based cache task does not immediately remove all such files. Verify the directory path before deletion.
 - **Libre enabled:** Review the [Linux `bubblewrap` sandbox requirements](#libre-converter-sandbox); conversion fails closed without a working sandbox.
 
-Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.8** under *Administration → Plugins*.
+Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.9** under *Administration → Plugins*.
 
 ### Configure and enable
 
@@ -244,7 +244,7 @@ Maggie hands uploaded files and repository files to ImageMagick, and PDF files t
  - **Which program runs.** The program Redmine's `imagemagick_convert_command` names in `config/configuration.yml`, `convert` (ImageMagick 6) unless it is set; set it to `magick` to use ImageMagick 7. The Maggie settings show the program and whether it reads each format. The check runs once per Redmine process: restart Redmine after installing a coder.
  - **Where ImageMagick cannot read them.** While Maggie is enabled, the settings cannot be saved with HEIC/HEIF or TIFF enabled for it, and a preview is never converted: the preview fails as for a broken image, and the other formats are converted as before. If ImageMagick loses the coder later (f.i. after an upgrade), uncheck the format to save the settings again. A `policy.xml` that denies the coder fails the conversion in the same way; do not open the policy for previews. `-list format` may list HEIC where libheif has no HEVC decoder plugin: the settings are then saved, and the conversions fail.
  - **What is checked.** Maggie converts a file only when the format is enabled, the file starts as that format and ImageMagick reads it: a HEIC/HEIF file must name HEVC brands and no AVIF brand, a TIFF file must start with a TIFF header. The codec of the image inside a HEIC file is not checked: a file with HEVC brands that holds an AV1 (or other) image is decoded if libheif has a decoder for it.
- - **Limits.** libheif and libtiff allocate memory of their own for the whole image while decoding it, outside the ImageMagick limits: some bytes per pixel, about 6 for a 10-bit HEIC image, so 64 megapixels take about 400 MB, times the number of conversions that run at the same time. Maggie therefore reads the size the file declares before it converts it: the coded size of the primary image of a HEIC file (its `ispe` property), the width and height of the first page of a TIFF file. An image larger than **Largest HEIC or TIFF image** in the Maggie settings (default 64 megapixels, which 48 and 50 megapixel phone photos and A4 scans at 600 dpi pass) is answered with `413`; raise the limit for larger scans (A3 at 600 dpi is 70 megapixels) where the server has the memory. A value that is not a whole positive number uses the default. A file whose size cannot be read is not converted, f.i. a HEIC sequence without a primary image, a HEIC file whose `meta` box is larger than 1 MiB, that has more than one `meta` box, or that has more than 16 top-level boxes, or a TIFF file that gives its width or height as more or fewer than one value. The size is the one the file declares, so this is not a hard memory limit: a crafted file may code a larger image, and only the time limit of the conversion stops it. What bounds the memory is the number of conversions at the same time (`max_conversions`, see below) and the memory of the server. The ImageMagick limits apply as for the other images (an image over 16K pixels wide or high is not previewed).
+ - **Limits.** libheif and libtiff allocate memory of their own for the whole image while decoding it, outside the ImageMagick limits: some bytes per pixel, about 6 for a 10-bit HEIC image, so 64 megapixels take about 400 MB, times the number of conversions that run at the same time. Maggie therefore reads the size the file declares before it converts it: the coded size of the primary image of a HEIC file (its `ispe` property), the width and height of the first page of a TIFF file. An image larger than **Largest HEIC or TIFF image** in the Maggie settings (default 64 megapixels, which 48 and 50 megapixel phone photos and A4 scans at 600 dpi pass) is answered with `413`; raise the limit for larger scans (A3 at 600 dpi is 70 megapixels) where the server has the memory. A value that is not a whole positive number uses the default. The limit is checked when an image is converted: a preview converted before the limit was lowered is still served from the cache. A refusal is remembered like any failed conversion (10 minutes by default), so after the limit is raised the image is shown when that time has passed, or at once when an administrator uses *Update*. A file whose size cannot be read is not converted, f.i. a HEIC sequence without a primary image, a HEIC file whose `meta` box is larger than 1 MiB, that has more than one `meta` box, or that has more than 16 top-level boxes, or a TIFF file that gives its width or height as more or fewer than one value. The size is the one the file declares, so this is not a hard memory limit: a crafted file may code a larger image, and only the time limit of the conversion stops it. What bounds the memory is the number of conversions at the same time (`max_conversions`, see below) and the memory of the server. The ImageMagick limits apply as for the other images (an image over 16K pixels wide or high is not previewed).
 
 ---
 
@@ -289,6 +289,7 @@ Native speakers: please help to improve localizations
 - **Maggie:** preview HEIC/HEIF and TIFF images: the primary image of a HEIC file, the first page of a TIFF file, upright. They are converted only where ImageMagick reads them (HEIC needs libheif), and the settings refuse to enable them elsewhere. Check with `convert -list format` (`magick -list format` for ImageMagick 7); see [Maggie](#converter-details).
 - **Maggie:** a HEIC or TIFF image larger than the size set in the Maggie settings (default 64 megapixels) is not converted (`413`), because libheif and libtiff allocate memory for it outside the ImageMagick limits. Maggie reads the size from the header of the file first, and does not convert a file whose size cannot be read.
 - A file is still matched by its content first; of the extensions of its type (f.i. `tif` and `tiff`), and of `heic` and `heif` (a HEIC file may be detected as HEIF and the other way round), the output format and the switch of the file's own extension apply.
+- HEIC/HEIF and TIFF are off after the upgrade: enable them in the Maggie settings where ImageMagick reads them.
 - **Cliff, Libre:** the images of HTML previews of emails and office documents are shown in projects that are not public. The preview frame is sandboxed, so the browser sends no session with the requests it makes, and linked images were refused. PNG, JPEG, GIF, WebP and BMP images, judged by their content, are now embedded in the page while it stays within the largest preview size (Cliff embeds no more than twice the size of the email). Other images are linked as before.
 - Repository previews: the images an HTML preview links to are served again; their names were refused as absolute paths.
 - The preview cache format changes: previews cached by earlier releases are converted again when they are next shown.

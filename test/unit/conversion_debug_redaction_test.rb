@@ -171,6 +171,20 @@ class ConversionDebugRedactionTest < ActiveSupport::TestCase
     assert_includes debug_etag, RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION
   end
 
+  # a converter with a revision of its cache (Zippy) has it in its ETag; the
+  # ETags of the others are as they were
+  def test_etag_has_the_revision_of_a_converter_only
+    helper = Object.new.extend(RedmineMorePreviews::ControllerHelper)
+    RedmineMorePreviews::Converter.stubs(:debug?).returns(false)
+    version = RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION
+    RedmineMorePreviews::Converter.stubs(:responsible).returns(RedmineMorePreviews::Converter.find(:pass))
+    assert_equal [Time.at(0), RedmineMorePreviews::Converter.find(:pass).id, version, false],
+                 helper.send(:preview_etag, Time.at(0), @source)
+    RedmineMorePreviews::Converter.stubs(:responsible).returns(RedmineMorePreviews::Converter.find(:zippy))
+    assert_equal [Time.at(0), RedmineMorePreviews::Converter.find(:zippy).id, version, Zippy.cache_revision, false],
+                 helper.send(:preview_etag, Time.at(0), @source)
+  end
+
   private
 
   def pass_worker

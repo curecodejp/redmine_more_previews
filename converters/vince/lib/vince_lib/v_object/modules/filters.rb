@@ -41,7 +41,11 @@ module VObject
         fields.map do |field|
           deep_try(field, :values).to_a.map do |args|
             if block_given?
-              [field.to_s.upcase] + Array.wrap(args) if yield( *Array.wrap(args) )
+              # the attributes are given as keywords: Ruby 3 passes a hash given as the
+              # last argument to the **attributes of a block no more
+              *val, att = Array.wrap(args)
+              selected  = att.is_a?(Hash) ? yield( *val, **att ) : yield( *Array.wrap(args) )
+              [field.to_s.upcase] + Array.wrap(args) if selected
             else
               [field.to_s.upcase] + Array.wrap(args)
             end
@@ -117,8 +121,23 @@ module VObject
       # compare two fields by PREF attribute for sorting fields by preference
       #
       def pref( arr1, arr2 )
-        (arr1.last.is_a?(Hash) ? arr1.last['PREF'].to_a.last.to_i : 0) <=>
-        (arr2.last.is_a?(Hash) ? arr2.last['PREF'].to_a.last.to_i : 0)
+        pref_rank( arr1 ) <=> pref_rank( arr2 )
+      end #def
+      
+      #-------------------------------------------------------------------------------------
+      # the preference of a field [value, attributes], 1 the most preferred:
+      # rfc6350:5.3 PREF=1..100; vCard 3 TYPE=pref and vCard 2.1 PREF without a value
+      # are 1; a field without one comes after those with one. The attributes are read
+      # with symbol keys (see Reader#parse), in any case
+      #
+      def pref_rank( arr )
+        att = arr.last.is_a?(Hash) ? arr.last.transform_keys{|k| k.to_s.upcase } : {}
+        if att.key?('PREF')
+          rank = Array(att['PREF']).compact.last.to_i
+          return rank.positive? ? rank : 1
+        end
+        types = Array(att['TYPE']).flatten.compact.flat_map{|t| t.to_s.split(',') }
+        types.any?{|t| t.strip.casecmp?('pref') } ? 1 : 101
       end #def
       
       #-------------------------------------------------------------------------------------

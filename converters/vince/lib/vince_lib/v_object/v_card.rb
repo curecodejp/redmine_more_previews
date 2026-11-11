@@ -592,7 +592,7 @@ module VObject
     ######################################################################################
     def org(*val, **att)
       if[val,att].all?(&:blank?)
-        @org ||= FieldTypes::VList.new(:org, parent: self)
+        @org ||= FieldTypes::VComponents.new(:org, parent: self)
       else
         org.values(*val, **att)
       end

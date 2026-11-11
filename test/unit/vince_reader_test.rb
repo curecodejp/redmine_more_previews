@@ -65,6 +65,63 @@ class VinceReaderTest < ActiveSupport::TestCase
     assert_equal ['unbalanced@example.com'], values(c, :email)
   end
 
+  # ORG is an organization and its units, separated by ";"
+  def test_the_units_of_an_organization_are_separated
+    assert_equal [{1 => 'Example Corp.', 2 => 'Sales', 3 => 'Tokyo'}], org(card("ORG:Example Corp.;Sales;Tokyo\r\n"))
+    assert_equal [{1 => 'Example, Inc.'}], org(card("ORG:Example\\, Inc.\r\n"))
+    assert_equal [{1 => 'Example'}], org(card("ORG:Example;\r\n"))
+    assert_equal [{1 => 'A;B'}], org(card("ORG:A\\;B\r\n"))
+    # the lists of other properties are separated by ","
+    c = card("CATEGORIES:friends,work\r\nNICKNAME:Ex, Sample\r\n")
+    assert_equal [{1 => 'friends', 2 => 'work'}], c.categories.to_h[:categories].map { |h| h[:fields] }
+    assert_equal [{1 => 'Ex', 2 => ' Sample'}], c.nickname.to_h[:nickname].map { |h| h[:fields] }
+
+    c = card("ORG:Example Corp.;Sales\r\n")
+    html = render(c)
+    assert_includes html, '>Example Corp.</span>'
+    assert_includes html, '>Sales</span>'
+    assert_includes c.org.humanize, 'Sales'
+  end
+
+  # the preferred values first (PREF=1 before PREF=2), then those without a
+  # preference, in the order of the vCard
+  def test_values_are_sorted_by_preference
+    c = card("EMAIL:none1@example.com\r\nEMAIL;PREF=2:two@example.com\r\nEMAIL:none2@example.com\r\n" \
+             "EMAIL;PREF=1:one@example.com\r\n")
+    assert_equal %w(one@example.com two@example.com none1@example.com none2@example.com), values(c, :email)
+    # vCard 3 TYPE=pref and vCard 2.1 PREF without a value are preferred too
+    c = card("TEL:+1 none\r\nTEL;TYPE=work,pref:+1 type\r\n")
+    assert_equal ['+1 type', '+1 none'], values(c, :tel)
+    c = card("TEL:+1 none\r\nTEL;WORK;PREF:+1 bare\r\n")
+    assert_equal ['+1 bare', '+1 none'], values(c, :tel)
+  end
+
+  # the addresses are shown under their type: work, home, the preferred ones and
+  # the others (the type was not seen, and all were shown under the others)
+  def test_values_are_shown_under_their_type
+    c = card(%(EMAIL;TYPE=work:work@example.com\r\nEMAIL;TYPE=home:home@example.com\r\n) +
+             %(TEL;TYPE="work,voice":+81 3 2222 2222\r\nEMAIL:other@example.com\r\n))
+    html = I18n.with_locale(:en) { render(c) }
+    sections = html.split(%r{<h4>([^<]+)</h4>}).drop(1).each_slice(2).to_h
+    assert_includes sections['Work'], 'work@example.com'
+    assert_includes sections['Work'], '+81 3 2222 2222'
+    assert_includes sections['Home'], 'home@example.com'
+    assert_includes sections['Other'], 'other@example.com'
+    assert_not_includes sections['Other'], 'work@example.com'
+  end
+
+  # a telephone number of text (vCard 3, VALUE=text) is no URI: it was shown empty
+  def test_a_telephone_number_of_text_is_shown
+    c = card("TEL;TYPE=work:+81 3 3333 3333\r\nTEL:<b>555</b> 0100\r\nTEL;VALUE=uri:tel:+81-3-4444-4444\r\n")
+    html = render(c)
+    assert_includes html, '>+81 3 3333 3333</span>'
+    assert_includes html, '&lt;b&gt;555&lt;/b&gt; 0100'
+    assert_not_includes html, '<b>555</b>'
+    assert_includes html, 'href="tel:+81-3-4444-4444"'
+    assert_equal 1, html.scan('href="tel:').size
+    assert_includes c.tel.humanize, '+81 3 3333 3333'
+  end
+
   def test_blank_lines_and_a_card_without_its_end_are_read
     reader = VinceLib::VObject::Reader.new(object: :vcard,
       string: "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:First\r\n\r\nEND:VCARD\r\nBEGIN:VCARD\r\nFN:Second\r\n")

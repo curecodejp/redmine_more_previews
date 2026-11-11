@@ -90,7 +90,8 @@ module VObject
       # returns values sorted by pref parameter
       #
       def sorted
-        values.to_a.sort{|a,b| pref(a,b)}
+        # in the order of the vCard among fields of the same preference
+        values.to_a.each_with_index.sort_by{|field, i| [pref_rank(field), i] }.map(&:first)
       end #def
       
       # returns true if any values are present

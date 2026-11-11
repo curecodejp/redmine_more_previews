@@ -120,7 +120,10 @@ module VObject
           begin
             URI.split(val[0].to_s) + [get_uri(*val, **att).to_s]
           rescue URI::InvalidURIError
-            ["", "", "", "", "", "", "", "", ""] + [get_uri(*val, **att).to_s]
+            # a telephone number is text in vCard 3 and may be in vCard 4 (VALUE=text),
+            # f.i. "+81 3 1234 5678": it is shown as it is written, without a link.
+            # Other values that are no URI (PHOTO, URL ...) are not shown
+            ["", "", "", "", "", "", "", "", ""] + [name == :tel ? val[0].to_s : get_uri(*val, **att).to_s]
           end
         ].transpose.to_h
       end #def

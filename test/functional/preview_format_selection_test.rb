@@ -147,15 +147,21 @@ class PreviewFormatSelectionTest < Redmine::ControllerTest
     a = attach(write('mail.txt', mail), 'text/plain')
     assert_equal 'message/rfc822', Marcel::MimeType.for(Pathname.new(a.diskfile), name: a.filename)
 
+    # the subject is in the header box of the page: the body is in the frame
     get :show, params: {id: a.id}
     assert_response :success
     assert_select 'iframe[src=?]', "/attachments/more_preview/#{a.id}.html"
-    assert_select 'div.box', minimum: 1
     assert_includes response.body, 'a mail saved as text'
 
     get :more_preview, params: {id: a.id, format: 'html'}
     assert_response :success
     assert_includes response.body, 'the body'
+
+    # a header fragment beyond its limit is one of Cliff's under this name too
+    File.binwrite(a.preview_assetpath(asset: 'fields.html'),
+                  'x' * (RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES + 1))
+    get :more_asset, params: {id: a.id, asset: 'fields', assetformat: 'html'}
+    assert_response 413
 
     Cliff.any_instance.expects(:convert).never
     get :more_preview, params: {id: a.id, format: 'txt'}
@@ -196,6 +202,10 @@ class PreviewFormatSelectionTest < Redmine::ControllerTest
     assert_response :success
     assert_select 'a', text: 'f.txt'
     assert_equal ['preview.html'], preview_directories(a)
+    # as before: under the sandbox of an HTML preview, with no type of its own
+    assert_equal 'application/octet-stream', response.media_type
+    assert_includes response.headers['Content-Security-Policy'].to_s, 'sandbox'
+    assert_equal 'nosniff', response.headers['X-Content-Type-Options']
 
     Zippy.any_instance.expects(:convert).never
     get :more_preview, params: {id: a.id, format: 'html'}

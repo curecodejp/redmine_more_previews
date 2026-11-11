@@ -291,7 +291,7 @@ Native speakers: please help to improve localizations
 - **Zippy:** an archive is listed as what its content is (a zip archive named `.tar`, a tar archive named `.tgz`).
 - **Mark:** converts to the configured format, as the other converters do, not to the format of the request.
 - **Cliff:** the header boxes and the *unsafe* link are shown for the file Cliff converts, also under another extension.
-- The preview cache format is not changed. Cache directories left by requests for other formats are removed by the cache cleanup.
+- The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
 - Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8.
 
 **6.1.9**

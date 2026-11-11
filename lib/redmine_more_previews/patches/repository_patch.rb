@@ -133,14 +133,16 @@ module RedmineMorePreviews
           # repository instance (i.e. per request), on the bytes the conversion
           # runs on (see preview_content), so that the converter, the format it is
           # given, the directory its preview is stored in and the URL of the
-          # preview cannot disagree
+          # preview cannot disagree. An entry the SCM gives no content for is
+          # converted as an empty file (see more_preview), and decided as one:
+          # never on a file of its name on the server
           def preview_selection(path, rev)
             @preview_selections ||= {}
             key = [path, rev]
             return @preview_selections[key] if @preview_selections.key?(key)
             e = entry(path, rev)
             @preview_selections[key] =
-              e ? RedmineMorePreviews::Converter.selection(e.name, :content => preview_content(path, rev)) : {}
+              e ? RedmineMorePreviews::Converter.selection(e.name, :content => preview_content(path, rev).to_s) : {}
           end #def
           
           # the output format configured for the converter of the entry. A

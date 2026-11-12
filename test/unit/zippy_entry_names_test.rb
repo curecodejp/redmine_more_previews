@@ -59,6 +59,19 @@ class ZippyEntryNamesTest < ActiveSupport::TestCase
     assert_equal 'éc', @worker.name_to_utf8("\xE9c".b)
   end
 
+  # the punctuation of Windows-1252 (0x80-0x9F) between two letters reads as a
+  # kanji: O’Brien is no Japanese name, nor don’t or A–Z
+  def test_a_western_name_with_punctuation_of_windows_1252_is_not_taken_for_japanese
+    ["O\x92Brien.txt", "don\x92t.txt", "it\x92s here.txt", "A\x96Z.txt"].map(&:b).each do |name|
+      assert_equal RedmineMorePreviews::Lib::RmpText.to_utf8(name), @worker.name_to_utf8(name), name.inspect
+    end
+    assert_not_equal 'O達rien.txt', @worker.name_to_utf8("O\x92Brien.txt".b)
+    # a Japanese name of katakana after a western word is Japanese still
+    %w(テスト.txt Excelテスト.xlsx 表.xlsx).each do |name|
+      assert_equal name, @worker.name_to_utf8(name.encode('Windows-31J').b), name
+    end
+  end
+
   def test_a_tar_listing_shows_a_japanese_name
     tar = File.join(@tmp, 'a.tar')
     File.open(tar, 'wb') do |io|

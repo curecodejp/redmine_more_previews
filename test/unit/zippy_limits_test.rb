@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'minitest/mock'
 
 # An archive expands without bound: a tgz is inflated from the start up to the
 # entry asked for, and rubyzip reads the whole central directory of a zip. The
@@ -59,6 +60,38 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_equal '', listing(tgz)
     assert_not File.exist?(target_of(tgz))
     assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(target_of(tgz))
+  end
+
+  # a stored listing that outlasts the time limit does not store the names
+  # before it as a list that stopped at a limit: an entry after them is not
+  # refused as lying beyond it
+  def test_tgz_listing_beyond_the_time_limit_stores_no_names
+    tgz = build_tgz(path('a.tgz'), (1..20).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    clock = 0.0
+    links = 0
+    RedmineMorePreviews::Lib::RmpProcess.stub(:now, -> { clock }) do
+      Zippy.any_instance.stubs(:tarlink).with { (links += 1) < 5 || (clock = 10_000.0) }.returns('link')
+      assert_nil zippy_worker(target: target_of(tgz), request: fake_request).preview(File.new(tgz))
+      assert_not File.exist?(RedmineMorePreviews::Lib::RmpAssetList.path(File.dirname(target_of(tgz))))
+      clock = 0.0
+      assert_equal 'file 20', stored_asset(tgz, 'f20.txt')
+    end
+  end
+
+  # the time spent on the last entry, or on writing an entry out, is checked too:
+  # the time limit is not checked before each entry only
+  def test_tgz_walk_past_the_time_limit_in_the_last_entry_fails
+    tgz = build_tgz(path('a.tgz'), 'only.txt' => 'only')
+    clock = 0.0
+    RedmineMorePreviews::Lib::RmpProcess.stub(:now, -> { clock }) do
+      Zippy.any_instance.stubs(:tarlink).with { clock = 10_000.0 }.returns('only.txt')
+      assert_equal '', listing(tgz)
+      assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(target_of(tgz))
+      clock = 0.0
+      Zippy.any_instance.stubs(:check_asset_size).with { clock = 10_000.0 }
+      assert_nil stored_asset(tgz, 'only.txt')
+      assert_not File.exist?(asset_target(tgz, 'only.txt'))
+    end
   end
 
   # the walk for an asset outlasts the time limit: the conversion fails, and is

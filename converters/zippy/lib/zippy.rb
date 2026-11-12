@@ -188,6 +188,10 @@ class Zippy < RedmineMorePreviews::Conversion
     @names = Set.new
     complete = begin
       tarlist( tarball, "", list)
+    rescue ConverterTimeout
+      # the time limit is not the archive's: the conversion fails as a whole, and
+      # the names before it are not stored as a list that stopped at a limit
+      raise
     rescue StandardError
       # the listing fails, the names before the break are offered still, as a
       # list that stopped at a limit
@@ -226,7 +230,9 @@ class Zippy < RedmineMorePreviews::Conversion
   # past it; the size is taken from the header before the data is read. Returns
   # false if the walk stops at a limit, true if the archive ends before. The walk
   # runs in Ruby, where the time limit of the conversion stops no command: it is
-  # checked at each entry, and the conversion fails when it has passed
+  # checked at each entry, after the last one (whose data is read past after it is
+  # yielded) and while an entry is written out (see take_entry), and the conversion
+  # fails when it has passed
   #---------------------------------------------------------------------------------------
   def each_tar_entry( tarball )
     entries, bytes = 0, 0
@@ -237,6 +243,7 @@ class Zippy < RedmineMorePreviews::Conversion
       return false if entries > limit('max_entries') || bytes > limit_bytes('max_inflated')
       yield entry
     end
+    ensure_time_left
     true
   end #def
   
@@ -254,7 +261,9 @@ class Zippy < RedmineMorePreviews::Conversion
   # read as CP932, as Windows in Japan writes it, where it reads as a Japanese name: in
   # characters of Japanese only, without halfwidth katakana, and with a character of
   # a lead byte 0x81-0x9F (kana and the common kanji), a byte that is a control
-  # character in ISO-8859-1, and no letter. Other names are guessed as before
+  # character in ISO-8859-1, and no letter. A name of Windows-1252 whose punctuation
+  # (0x80-0x9F) stands between two letters, as in O’Brien or A–Z, reads as kanji: it
+  # is not taken for Japanese. Other names are guessed as before
   # (RmpText.to_utf8, mostly ISO-8859-1). A name of a western zip archive in CP850
   # may read as Japanese too: it is garbled either way
   #---------------------------------------------------------------------------------------
@@ -275,6 +284,7 @@ class Zippy < RedmineMorePreviews::Conversion
     return nil unless name.valid_encoding?
     name = name.encode( "UTF-8" )
     return nil unless name.match?( JAPANESE_NAME ) && !name.match?( HALFWIDTH_KATAKANA ) && common_lead_byte?( bytes )
+    return nil if western_punctuation?( bytes )
     name
   rescue EncodingError
     nil
@@ -291,6 +301,32 @@ class Zippy < RedmineMorePreviews::Conversion
     false
   end #def
   private :common_lead_byte?
+  
+  # each character of two bytes follows a letter (a character of one byte) and has
+  # a letter for its second byte: "O\x92Brien" is O’Brien in Windows-1252. A name of
+  # kana after a western word ("Excelテスト") is not: its second kana follows a kana
+  def western_punctuation?( bytes )
+    i, previous, double = 0, nil, false
+    while i < bytes.bytesize
+      byte = bytes.getbyte( i )
+      if byte < 0x80 || byte.between?( 0xA1, 0xDF )
+        previous = byte
+        i += 1
+      else
+        return false unless ascii_letter?( previous ) && ascii_letter?( bytes.getbyte( i + 1 ) )
+        previous = nil
+        double   = true
+        i += 2
+      end
+    end
+    double
+  end #def
+  private :western_punctuation?
+  
+  def ascii_letter?( byte )
+    !byte.nil? && (byte.between?( 0x41, 0x5A ) || byte.between?( 0x61, 0x7A ))
+  end #def
+  private :ascii_letter?
   
   #---------------------------------------------------------------------------------------
   # tarlink
@@ -396,7 +432,7 @@ class Zippy < RedmineMorePreviews::Conversion
   # writes the entry as the asset; the ConverterTooLarge that refuses it, if any
   def take_entry( entry )
     check_asset_size( entry.header.size )
-    write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+    write_asset{|f| while( chunk = entry.read(8192)) do ensure_time_left; f.write chunk end }
     nil
   rescue ConverterTooLarge => e
     FileUtils.rm_f( tmpasset )

@@ -32,6 +32,7 @@ class AttachmentPreviewDestroyTest < ActiveSupport::TestCase
 
     assert_not File.exist?(preview)
     assert_not File.exist?(diskfile)
+    assert_empty Dir.children(attachment.previews_storagepath), 'a lock file or a marker is left'
   end
 
   # Redmine keeps a file that another attachment shares (Attachment#delete_from_disk)
@@ -45,6 +46,13 @@ class AttachmentPreviewDestroyTest < ActiveSupport::TestCase
     assert_not File.exist?(gone_preview), 'the previews of the destroyed attachment are left'
     assert_equal 'preview', File.read(File.join(kept_preview, 'preview.txt', 'index.txt'))
     assert File.file?(kept.diskfile), 'the shared file is removed'
+  end
+
+  # an attachment never previewed leaves nothing in the storage
+  def test_destroy_of_an_attachment_without_previews_writes_nothing
+    attachment = attach('a.txt', 'content')
+    attachment.destroy!
+    assert_not File.exist?(attachment.previews_storagepath)
   end
 
   def test_a_rolled_back_destroy_keeps_the_previews

@@ -69,6 +69,11 @@ module RedmineMorePreviews
 
       # after a committed deletion of the record
       def self.remove( model, root, id )
+        dir = File.join( root, id.to_s )
+        # nothing was converted for the record. A conversion creates the lock
+        # file before it looks the record up, so one that starts now finds the
+        # record gone. Previews of an earlier version have no lock file
+        return unless File.exist?( "#{dir}#{LOCK}" ) || File.symlink?( dir ) || File.exist?( dir )
         FileUtils.mkdir_p( root )
         # the intent is written before the lock is tried, as a conversion
         # holding it removes the previews when it ends

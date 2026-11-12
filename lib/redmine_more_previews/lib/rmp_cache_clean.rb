@@ -28,7 +28,9 @@ module RedmineMorePreviews
     # and skipped while a request holds the lock: it is removed on the next run.
     # The lock files stay, as a request may be waiting on one; the list of its
     # assets goes with it (see RmpAssetList). Failures remembered longer than
-    # Converter.failure_ttl are removed as well.
+    # Converter.failure_ttl are removed as well, and the previews of a deleted
+    # attachment or repository that a conversion held when it was deleted (see
+    # RmpLifecycle).
     module RmpCacheClean
       
       # the number of previews removed

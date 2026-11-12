@@ -261,9 +261,9 @@ class Zippy < RedmineMorePreviews::Conversion
   # read as CP932, as Windows in Japan writes it, where it reads as a Japanese name: in
   # characters of Japanese only, without halfwidth katakana, and with a character of
   # a lead byte 0x81-0x9F (kana and the common kanji), a byte that is a control
-  # character in ISO-8859-1, and no letter. A name of Windows-1252 whose punctuation
-  # (0x80-0x9F) stands between two letters, as in O’Brien or A–Z, reads as kanji: it
-  # is not taken for Japanese. Other names are guessed as before
+  # character in ISO-8859-1, and no letter. A name of Windows-1252 whose quote or
+  # dash stands between two letters, as in O’Brien or A–Z, reads as kanji: it is not
+  # taken for Japanese. Other names are guessed as before
   # (RmpText.to_utf8, mostly ISO-8859-1). A name of a western zip archive in CP850
   # may read as Japanese too: it is garbled either way
   #---------------------------------------------------------------------------------------
@@ -302,9 +302,12 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   private :common_lead_byte?
   
-  # each character of two bytes follows a letter (a character of one byte) and has
-  # a letter for its second byte: "O\x92Brien" is O’Brien in Windows-1252. A name of
-  # kana after a western word ("Excelテスト") is not: its second kana follows a kana
+  # each character of two bytes is a quote or a dash of Windows-1252 (‘ ’ “ ” – —)
+  # between two letters: "O\x92Brien" is O’Brien. Katakana (0x83, ƒ in Windows-1252)
+  # are not taken for one ("Aテ"), nor kana after a western word ("Excelテスト"),
+  # whose second kana follows a kana
+  WINDOWS_1252_PUNCTUATION = [0x91, 0x92, 0x93, 0x94, 0x96, 0x97].freeze
+  
   def western_punctuation?( bytes )
     i, previous, double = 0, nil, false
     while i < bytes.bytesize
@@ -313,7 +316,8 @@ class Zippy < RedmineMorePreviews::Conversion
         previous = byte
         i += 1
       else
-        return false unless ascii_letter?( previous ) && ascii_letter?( bytes.getbyte( i + 1 ) )
+        return false unless WINDOWS_1252_PUNCTUATION.include?( byte ) &&
+                            ascii_letter?( previous ) && ascii_letter?( bytes.getbyte( i + 1 ) )
         previous = nil
         double   = true
         i += 2

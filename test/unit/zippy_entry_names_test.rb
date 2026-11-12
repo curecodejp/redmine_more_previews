@@ -66,8 +66,9 @@ class ZippyEntryNamesTest < ActiveSupport::TestCase
       assert_equal RedmineMorePreviews::Lib::RmpText.to_utf8(name), @worker.name_to_utf8(name), name.inspect
     end
     assert_not_equal 'O達rien.txt', @worker.name_to_utf8("O\x92Brien.txt".b)
-    # a Japanese name of katakana after a western word is Japanese still
-    %w(テスト.txt Excelテスト.xlsx 表.xlsx).each do |name|
+    # a Japanese name of katakana after a western word is Japanese still, also
+    # of a single kana (0x83 is ƒ in Windows-1252, no quote or dash)
+    %w(テスト.txt Excelテスト.xlsx 表.xlsx Aテ.txt Excelデータ.xlsx).each do |name|
       assert_equal name, @worker.name_to_utf8(name.encode('Windows-31J').b), name
     end
   end

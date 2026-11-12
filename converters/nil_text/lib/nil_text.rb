@@ -56,6 +56,9 @@ class NilText < RedmineMorePreviews::Conversion
   # the necessity of being up-to-date, then you may completely ignore the 'valid'
   # method. In this case the super method from RedmineMorePreviews::Conversion 
   # queries if the file in @target exists. If it doesn't, then 'convert' is called.
+  #
+  # The file in 'source' may not exist yet when 'valid' is called: the file of a
+  # repository entry is written when it is converted, before 'convert'.
   #---------------------------------------------------------------------------------
   def valid
     super

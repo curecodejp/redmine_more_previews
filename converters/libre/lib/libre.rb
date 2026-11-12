@@ -19,9 +19,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
-require 'open3'
-require 'timeout'
-
 class Libre < RedmineMorePreviews::Conversion
   LIBRE_OFFICE_BIN = '/usr/bin/soffice'.freeze
   BWRAP_BIN = '/usr/bin/bwrap'.freeze
@@ -59,9 +56,29 @@ class Libre < RedmineMorePreviews::Conversion
     return false unless File.directory?('/etc/fonts') && File.file?('/etc/ld.so.cache')
 
     # Unlike a mere executable check, this catches disabled user namespaces and
-    # common container seccomp restrictions. The bounded check runs only when
-    # status is requested; the real conversion still fails closed on errors.
+    # common container seccomp restrictions. It runs for the status and before
+    # each conversion (a worker is made for each), which fails closed on errors.
     return @sandbox_probe_ok unless @sandbox_probe_ok.nil?
+    @sandbox_probe_ok = sandbox_probe(sandbox_probe_command)
+  end
+  private :sandbox_available?
+
+  # seconds the probe may take
+  SANDBOX_PROBE_TIMEOUT = 5
+
+  # whether the command exits with success. It is stopped with its process group
+  # when it passes the time limit (see Lib::RmpProcess.run): Timeout.timeout did
+  # not stop it, Open3 waited for it, and a probe that hung held the cache lock
+  # and a conversion slot for as long as it hung
+  def sandbox_probe(command, timeout: SANDBOX_PROBE_TIMEOUT)
+    RedmineMorePreviews::Lib::RmpProcess.run(command, timeout: timeout,
+      in: File::NULL, out: File::NULL, err: File::NULL).success?
+  rescue Errno::ENOENT, Errno::EACCES, ConverterTimeout
+    false
+  end
+  private :sandbox_probe
+
+  def sandbox_probe_command
     command = [ENV_BIN, '-i', BWRAP_BIN, '--die-with-parent', '--new-session',
                '--unshare-user', '--unshare-pid', '--unshare-net', '--unshare-ipc', '--unshare-uts',
                '--ro-bind', '/usr', '/usr']
@@ -73,11 +90,8 @@ class Libre < RedmineMorePreviews::Conversion
       end
     end
     command.concat(['--', '/usr/bin/true'])
-    @sandbox_probe_ok = Timeout.timeout(5) { Open3.capture3(*command).last.success? }
-  rescue Errno::ENOENT, Errno::EACCES, Timeout::Error
-    @sandbox_probe_ok = false
   end
-  private :sandbox_available?
+  private :sandbox_probe_command
 
   def validate_libre_output!
     pending = [tmpdir]

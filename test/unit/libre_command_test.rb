@@ -132,6 +132,21 @@ class LibreCommandTest < ActiveSupport::TestCase
     assert_equal expected_links.sort, actual_links.sort, 'symlink mounts must follow host merged-usr layout only'
   end
 
+  # the probe is stopped when it passes its time limit: Timeout.timeout did not
+  # stop it (Open3 waited for the command), and a probe that hung held the
+  # cache lock and a conversion slot for as long as it hung
+  def test_a_hanging_sandbox_probe_is_stopped
+    started = RedmineMorePreviews::Lib::RmpProcess.now
+    assert_equal false, @worker.send(:sandbox_probe, ['/bin/sleep', '10'], timeout: 1)
+    assert_operator RedmineMorePreviews::Lib::RmpProcess.now - started, :<, 5
+  end
+
+  def test_the_sandbox_probe_gives_the_exit_status
+    assert_equal true,  @worker.send(:sandbox_probe, ['/bin/true'])
+    assert_equal false, @worker.send(:sandbox_probe, ['/bin/false'])
+    assert_equal false, @worker.send(:sandbox_probe, ['/nonexistent/bwrap'])
+  end
+
   def test_status_delegates_to_actual_namespace_probe
     @worker.expects(:sandbox_available?).returns(false)
     assert_equal [:text_libre_office_available, false], @worker.status

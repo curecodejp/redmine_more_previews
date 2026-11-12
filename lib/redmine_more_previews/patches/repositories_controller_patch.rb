@@ -50,7 +50,7 @@ module RedmineMorePreviews
           #
           ################################################################################
           def more_preview
-            @entry = @repository.entry(@path, @rev)
+            @entry = @repository.preview_entry(@path, @rev)
             # see ControllerHelper#preview_format_requested?; the entry is read
             # here, once (a file too large to read is answered with 413)
             if @entry&.convertible? && preview_format_requested?(@repository.preview_format(@path, @rev))
@@ -76,7 +76,7 @@ module RedmineMorePreviews
           end #def
           
           def more_asset
-            @entry = @repository.entry(@path, @rev)
+            @entry = @repository.preview_entry(@path, @rev)
             if @entry&.convertible?
               respond_to do |format|
                 format.any { send_more_asset }
@@ -206,7 +206,7 @@ module RedmineMorePreviews
       module ClassMethods
       
         def entry
-          @entry = @repository.entry(@path, @rev)
+          @entry = @repository.preview_entry(@path, @rev)
           (show_error_not_found; return) unless @entry
           
           # If the entry is a dir, show the browser

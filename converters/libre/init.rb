@@ -36,6 +36,8 @@
 #       - bubblewrap sandbox with read-only input, no network, and validated output
 # 1.1.5
 #       - embed the images of HTML previews as data: URIs
+# 1.1.6
+#       - the sandbox probe is stopped with its process group at its time limit
 ##
 
 require_relative 'lib/libre'
@@ -44,7 +46,7 @@ RedmineMorePreviews::Converter.register :libre do
   name           'Libre'
   author         'Stephan Wenzel'
   description    'Preview office files with LibreOffice'
-  version        '1.1.5'
+  version        '1.1.6'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_libre'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_libre'
                  

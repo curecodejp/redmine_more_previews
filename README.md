@@ -288,6 +288,8 @@ Native speakers: please help to improve localizations
 
 - A preview is requested in the output format configured for the file's converter only. A request for another format (f.i. `/attachments/more_preview/ID.pdf` for a file previewed as HTML) is answered with `404` before anything is converted: before, each such format ran the whole conversion, left a cache directory that was never served and remembered a failure.
 - The converter, the output format, the cache directory and the URL of a preview are decided once, on the content of the file. A file whose content and extension disagree (HTML, an email or a zip archive saved as `.txt`, with a converter of both types enabled) is now previewed in the format of its converter; it was answered with `404`. On the page of a repository file, the entry is now read once for this, also when the preview is not HTML.
+- A request for the preview of a repository file asks the repository for the file once (git starts `git ls-tree` each time); it asked six times for a preview, and more than twenty times for the page of an email. The page of a file asks once more, for the directory it is in (the links to the next and previous files). A stored preview is served without writing the file to a temporary file first, and the file a conversion is given is no longer left open.
+- For the authors of converters: the file of a repository entry (`source`) is written just before `convert`, and does not exist yet when `valid` is called; `preview` is given the path of the file (a String) instead of a `File`; `unique_id` is a method, found when it is called (the instance variable is not set beforehand).
 - The page of a file takes over only `reload` and `unsafe` from its query, into the URL of its preview. Other parameters of the query were taken over into that URL, and into the options of a preview converted inline.
 - **Zippy:** an archive is listed as what its content is (a zip archive named `.tar`, a tar archive named `.tgz`), where that kind of archive is enabled.
 - **Zippy:** the links of a listing shown inline on the page of an attachment give the entries; they gave the page, saved under the name of the entry. Listings cached before are listed again when they are first viewed (the previews of the other converters are kept).
@@ -301,7 +303,8 @@ Native speakers: please help to improve localizations
 - **Vince:** a large photo (a data URI or base64, up to the size limit of a vCard) is shown in the HTML preview; one of a few MiB took more memory than the conversion may take, and the contact was not previewed. Another value longer than 64 KiB is not parsed as a URI, and not shown.
 - **Vince:** contacts previewed before are converted again when they are first viewed (the previews of the other converters are kept).
 - The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
-- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4.
+- **Libre:** the check of its sandbox (on the administration pages, and before each conversion) is stopped after 5 seconds, with what it started. A check that hung was not stopped: it held the conversion of the file and a conversion slot while it hung.
+- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4, Libre 1.1.6.
 
 **6.1.9**
 

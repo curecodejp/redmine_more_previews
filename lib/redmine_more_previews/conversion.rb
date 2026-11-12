@@ -68,10 +68,11 @@ module RedmineMorePreviews
                   :tmptarget, :tmpdir,      :tmpfile,     :tmpext, 
                   :tmpasset,  :tmpassetdir, :tmpassetfile,:tmpassetext,
                   :tmpassetspaths,
-                  :settings, :unique_id,
+                  :settings, :source_content,
                   :transient, :reload, :unsafe,
                   :version, :plugin_version,
                   :converter, :views, :pub_dir
+    attr_writer   :unique_id
     
     #-------------------------------------------------------------------------------------
     # initialize
@@ -110,15 +111,9 @@ module RedmineMorePreviews
       self.object         = (options[:object].presence || {}).stringify_keys
       self.project        = object['object'].try(:project)
       
-      self.unique_id      = case object['type']
-      when :attachment
-        object['object'].id
-      when :repository
-        entry = object['object'].try(:entry, object['path'], object['rev'])
-        entry.try(:info)
-      else
-        object['object'].try(:object_id)
-      end
+      # the content of a file that is not written yet (see Converter.convert)
+      self.source_content = options[:source_content]
+      raise ConverterWrongArgument unless source_content.nil? || source_content.respond_to?(:call)
       
       self.format         = options[:format].to_s.downcase
       self.preview_format = options[:preview_format].to_s.downcase
@@ -268,6 +263,24 @@ module RedmineMorePreviews
     private :try_slot
     
     #-------------------------------------------------------------------------------------
+    # unique_id
+    #-------------------------------------------------------------------------------------
+    # found when it is asked for: the converters of this plugin do not use it, and
+    # for a repository entry the SCM is asked (see Repository#preview_entry)
+    def unique_id
+      return @unique_id if defined?( @unique_id )
+      @unique_id = case object['type']
+      when :attachment
+        object['object'].id
+      when :repository
+        entry = object['object'].try(:preview_entry, object['path'], object['rev'])
+        entry.try(:info)
+      else
+        object['object'].try(:object_id)
+      end
+    end #def
+
+    #-------------------------------------------------------------------------------------
     # convertible?
     #-------------------------------------------------------------------------------------
     def convertible?(filename)
@@ -285,13 +298,15 @@ module RedmineMorePreviews
     #-------------------------------------------------------------------------------------
     # preview
     #-------------------------------------------------------------------------------------
+    # file: the path of the file to convert, or a File. With source_content, the
+    # file is written when it is converted (see write_source)
     def preview(file, options={}, &block)
       
       # transient?
       self.transient = block_given?
       
       # sourcefile, either direct or copied in a tmp dir from elsewhere 
-      begin; self.source = file.path; rescue; raise ConverterBadArgument; end
+      begin; self.source = file.respond_to?( :path ) ? file.path : File.path( file ); rescue; raise ConverterBadArgument; end
 
       # a converter that writes its assets with the preview stores them beside it:
       # an asset of the preview's name would be the preview, and its failure the
@@ -305,10 +320,10 @@ module RedmineMorePreviews
       listed = asset && (File.file?( assetpath ) ? true : asset_listed)
       unless reload
         if listed == false
-          Rails.logger.info "Asset #{asset} of #{file.path} not found in its preview"
+          Rails.logger.info "Asset #{asset} of #{source} not found in its preview"
           return nil
         elsif listed == :beyond
-          raise ConverterTooLarge, "#{asset} lies beyond the limits of #{File.basename(file.path)}"
+          raise ConverterTooLarge, "#{asset} lies beyond the limits of #{File.basename(source)}"
         end
       end
 
@@ -325,8 +340,8 @@ module RedmineMorePreviews
         Lib::RmpFailures.forget( targetpath )
         Lib::RmpFailures.forget( whole )
       elsif !stored? && (reason = Lib::RmpFailures.recorded( targetpath ) || Lib::RmpFailures.recorded( whole ))
-        Rails.logger.info "Preview for #{file.path} failed before (#{reason}), not converted again"
-        raise ConverterTooLarge, "#{File.basename(file.path)} failed before" if reason == "too_large"
+        Rails.logger.info "Preview for #{source} failed before (#{reason}), not converted again"
+        raise ConverterTooLarge, "#{File.basename(source)} failed before" if reason == "too_large"
         return nil
       end
       
@@ -352,18 +367,18 @@ module RedmineMorePreviews
         end
       rescue ConverterLockTimeOut => e
         # answered with 503 by the controller; nothing failed, it may succeed later
-        Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        Rails.logger.warn "Preview for #{source} not generated: #{e.message}"
         raise
       rescue ConverterTooLarge => e
         # answered with 413 by the controller
-        Rails.logger.warn "Preview for #{file.path} not generated: #{e.message}"
+        Rails.logger.warn "Preview for #{source} not generated: #{e.message}"
         # the conversion may have listed the asset meanwhile (see store_asset_list);
         # an asset too large exists, and is the asset's failure, not the preview's
         failure ||= targetpath if asset && (@asset_too_large || asset_listed == true)
         Lib::RmpFailures.record( failure || whole_failed( whole ), "too_large" )
         raise
       rescue Exception => e
-        Rails.logger.error "An error occured while generating preview for #{file.path}"
+        Rails.logger.error "An error occured while generating preview for #{source}"
         Rails.logger.error "Exception was: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
         failure ||= targetpath if asset && asset_listed == true
@@ -391,6 +406,7 @@ module RedmineMorePreviews
         tmpassetspaths.each{|ass| ensure_within!( tmpdir, ass.first ) }
         # one time limit for all the commands of this conversion
         @deadline = Lib::RmpProcess.now + conversion_timeout
+        write_source
         convert
         debug if RedmineMorePreviews::Converter.debug? # debug will overwrite the result of convert
         if block_given? && !read
@@ -404,6 +420,16 @@ module RedmineMorePreviews
       end
     end #def
     
+    # the file of a repository entry is written when it is converted, into the
+    # directory of the caller, not into tmpdir: a stored preview is served without
+    # it (see Converter.convert). An entry the SCM gave no content for is an empty
+    # file
+    def write_source
+      return unless source_content && !File.exist?( source )
+      File.binwrite( source, source_content.call.to_s )
+    end #def
+    private :write_source
+
     #-------------------------------------------------------------------------------------
     # cached_preview
     #-------------------------------------------------------------------------------------
@@ -903,6 +929,9 @@ module RedmineMorePreviews
       # converter is given a chance to invalidate the cached conversion
       # 
       # returns true, if data in cache is valid, else false
+      #
+      # the file of a repository entry (source) is not written yet when valid is
+      # called: it is written when it is converted (see write_source)
       #
       #
       @target && File.exist?(@target)

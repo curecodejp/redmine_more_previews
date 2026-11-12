@@ -34,6 +34,7 @@
 # 1.1.4
 #       - read lines whole, and unfold them (space or tab) before they are split
 #       - read grouped properties (item1.EMAIL) and quoted parameter values with ':' ';' ','
+#       - parameter names in any case; vCard 2.1 parameters without a value as types; skip empty parameters
 #       - ORG components separated by ';'; values sorted by PREF / TYPE=pref
 #       - select fields by their attributes under Ruby 3 (work / home / preferred sections)
 #       - show a telephone number of text; split data URIs and base64 photos without the URI parser

@@ -296,9 +296,9 @@ Native speakers: please help to improve localizations
 - **Maggie:** an animated GIF previewed as PNG or JPEG is its first frame; the conversion failed. Previewed as GIF, it keeps its frames.
 - **Mark:** converts to the configured format, as the other converters do, not to the format of the request.
 - **Cliff:** the header boxes and the *unsafe* link are shown for the file Cliff converts, also under another extension.
-- **Vince:** parts of a contact were missing or broken: a line longer than 1000 bytes was cut (a long photo or note), a grouped property (`item1.EMAIL`, as Apple's contacts write it) was not shown, a line folded with a tab or within a parameter was not joined, and a quoted parameter value with `:` or `;` broke its line. A telephone number written as text (`+81 3 1234 5678`) was shown empty.
-- **Vince:** the organization and its units (`ORG:Company;Department`) are shown apart, the preferred values (`PREF=1`, `TYPE=pref`) first, and addresses, numbers and emails under their type (work, home, preferred); all were shown under *Other*.
-- **Vince:** a large photo (a data URI or base64, up to the size limit of a vCard) is shown; one of a few MiB took more memory than the conversion may take, and the contact was not previewed.
+- **Vince:** parts of a contact were missing or broken: a line longer than 1000 bytes was cut (a long photo or note), a grouped property (`item1.EMAIL`, as Apple's contacts write it) was not shown, a line folded with a tab or within a parameter was not joined, and a quoted parameter value with `:` or `;` broke its line, as did an empty parameter (`TEL;TYPE=cell;:`). A telephone number written as text (`+81 3 1234 5678`) was shown empty.
+- **Vince:** the organization and its units (`ORG:Company;Department`) are shown apart, the preferred values (`PREF=1`, `TYPE=pref`) first, and addresses, numbers and emails under their type (work, home, preferred; `TYPE=` in any case, or the types of vCard 2.1 such as `TEL;WORK;VOICE`); all were shown under *Other*.
+- **Vince:** a large photo (a data URI or base64, up to the size limit of a vCard) is shown in the HTML preview; one of a few MiB took more memory than the conversion may take, and the contact was not previewed. Another value longer than 64 KiB is not parsed as a URI, and not shown.
 - The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
 - Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4.
 

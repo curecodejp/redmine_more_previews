@@ -198,28 +198,35 @@ module VObject
     # rfc6350:3.3 contentline = [group "."] name *(";" param) ":" value
     #   - the group (f.i. "item1." of Apple's contacts) is dropped
     #   - a quoted parameter value may hold ":", ";" and ",": the line is split at a
-    #     ":" or ";" outside quotes, and the quotes are removed
-    #   - a parameter without "=" (vCard 2.1, f.i. "TEL;HOME;PREF") has no value
+    #     ":" or ";" outside quotes, and the quotes are removed; each value of a list
+    #     may be quoted by itself (TYPE="work","pref")
+    #   - a parameter without "=" is a type (vCard 2.1, f.i. "TEL;HOME;PREF"), and an
+    #     empty one is left out
+    #   - the names of parameters are case-insensitive: they are upcased
     #
     def parse( line )
-      colon       = unquoted_index( line, ":" ) || line.index( ":" ) # an unbalanced quote
-      str, value  = colon ? [line[0...colon], line[(colon + 1)..-1]] : [line, nil]
+      bytes       = line.b
+      colon       = unquoted_index( bytes, ":" ) || bytes.index( ":" ) # an unbalanced quote
+      str, value  = colon ? [line.byteslice( 0, colon ), line.byteslice( (colon + 1)..-1 )] : [line, nil]
       name, *atts = split_unquoted( str, ";" )
       name        = name.to_s.sub( /\A[A-Za-z0-9-]+\./, "" )
-      attributes  = atts.map do |a|
-        key, val = a.split( "=", 2 )
-        [key, unquote( val )]
+      attributes  = atts.reject( &:empty? ).map do |a|
+        key, val = a.include?( "=" ) ? a.split( "=", 2 ) : ["TYPE", a]
+        [key.upcase, val && split_unquoted( val, "," ).map { |v| unquote( v ) }.join( "," )]
       end.group_by_positions(0).apply(&:flatten)
       [name, value, attributes.symbolize_keys] # symbolize necessary to work with splat operator
     end #def
 
-    # the index of the first char outside double quotes from index from, nil if there
-    # is none. Linear: a line may be as long as the vCard
-    def unquoted_index( str, char, from=0 )
+    # the index of the first char outside double quotes in bytes (a binary string) from
+    # index from, nil if there is none. Linear: a line may be as long as the vCard, and
+    # the index of a character in a string of UTF-8 is counted from its start
+    SEPARATORS = { ":" => /[":]/, ";" => /[";]/, "," => /[",]/ }.freeze
+
+    def unquoted_index( bytes, char, from=0 )
       quoted = false
       i      = from
-      while (j = str.index( quoted ? '"' : /["#{Regexp.escape(char)}]/, i ))
-        return j if !quoted && str[j] == char
+      while (j = bytes.index( quoted ? '"' : SEPARATORS.fetch( char ), i ))
+        return j if !quoted && bytes.getbyte( j ) == char.ord
         quoted = !quoted
         i      = j + 1
       end
@@ -227,13 +234,14 @@ module VObject
     end #def
 
     def split_unquoted( str, char )
+      bytes = str.b
       parts = []
       i     = 0
-      while (j = unquoted_index( str, char, i ))
-        parts << str[i...j]
+      while (j = unquoted_index( bytes, char, i ))
+        parts << str.byteslice( i, j - i )
         i = j + 1
       end
-      parts << str[i..-1]
+      parts << str.byteslice( i..-1 )
     end #def
 
     def unquote( val )

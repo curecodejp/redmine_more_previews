@@ -357,7 +357,9 @@ module VObject
                 content_tag(:span, hash[:fields][:opaque][0..32], :class => "#{parent_class_symbol} #{name} #{icon}")
                 
               else
-                content_tag(:span, hash[:fields][:full][0..32], :class => "#{parent_class_symbol} #{name} #{icon}")
+                # a telephone number of text is shown whole; other values are cut
+                text = name == :tel ? hash[:fields][:full] : hash[:fields][:full][0..32]
+                content_tag(:span, text, :class => "#{parent_class_symbol} #{name} #{icon}")
               end
             end
           end

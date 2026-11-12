@@ -38,6 +38,7 @@
 #       - ORG components separated by ';'; values sorted by PREF / TYPE=pref
 #       - select fields by their attributes under Ruby 3 (work / home / preferred sections)
 #       - show a telephone number of text; split data URIs and base64 photos without the URI parser
+#       - a revision of its cache (vince-1): previews stored before are converted again
 #
 
 require_relative 'lib/vince_lib/v_object'

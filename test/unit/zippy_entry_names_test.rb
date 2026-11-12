@@ -59,10 +59,11 @@ class ZippyEntryNamesTest < ActiveSupport::TestCase
     assert_equal 'éc', @worker.name_to_utf8("\xE9c".b)
   end
 
-  # the punctuation of Windows-1252 (0x80-0x9F) between two letters reads as a
-  # kanji: O’Brien is no Japanese name, nor don’t or A–Z
+  # a quote or a dash of Windows-1252 (0x91-0x97) before a letter reads as a
+  # kanji: O’Brien is no Japanese name, nor don’t, A–Z, ’Twas or Rock’n’Roll
   def test_a_western_name_with_punctuation_of_windows_1252_is_not_taken_for_japanese
-    ["O\x92Brien.txt", "don\x92t.txt", "it\x92s here.txt", "A\x96Z.txt"].map(&:b).each do |name|
+    ["O\x92Brien.txt", "don\x92t.txt", "it\x92s here.txt", "A\x96Z.txt", "\x92Twas.txt",
+     "Rock\x92n\x92Roll.txt"].map(&:b).each do |name|
       assert_equal RedmineMorePreviews::Lib::RmpText.to_utf8(name), @worker.name_to_utf8(name), name.inspect
     end
     assert_not_equal 'O達rien.txt', @worker.name_to_utf8("O\x92Brien.txt".b)

@@ -261,8 +261,8 @@ class Zippy < RedmineMorePreviews::Conversion
   # read as CP932, as Windows in Japan writes it, where it reads as a Japanese name: in
   # characters of Japanese only, without halfwidth katakana, and with a character of
   # a lead byte 0x81-0x9F (kana and the common kanji), a byte that is a control
-  # character in ISO-8859-1, and no letter. A name of Windows-1252 whose quote or
-  # dash stands between two letters, as in O’Brien or A–Z, reads as kanji: it is not
+  # character in ISO-8859-1, and no letter. A name of Windows-1252 with a quote or a
+  # dash before a letter, as in O’Brien, ’Twas or A–Z, reads as kanji: it is not
   # taken for Japanese. Other names are guessed as before
   # (RmpText.to_utf8, mostly ISO-8859-1). A name of a western zip archive in CP850
   # may read as Japanese too: it is garbled either way
@@ -303,23 +303,19 @@ class Zippy < RedmineMorePreviews::Conversion
   private :common_lead_byte?
   
   # each character of two bytes is a quote or a dash of Windows-1252 (‘ ’ “ ” – —)
-  # between two letters: "O\x92Brien" is O’Brien. Katakana (0x83, ƒ in Windows-1252)
-  # are not taken for one ("Aテ"), nor kana after a western word ("Excelテスト"),
-  # whose second kana follows a kana
+  # before a letter: "O\x92Brien" is O’Brien, "\x92Twas" ’Twas. Kana (0x82, 0x83) are
+  # not taken for one ("Aテ"), nor a name with another kanji ("達成率": 0x90 is none)
   WINDOWS_1252_PUNCTUATION = [0x91, 0x92, 0x93, 0x94, 0x96, 0x97].freeze
   
   def western_punctuation?( bytes )
-    i, previous, double = 0, nil, false
+    i, double = 0, false
     while i < bytes.bytesize
       byte = bytes.getbyte( i )
       if byte < 0x80 || byte.between?( 0xA1, 0xDF )
-        previous = byte
         i += 1
       else
-        return false unless WINDOWS_1252_PUNCTUATION.include?( byte ) &&
-                            ascii_letter?( previous ) && ascii_letter?( bytes.getbyte( i + 1 ) )
-        previous = nil
-        double   = true
+        return false unless WINDOWS_1252_PUNCTUATION.include?( byte ) && ascii_letter?( bytes.getbyte( i + 1 ) )
+        double = true
         i += 2
       end
     end

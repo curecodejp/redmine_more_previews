@@ -43,7 +43,7 @@ class ConverterConvertSourceTest < ActiveSupport::TestCase
       seen = nil
       Pass.any_instance.stubs(:convert).with { seen = File.binread(@source); true }
       # a target of its own: the failure of the one before (no output) is remembered
-      convert(:source_content => -> { content }, :unsafe => true, :target => "preview#{i}")
+      convert(:source_content => -> { content }, :target => "preview#{i}") { |*| }
       assert_equal written, seen
       File.delete(@source)
     end
@@ -51,12 +51,14 @@ class ConverterConvertSourceTest < ActiveSupport::TestCase
 
   private
 
-  def convert(options = {})
+  # with a block, converted without the cache, as a request without the cache is
+  def convert(options = {}, &block)
     target = options.delete(:target) || 'preview'
     RedmineMorePreviews::Converter.convert(
       @source, File.join(@dir, target, 'index.txt'),
       {:converter => 'pass', :preview_format => 'txt', :format => 'txt',
-       :object => {:type => :attachment, :object => Struct.new(:project, :id).new(nil, 1)}}.merge(options)
+       :object => {:type => :attachment, :object => Struct.new(:project, :id).new(nil, 1)}}.merge(options),
+      &block
     )
   end
 end

@@ -61,14 +61,9 @@ module RedmineMorePreviews
             next
           end
         end
-        # A repository deletion can race with an in-flight conversion. Its
-        # after-commit callback leaves a pending marker when the shared lock is
-        # busy; retry safely on subsequent cache-clean runs, even after restart.
-        pending = File.join(storage, "repository_previews", "*.cleanup_pending")
-        Dir.glob(pending).each do |marker|
-          id = File.basename(marker).delete_suffix(".cleanup_pending")
-          RedmineMorePreviews::Patches::RepositoryPatch.cleanup_removed_repository_cache(id)
-        end
+        # the previews of a deleted repository that a conversion held then
+        # (see RmpLifecycle)
+        RmpLifecycle.cleanup_pending( Repository, RedmineMorePreviews::Patches::RepositoryPatch.previews_storagepath )
         remove_failures
         removed
       end #def

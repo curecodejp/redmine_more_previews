@@ -930,6 +930,9 @@ module RedmineMorePreviews
       # 
       # returns true, if data in cache is valid, else false
       #
+      # the file of a repository entry (source) is not written yet when valid is
+      # called: it is written when it is converted (see write_source)
+      #
       #
       @target && File.exist?(@target)
     end #def

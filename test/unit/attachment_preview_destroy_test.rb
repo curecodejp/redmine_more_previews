@@ -119,7 +119,7 @@ class AttachmentPreviewDestroyTest < ActiveSupport::TestCase
       assert_nil loaded.more_asset(:asset => 'a.png')
     end
     assert_not converted, 'a deleted attachment was converted'
-    assert_not File.exist?(gone.preview_storagepath)
+    assert_empty Dir.children(gone.previews_storagepath), 'a lock file or a marker is left'
   end
 
   private

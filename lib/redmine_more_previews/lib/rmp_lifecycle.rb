@@ -57,7 +57,11 @@ module RedmineMorePreviews
             # looked up after the lock is held, not before: a deletion committed
             # while this request waited is seen. Unlike a persistent tombstone,
             # a database restored with this id is converted again
-            return nil unless model.uncached { model.unscoped.exists?( id ) }
+            unless model.uncached { model.unscoped.exists?( id ) }
+              # the lock file this request created after the removal goes too
+              File.write( "#{dir}#{MARKER}", "pending\n" )
+              return nil
+            end
             yield
           ensure
             lock.flock( File::LOCK_UN )

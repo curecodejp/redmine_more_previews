@@ -344,12 +344,22 @@ module RedmineMorePreviews
     end #def
     
     # options[:converter] names the converter already selected for the file
-    # (see selection): it is not selected a second time
+    # (see selection): it is not selected a second time. options[:source_content]
+    # gives the content of a file that is not written yet (a repository entry, see
+    # Repository#more_preview): the worker writes it when it converts, and serves
+    # a stored preview without it. The worker is given the path of the file: no
+    # file is opened (and left open)
     def self.convert( file, storage_path, options={}, &block )
-      converter = options[:converter].present? ? (find( options[:converter] ) rescue nil) : responsible( file )
+      content   = options[:source_content]
+      converter = if options[:converter].present?
+        find( options[:converter] ) rescue nil
+      else
+        responsible( file, content ? {:content => content.call.to_s} : {} )
+      end
       worker    = converter&.worker(options.except(:converter).merge(:target => storage_path))
       raise ConverterNotFound unless worker
-      worker.preview( File.new(file), &block )
+      raise Errno::ENOENT, file.to_s unless content || File.exist?( file )
+      worker.preview( file.to_s, &block )
     end #def
     
     ######################################################################################

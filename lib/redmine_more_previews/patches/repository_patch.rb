@@ -42,23 +42,37 @@ module RedmineMorePreviews
           ################################################################################
           # class specific
           def more_preview(path, rev, options={}, &block)
+            convert_entry(path, rev, :preview_filepath, options, &block)
+          end #def
+          
+          # class specific
+          # the asset path, not the preview path (as in Attachment#more_asset):
+          # with the preview as target a cached listing counted as "valid" and
+          # the asset was never extracted
+          def more_asset(path, rev, options={}, &block)
+            convert_entry(path, rev, :preview_assetpath, options, &block)
+          end #def
+
+          # target: the method giving the path of the preview or asset. The entry is
+          # written to a file of its name when it is converted, not when a stored
+          # preview is served (see Converter.convert)
+          def convert_entry(path, rev, target, options, &block)
             with_repository_preview_lifecycle_lock do
               # Check after acquiring the lifecycle lock. Already-started
               # requests cannot recreate cache after a committed deletion.
               # Unlike a persistent tombstone, a DB restore may reuse this ID.
               return nil unless Repository.uncached { Repository.unscoped.exists?(id) }
-              if entry(path, rev)
+              if (e = preview_entry(path, rev))
                 Dir.mktmpdir do |tmpdir|
-                  filepath = File.join(tmpdir, entry(path, rev).name)
-                  File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
                   RedmineMorePreviews::Converter.convert(
-                    filepath,
-                    preview_filepath(path, rev, options),
+                    File.join(tmpdir, e.name),
+                    send(target, path, rev, options),
                     options.merge(
                       :object => {:type => :repository, :object => self, :path => path, :rev => rev},
                       :converter => preview_selection(path, rev)["converter"],
-                      :preview_format => preview_format(path, rev)
-                    ), 
+                      :preview_format => preview_format(path, rev),
+                      :source_content => -> { preview_content(path, rev) }
+                    ),
                     &block
                   )
                 end #Dir
@@ -67,36 +81,17 @@ module RedmineMorePreviews
               end #if
             end
           end #def
-          
-          # class specific
-          def more_asset(path, rev, options={}, &block)
-            with_repository_preview_lifecycle_lock do
-              # Check after acquiring the lifecycle lock. Already-started
-              # requests cannot recreate cache after a committed deletion.
-              # Unlike a persistent tombstone, a DB restore may reuse this ID.
-              return nil unless Repository.uncached { Repository.unscoped.exists?(id) }
-              if entry(path, rev)
-                Dir.mktmpdir do |tmpdir|
-                  filepath = File.join(tmpdir, entry(path, rev).name)
-                  File.open( filepath, "wb") {|f| f.write(preview_content(path, rev))}
-                  # the asset path, not the preview path (as in Attachment#more_asset):
-                  # with the preview as target a cached listing counted as "valid" and
-                  # the asset was never extracted
-                  RedmineMorePreviews::Converter.convert(
-                    filepath,
-                    preview_assetpath(path, rev, options),
-                    options.merge(
-                      :object => {:type => :repository, :object => self, :path => path, :rev => rev},
-                      :converter => preview_selection(path, rev)["converter"],
-                      :preview_format => preview_format(path, rev)
-                    ), 
-                    &block
-                  )
-                end #Dir
-              elsif block_given?
-                yield nil
-              end #if
-            end
+          private :convert_entry
+
+          # the entry, asked for once per repository instance (i.e. per request): the
+          # SCM lists the directory of the entry each time (git starts git ls-tree),
+          # and a request asks for it many times (the controller, the size, the
+          # converter, each fragment of an email shown on its page)
+          def preview_entry(path, rev)
+            @preview_entries ||= {}
+            key = [path, rev]
+            return @preview_entries[key] if @preview_entries.key?(key)
+            @preview_entries[key] = entry(path, rev)
           end #def
           
           # the entry's bytes, read once per repository instance (i.e. per request):
@@ -117,7 +112,7 @@ module RedmineMorePreviews
           # a file whose size the SCM does not report (Bazaar, CVS) counts as too
           # large: it could only be checked after it has been read whole
           def preview_too_large?(path, rev)
-            size = entry(path, rev)&.size
+            size = preview_entry(path, rev)&.size
             size.nil? || size.to_i > RedmineMorePreviews::Converter.max_repository_file
           end #def
           
@@ -140,7 +135,7 @@ module RedmineMorePreviews
             @preview_selections ||= {}
             key = [path, rev]
             return @preview_selections[key] if @preview_selections.key?(key)
-            e = entry(path, rev)
+            e = preview_entry(path, rev)
             @preview_selections[key] =
               e ? RedmineMorePreviews::Converter.selection(e.name, :content => preview_content(path, rev).to_s) : {}
           end #def

@@ -26,7 +26,6 @@ module RedmineMorePreviews
 end
 
 require_relative 'patches/entry_patch'
-require_relative 'patches/mime_type_patch'
 require_relative 'patches/repository_patch'
 require_relative 'patches/attachment_patch'
 require_relative 'patches/admin_controller_patch'

@@ -90,7 +90,8 @@ module VObject
       # returns values sorted by pref parameter
       #
       def sorted
-        values.to_a.sort{|a,b| pref(a,b)}
+        # in the order of the vCard among fields of the same preference
+        values.to_a.each_with_index.sort_by{|field, i| [pref_rank(field), i] }.map(&:first)
       end #def
       
       # returns true if any values are present
@@ -356,7 +357,9 @@ module VObject
                 content_tag(:span, hash[:fields][:opaque][0..32], :class => "#{parent_class_symbol} #{name} #{icon}")
                 
               else
-                content_tag(:span, hash[:fields][:full][0..32], :class => "#{parent_class_symbol} #{name} #{icon}")
+                # a telephone number of text is shown whole; other values are cut
+                text = name == :tel ? hash[:fields][:full] : hash[:fields][:full][0..32]
+                content_tag(:span, text, :class => "#{parent_class_symbol} #{name} #{icon}")
               end
             end
           end

@@ -31,6 +31,14 @@
 # 1.1.3
 #       - parse and render vCards in a child process with a time and memory limit; refuse vCards larger than 20 MiB
 #       - remove a stray '%>' after the logo
+# 1.1.4
+#       - read lines whole, and unfold them (space or tab) before they are split
+#       - read grouped properties (item1.EMAIL) and quoted parameter values with ':' ';' ','
+#       - parameter names in any case; vCard 2.1 parameters without a value as types; skip empty parameters
+#       - ORG components separated by ';'; values sorted by PREF / TYPE=pref
+#       - select fields by their attributes under Ruby 3 (work / home / preferred sections)
+#       - show a telephone number of text; split data URIs and base64 photos without the URI parser
+#       - a revision of its cache (vince-1): previews stored before are converted again
 #
 
 require_relative 'lib/vince_lib/v_object'
@@ -40,7 +48,7 @@ RedmineMorePreviews::Converter.register :vince do
   name           'Vince'
   author         'Stephan Wenzel'
   description    'Preview VCF in preview pane'
-  version        '1.1.3'
+  version        '1.1.4'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_vince'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_vince'
                  

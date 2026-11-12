@@ -136,84 +136,118 @@ module VObject
     #
     def from_file( offset=0 )
       return nil unless object.to_s.upcase.in?(SUPPORTEDOBJECTS.keys)
-      begun   = false
-      pos     = nil
-      arr     = []
       bvc     = /\ABEGIN:#{object.to_s.upcase}/in # i case insensitive, n us-ascii encoding
       evc     = /\AEND:#{object.to_s.upcase}/in   # i case insensitive, n us-ascii encoding
-      
       # read binary to keep compatibility between platforms
-      File.open(filepath, "rb") do |f|
-        f.pos = offset
-        f.each_line(LINE_LENGTH, :chomp => true) do |line|
-          
-          pos = f.tell
-          case line;when bvc;begun = true; next; when evc;break;end;next unless begun
-          
-          line.to_utf8!
-          case line
-          when /\A\ / # beginning of line broken into chunks
-            # arr.last[1] should be the 'value' part in the array
-            if arr.last.is_a?(Array) && arr.last[1].is_a?(String)
-              arr.last[1] << line[1..-1]
-            end
-          else
-            arr << parse(line)
-          end 
-          
-        end
-      end
-      [arr.presence, pos]
+      File.open(filepath, "rb") { |f| read_object( f, offset, bvc, evc ) }
     end #def
-    
+
     # ------------------------------------------------------------------------------------
     # read one vcf set from vCard string
     #
-    # caller must provide an array in options as options[:vcf]
     # returns current position in String
     #
     def from_str( str, offset=0, **options )
       return nil unless object.to_s.upcase.in?(SUPPORTEDOBJECTS.keys)
-      begun   = false
-      pos     = nil
-      arr     = []
       charset = options[:charset] || "UTF-8"
       bvc     = Regexp.new /\ABEGIN:#{object.to_s.upcase}/i.to_s.encode(charset)
       evc     = Regexp.new /\AEND:#{object.to_s.upcase}/i.to_s.encode(charset)
-      
-      StringIO.open(str) do |f|
-        f.pos = offset
-        f.each_line(LINE_LENGTH, :chomp => true) do |line|
-          
-          pos = f.tell
-          case line;when bvc;begun = true; next; when evc;break;end;next unless begun
-          
-          line.to_utf8!
-          case line
-          when /\A\ / # beginning of line broken into chunks
-            # options[:vcf].last[1] should be the 'value' part in the array
-            if arr.last.is_a?(Array) && arr.last[1].is_a?(String)
-              arr.last[1] << line[1..-1]
-            end
-          else
-            arr << parse(line)
-          end 
-          
+      StringIO.open(str) { |f| read_object( f, offset, bvc, evc ) }
+    end #def
+
+    # ------------------------------------------------------------------------------------
+    # reads the lines of one object from offset: [array of [name, value, attributes],
+    # position after its END], [nil, nil] at the end
+    #
+    # rfc6350:3.2 a line is folded by a line break followed by a single space or tab,
+    # which are removed to unfold it, anywhere in the line (also within a parameter).
+    # The lines are unfolded before they are split, and read whole: the size of a
+    # vCard is bounded by its converter (see Vince::MAX_SIZE)
+    #
+    def read_object( io, offset, bvc, evc )
+      begun   = false
+      pos     = nil
+      arr     = []
+      logical = nil
+      io.pos  = offset
+      io.each_line( :chomp => true ) do |line|
+        pos = io.tell
+        if logical && line.start_with?( " ", "\t" )
+          logical << line[1..-1]
+          next
         end
+        add_line( arr, logical )
+        logical = nil
+        case line;when bvc;begun = true; next; when evc;break;end;next unless begun
+        logical = line.dup unless line.empty?
       end
+      # an object without its END
+      add_line( arr, logical )
       [arr.presence, pos]
     end #def
-    
+
+    def add_line( arr, line )
+      return if line.nil?
+      line.to_utf8!
+      arr << parse( line )
+    end #def
+
     # ------------------------------------------------------------------------------------
     # splits line into name, value and attributes. values remain unescaped
     #
+    # rfc6350:3.3 contentline = [group "."] name *(";" param) ":" value
+    #   - the group (f.i. "item1." of Apple's contacts) is dropped
+    #   - a quoted parameter value may hold ":", ";" and ",": the line is split at a
+    #     ":" or ";" outside quotes, and the quotes are removed; each value of a list
+    #     may be quoted by itself (TYPE="work","pref")
+    #   - a parameter without "=" is a type (vCard 2.1, f.i. "TEL;HOME;PREF"), and an
+    #     empty one is left out
+    #   - the names of parameters are case-insensitive: they are upcased
+    #
     def parse( line )
-      str, value  = line.split(/\:/, 2)
-      name, atts  = str.split(/\:|;/,2)
-      attributes  = atts.to_s.split(";").map{|a| a.split("=",2).in_groups_of(2).flatten}.group_by_positions(0).apply(&:flatten)
+      bytes       = line.b
+      colon       = unquoted_index( bytes, ":" ) || bytes.index( ":" ) # an unbalanced quote
+      str, value  = colon ? [line.byteslice( 0, colon ), line.byteslice( (colon + 1)..-1 )] : [line, nil]
+      name, *atts = split_unquoted( str, ";" )
+      name        = name.to_s.sub( /\A[A-Za-z0-9-]+\./, "" )
+      attributes  = atts.reject( &:empty? ).map do |a|
+        key, val = a.include?( "=" ) ? a.split( "=", 2 ) : ["TYPE", a]
+        [key.upcase, val && split_unquoted( val, "," ).map { |v| unquote( v ) }.join( "," )]
+      end.group_by_positions(0).apply(&:flatten)
       [name, value, attributes.symbolize_keys] # symbolize necessary to work with splat operator
     end #def
-    
+
+    # the index of the first char outside double quotes in bytes (a binary string) from
+    # index from, nil if there is none. Linear: a line may be as long as the vCard, and
+    # the index of a character in a string of UTF-8 is counted from its start
+    SEPARATORS = { ":" => /[":]/, ";" => /[";]/, "," => /[",]/ }.freeze
+
+    def unquoted_index( bytes, char, from=0 )
+      quoted = false
+      i      = from
+      while (j = bytes.index( quoted ? '"' : SEPARATORS.fetch( char ), i ))
+        return j if !quoted && bytes.getbyte( j ) == char.ord
+        quoted = !quoted
+        i      = j + 1
+      end
+      nil
+    end #def
+
+    def split_unquoted( str, char )
+      bytes = str.b
+      parts = []
+      i     = 0
+      while (j = unquoted_index( bytes, char, i ))
+        parts << str.byteslice( i, j - i )
+        i = j + 1
+      end
+      parts << str.byteslice( i..-1 )
+    end #def
+
+    def unquote( val )
+      val && val.length >= 2 && val.start_with?( '"' ) && val.end_with?( '"' ) ? val[1..-2] : val
+    end #def
+
   end #class
 end #module
 end

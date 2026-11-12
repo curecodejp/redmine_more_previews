@@ -30,6 +30,12 @@ class Vince < RedmineMorePreviews::Conversion
   # some 4 MB, so this leaves room for photos embedded as data URIs.
   MAX_SIZE = 20 * 1024 * 1024
 
+  # previews stored before 1.1.4 cut long lines and left out grouped properties,
+  # the units of ORG and the types of addresses: they are converted again
+  def self.cache_revision
+    "vince-1"
+  end #def
+
   def convert
     # Fetch Redmine configuration before forking. A forked child must not use
     # its inherited ActiveRecord connection, including via Vince translations.

@@ -303,7 +303,8 @@ Native speakers: please help to improve localizations
 - **Vince:** a large photo (a data URI or base64, up to the size limit of a vCard) is shown in the HTML preview; one of a few MiB took more memory than the conversion may take, and the contact was not previewed. Another value longer than 64 KiB is not parsed as a URI, and not shown.
 - **Vince:** contacts previewed before are converted again when they are first viewed (the previews of the other converters are kept).
 - The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
-- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4.
+- **Libre:** the check of its sandbox (on the administration pages, and before each conversion) is stopped after 5 seconds, with what it started. A check that hung was not stopped: it held the conversion of the file and a conversion slot while it hung.
+- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4, Libre 1.1.6.
 
 **6.1.9**
 

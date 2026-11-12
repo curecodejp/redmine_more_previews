@@ -27,6 +27,9 @@ module RedmineMorePreviews
         base.class_eval do
           #unloadable
           
+          # the previews of an attachment go with it (see remove_more_preview_cache_on_destroy)
+          after_destroy_commit :remove_more_preview_cache_on_destroy
+
           ################################################################################
           #
           # preview data functions
@@ -188,23 +191,25 @@ module RedmineMorePreviews
              File.join(preview_dirname(options), preview_assetname(options) )
          end #def
           
-          ################################################################################
-          #
-          # overridden functions
-          #
-          ################################################################################
-          # class specific
-          def delete_from_disk!
-            if disk_filename.present? && File.exist?(diskfile)
-              File.delete(diskfile)
+          # The previews are kept by the id of the attachment: they are removed with
+          # it, also when its file stays because another attachment shares it
+          # (Attachment#delete_from_disk keeps such a file, and removes the file
+          # and the thumbnails as without the plugin). A link in place of the
+          # previews is removed, not followed
+          def remove_more_preview_cache_on_destroy
+            dir = preview_storagepath
+            if File.symlink?(dir)
+              File.unlink(dir)
+            elsif File.directory?(dir)
+              unless RedmineMorePreviews::Lib::RmpFile.within_directory?(previews_storagepath, dir)
+                raise ArgumentError, 'attachment cache path is outside storage'
+              end
+              FileUtils.rm_rf(dir)
             end
-            Dir[thumbnail_path("*")].each do |thumb|
-              File.delete(thumb)
-            end
-            if File.exist?( preview_storagepath )
-              FileUtils.rm_rf( preview_storagepath )
-            end
+          rescue StandardError => e
+            Rails.logger.error "Attachment preview cache cleanup failed: #{e.class}: #{e.message}"
           end #def
+          private :remove_more_preview_cache_on_destroy
           
         end #base
       end #self

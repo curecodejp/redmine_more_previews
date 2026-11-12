@@ -24,5 +24,3 @@ module RedmineMorePreviews
   module Hooks
   end
 end
-
-require_relative 'hooks/icon_css'

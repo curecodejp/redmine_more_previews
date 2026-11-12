@@ -82,6 +82,13 @@ class Zippy < RedmineMorePreviews::Conversion
     true
   end #def
   
+  # listings cached before linked the entries of a listing shown inline to the page
+  # of the attachment (see entry_link), and showed names in CP932 garbled (see
+  # name_to_utf8): they are listed again
+  def self.cache_revision
+    "zippy-1"
+  end #def
+  
   def convert
     case archive_type
     when :zip
@@ -181,6 +188,10 @@ class Zippy < RedmineMorePreviews::Conversion
     @names = Set.new
     complete = begin
       tarlist( tarball, "", list)
+    rescue ConverterTimeout
+      # the time limit is not the archive's: the conversion fails as a whole, and
+      # the names before it are not stored as a list that stopped at a limit
+      raise
     rescue StandardError
       # the listing fails, the names before the break are offered still, as a
       # list that stopped at a limit
@@ -208,7 +219,7 @@ class Zippy < RedmineMorePreviews::Conversion
         list_name( entry.full_name )
         arr << [("&nbsp;" * 2 * level + tarlink(entry))]
       elsif entry.directory?
-        arr << [("&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(File.basename(RmpText.to_utf8(entry.full_name)))) + "</strong>"]
+        arr << [("&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(name_to_utf8(File.basename(entry.full_name.b)))) + "</strong>"]
       end
     end
   end #def
@@ -217,16 +228,22 @@ class Zippy < RedmineMorePreviews::Conversion
   # each_tar_entry: the entries within the limits. Each entry takes a 512 byte
   # header and its data rounded up to 512 bytes, all of which is inflated to get
   # past it; the size is taken from the header before the data is read. Returns
-  # false if the walk stops at a limit, true if the archive ends before
+  # false if the walk stops at a limit, true if the archive ends before. The walk
+  # runs in Ruby, where the time limit of the conversion stops no command: it is
+  # checked at each entry, after the last one (whose data is read past after it is
+  # yielded) and while an entry is written out (see take_entry), and the conversion
+  # fails when it has passed
   #---------------------------------------------------------------------------------------
   def each_tar_entry( tarball )
     entries, bytes = 0, 0
     tarball.each do |entry|
+      ensure_time_left
       entries += 1
       bytes   += 512 + (entry.header.size + 511) / 512 * 512
       return false if entries > limit('max_entries') || bytes > limit_bytes('max_inflated')
       yield entry
     end
+    ensure_time_left
     true
   end #def
   
@@ -237,6 +254,79 @@ class Zippy < RedmineMorePreviews::Conversion
     normalized = RmpFile.safe_relative_path( name )
     @names << normalized if normalized
   end #def
+  
+  #---------------------------------------------------------------------------------------
+  # name_to_utf8: the name of an entry, as it is shown. A name in UTF-8 is taken as it
+  # is (zip archives flag it, tar archives are mostly written so). A name that is not is
+  # read as CP932, as Windows in Japan writes it, where it reads as a Japanese name: in
+  # characters of Japanese only, without halfwidth katakana, and with a character of
+  # a lead byte 0x81-0x9F (kana and the common kanji), a byte that is a control
+  # character in ISO-8859-1, and no letter. A name of Windows-1252 with a quote or a
+  # dash before a letter, as in O’Brien, ’Twas or A–Z, reads as kanji: it is not
+  # taken for Japanese. Other names are guessed as before
+  # (RmpText.to_utf8, mostly ISO-8859-1). A name of a western zip archive in CP850
+  # may read as Japanese too: it is garbled either way
+  #---------------------------------------------------------------------------------------
+  # the symbols of CP932 that names are written with, as well
+  JAPANESE_NAME = /\A[\p{Hiragana}\p{Katakana}\p{Han}ー々〆〇ヶ・「」『』（）［］【】〔〕〈〉《》｛｝〜～＿－＋＆＠！？、。，．：；＝＜＞／＼｜＃＄％＊＾￥‘’“”…‥※〒→←↑↓○●◎△▲▽▼□■◇◆☆★♪×÷±①-⑳Ⅰ-Ⅹⅰ-ⅹ㈱㈲㈹　０-９Ａ-Ｚａ-ｚ\u0020-\u007E]*\z/
+  
+  # in \p{Katakana}: the single bytes 0xA1-0xDF, which are letters in ISO-8859-1
+  HALFWIDTH_KATAKANA = /[\uFF61-\uFF9F]/
+  
+  def name_to_utf8( name )
+    japanese = japanese_name( name.to_s.b )
+    japanese || RmpText.to_utf8( name.to_s )
+  end #def
+  
+  def japanese_name( bytes )
+    return nil if bytes.dup.force_encoding( "UTF-8" ).valid_encoding?
+    name = bytes.dup.force_encoding( "Windows-31J" )
+    return nil unless name.valid_encoding?
+    name = name.encode( "UTF-8" )
+    return nil unless name.match?( JAPANESE_NAME ) && !name.match?( HALFWIDTH_KATAKANA ) && common_lead_byte?( bytes )
+    return nil if western_punctuation?( bytes )
+    name
+  rescue EncodingError
+    nil
+  end #def
+  private :japanese_name
+  
+  def common_lead_byte?( bytes )
+    i = 0
+    while i < bytes.bytesize
+      byte = bytes.getbyte( i )
+      return true if byte.between?( 0x81, 0x9F )
+      i += (byte < 0x80 || byte.between?( 0xA1, 0xDF )) ? 1 : 2
+    end
+    false
+  end #def
+  private :common_lead_byte?
+  
+  # each character of two bytes is a quote or a dash of Windows-1252 (‘ ’ “ ” – —)
+  # before a letter: "O\x92Brien" is O’Brien, "\x92Twas" ’Twas. Kana (0x82, 0x83) are
+  # not taken for one ("Aテ"), nor a name with another kanji ("達成率": 0x90 is none)
+  WINDOWS_1252_PUNCTUATION = [0x91, 0x92, 0x93, 0x94, 0x96, 0x97].freeze
+  
+  def western_punctuation?( bytes )
+    i, double = 0, false
+    while i < bytes.bytesize
+      byte = bytes.getbyte( i )
+      if byte < 0x80 || byte.between?( 0xA1, 0xDF )
+        i += 1
+      else
+        return false unless WINDOWS_1252_PUNCTUATION.include?( byte ) && ascii_letter?( bytes.getbyte( i + 1 ) )
+        double = true
+        i += 2
+      end
+    end
+    double
+  end #def
+  private :western_punctuation?
+  
+  def ascii_letter?( byte )
+    !byte.nil? && (byte.between?( 0x41, 0x5A ) || byte.between?( 0x61, 0x7A ))
+  end #def
+  private :ascii_letter?
   
   #---------------------------------------------------------------------------------------
   # tarlink
@@ -251,12 +341,16 @@ class Zippy < RedmineMorePreviews::Conversion
   # entry names are attacker controlled. Only names that stay inside the archive root
   # get a download link (the asset parameter is validated again server side); other
   # entries are listed by name only.
-  # The link is the preview request itself plus ?asset=<name>: both the attachments and
-  # the repositories preview actions serve the asset when the parameter is present, so
-  # no named route is needed (more_preview_path is the attachments route and produced
-  # /attachments/... links inside repository previews). Using request.path rather than a
-  # url helper with request.params also keeps query parameters such as script_name /
-  # host / anchor, which url helpers interpret as options, out of the (cached) listing.
+  # The link is the preview of the attachment plus ?asset=<name>, which the preview
+  # action serves. Of a repository entry it is the request itself plus ?asset=<name>:
+  # the preview action and the page of the entry both serve the asset (more_preview_path
+  # is the attachments route and produced /attachments/... links inside repository
+  # previews). The page of an attachment does not: a listing shown inline in it linked
+  # to the page, and the page was saved under the name of the entry. The link of an
+  # attachment is built from its id and the sub-URI only, so a cached listing does not
+  # depend on the page that converted it. Using request.path rather than a url helper
+  # with request.params also keeps query parameters such as script_name / host /
+  # anchor, which url helpers interpret as options, out of the (cached) listing.
   # The name is passed unencoded (to_query encodes it once); an extra
   # URI.encode_www_form_component produced "dir%252Ffile" and the asset was not found.
   # Only the rev parameter is kept: a revision the route's :rev does not take (a slash,
@@ -267,14 +361,19 @@ class Zippy < RedmineMorePreviews::Conversion
   # so the page stays as it is (see ControllerHelper::DOWNLOAD_PREVIEW_CONVERTERS).
   #---------------------------------------------------------------------------------------
   def entry_link( name )
-    basename = File.basename(RmpText.to_utf8(name))
+    # the name is decoded by itself: the guess is made on the bytes of each name
+    basename = name_to_utf8(File.basename(name.to_s.b))
     safe     = RmpFile.safe_relative_path( name )
     return CGI.escapeHTML(basename) unless safe
     query  = {:asset => safe}
-    rev    = request.query_parameters["rev"]
-    query[:rev] = rev if rev.is_a?( String ) && rev.present?
-    path   = "#{request.path}?#{ query.to_query }"
-    link_to basename, path, :download => basename, :target => "_top"
+    if object['type'] == :attachment
+      path = url_helpers.more_preview_path( object['object'].id, :script_name => request.script_name )
+    else
+      rev  = request.query_parameters["rev"]
+      query[:rev] = rev if rev.is_a?( String ) && rev.present?
+      path = request.path
+    end
+    link_to basename, "#{path}?#{ query.to_query }", :download => basename, :target => "_top"
   end #def
   
   #---------------------------------------------------------------------------------------
@@ -312,6 +411,11 @@ class Zippy < RedmineMorePreviews::Conversion
           written   = too_large.nil?
         end
       end
+    rescue ConverterTimeout
+      # the time limit is not the archive's: the conversion fails as a whole, and
+      # the names before it are not stored as a list that stopped at a limit
+      FileUtils.rm_f( tmpasset ) unless written
+      raise
     rescue StandardError => e
       Rails.logger.warn "#{File.basename(source)} could not be read beyond #{@names.size} names: #{e.message}"
       FileUtils.rm_f( tmpasset ) unless written
@@ -328,7 +432,7 @@ class Zippy < RedmineMorePreviews::Conversion
   # writes the entry as the asset; the ConverterTooLarge that refuses it, if any
   def take_entry( entry )
     check_asset_size( entry.header.size )
-    write_asset{|f| while( chunk = entry.read(8192)) do f.write chunk end }
+    write_asset{|f| while( chunk = entry.read(8192)) do ensure_time_left; f.write chunk end }
     nil
   rescue ConverterTooLarge => e
     FileUtils.rm_f( tmpasset )
@@ -480,24 +584,27 @@ class Zippy < RedmineMorePreviews::Conversion
     zipnode( ziptree( zip_file ), arr, level )
   end #def
   
-  # {name => {:dir => true, :children => {...}} | {:dir => false, :entry => entry}}
-  # in the order the entries appear in the archive
+  # {bytes => {:dir => true, :label => name, :children => {...}} | {:dir => false, :entry => entry}}
+  # in the order the entries appear in the archive. The tree is keyed on the bytes
+  # of the names, and each name is decoded by itself (see name_to_utf8): a folder
+  # whose entries are guessed apart is one folder, and two names that read alike
+  # in two charsets are two entries. "/" is not a byte of a character in CP932
   def ziptree( zip_file )
     tree = {}
     zip_file.entries.each do |entry|
       next unless [:file, :directory].include?( entry.ftype )
-      segments = RmpText.to_utf8( entry.name ).split('/').reject(&:empty?)
+      segments = entry.name.to_s.b.split('/').reject(&:empty?)
       next if segments.empty?
       # a deeper path is listed as one name below MAX_DEPTH directories
       segments = segments[0...MAX_DEPTH] + [segments[MAX_DEPTH..].join('/')] if segments.size > MAX_DEPTH + 1
       node = tree
       segments[0...-1].each do |segment|
         child = node[segment]
-        child = node[segment] = {:dir => true, :children => {}} unless child && child[:dir]
+        child = node[segment] = {:dir => true, :label => name_to_utf8( segment ), :children => {}} unless child && child[:dir]
         node  = child[:children]
       end
       if entry.ftype == :directory
-        node[segments.last] ||= {:dir => true, :children => {}}
+        node[segments.last] ||= {:dir => true, :label => name_to_utf8( segments.last ), :children => {}}
       else
         node[segments.last] = {:dir => false, :entry => entry}
       end
@@ -506,9 +613,9 @@ class Zippy < RedmineMorePreviews::Conversion
   end #def
   
   def zipnode( node, arr, level )
-    node.each do |name, item|
+    node.each do |_bytes, item|
       if item[:dir]
-        arr << ["&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(name) + "</strong>", "", ""]
+        arr << ["&nbsp;" * 2 * level + "<strong>" + CGI.escapeHTML(item[:label]) + "</strong>", "", ""]
         zipnode( item[:children], arr, level + 1 )
       else
         entry = item[:entry]

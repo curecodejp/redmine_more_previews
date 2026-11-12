@@ -494,7 +494,21 @@ module RedmineMorePreviews
     # marker from an older release must force a single transient conversion.
     def self.cache_marker_for(converter_id)
       mode = RedmineMorePreviews::Converter.debug? ? 'debug' : 'normal'
-      "#{converter_id}:#{CACHE_FORMAT_VERSION}:#{mode}"
+      [converter_id, CACHE_FORMAT_VERSION, cache_revision_for(converter_id), mode].compact.join(':')
+    end
+
+    # A converter that changes what it stores gives a revision of its own
+    # (f.i. "zippy-1"): its previews are made again, the others are kept, as
+    # they are by a new CACHE_FORMAT_VERSION. Their markers stay as they were
+    def self.cache_revision
+      nil
+    end
+
+    def self.cache_revision_for(converter_id)
+      return nil if converter_id.blank?
+      RedmineMorePreviews::Converter.find(converter_id).converter_class.try(:cache_revision)
+    rescue RedmineMorePreviews::Exceptions::ConverterNotFound
+      nil
     end
 
     # Best-effort pre-check outside the cache lock, only to choose between a
@@ -786,6 +800,15 @@ module RedmineMorePreviews
     rescue ConverterTimeout
       Rails.logger.error("Creating preview with #{name} timed out after #{conversion_timeout}s:\nCommand: #{cmd}")
       raise
+    end #def
+    
+    # for a converter that reads the file in Ruby, between steps of its own: the
+    # conversion fails (ConverterTimeout) once its time limit has passed, as a
+    # command that runs out of it does
+    def ensure_time_left
+      return unless @deadline && Lib::RmpProcess.now >= @deadline
+      Rails.logger.error("Creating preview with #{name} timed out after #{conversion_timeout}s")
+      raise ConverterTimeout, "no time left"
     end #def
     
     # runs the block in a child process within the time left for the conversion

@@ -31,6 +31,8 @@
 # 1.0.5
 #       - HEIC/HEIF and TIFF (first image or page), when ImageMagick reads them, up
 #         to a number of pixels; heic and heif keep the settings of their extension
+# 1.0.6
+#       - preview an animated GIF as its first frame in PNG or JPEG
 #
 require_relative 'lib/maggie'
 
@@ -38,7 +40,7 @@ RedmineMorePreviews::Converter.register :maggie do
   name           'Maggie'
   author         'Stephan Wenzel'
   description    'Convert images'
-  version        '1.0.5'
+  version        '1.0.6'
   url            'https://github.com/HugoHasenbein/redmine_more_previews_maggie'
   author_url     'https://github.com/HugoHasenbein/redmine_more_previews_maggie'
                  

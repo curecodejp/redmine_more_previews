@@ -97,7 +97,10 @@ class Maggie < RedmineMorePreviews::Conversion
       "#{convert_command} -resample #{get_density}x#{get_density} #{shell_quote "#{CODERS[mime_type]}:#{source}"} #{shell_quote "#{preview_format}:#{output}"}"
       
     when "image/gif", "image/bmp"
-      "#{convert_command} -density 72x72 #{shell_quote "#{CODERS[mime_type]}:#{source}"} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
+      # an animated GIF is previewed as its first frame, but as a GIF: ImageMagick
+      # writes a file for each frame of a format that holds one (out-0.png, ...)
+      frame = preview_format == "gif" ? "" : "[0]"
+      "#{convert_command} -density 72x72 #{shell_quote "#{CODERS[mime_type]}:#{source}#{frame}"} -resample #{get_density}x#{get_density} #{shell_quote "#{preview_format}:#{output}"}"
     
     when *IMAGE_FORMAT_MIMES
       format = IMAGE_FORMATS.values.find{|f| f[:mimes].include?(mime_type) }

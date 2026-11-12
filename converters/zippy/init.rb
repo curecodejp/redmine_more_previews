@@ -42,6 +42,9 @@
 #       - store an entry named like the listing apart from it
 # 1.1.7
 #       - list an archive as what its content is, whatever the extension of its name
+#       - link the entries of a listing shown inline to the preview of the attachment
+#       - stop the walk through a tar archive at the time limit of the conversion
+#       - show names written in CP932 in Japanese
 
 require_relative 'lib/array'
 require_relative 'lib/zippy'

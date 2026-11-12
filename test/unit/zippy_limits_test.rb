@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require File.expand_path('../../test_helper', __FILE__)
+require 'minitest/mock'
 
 # An archive expands without bound: a tgz is inflated from the start up to the
 # entry asked for, and rubyzip reads the whole central directory of a zip. The
@@ -45,6 +46,64 @@ class ZippyLimitsTest < ActiveSupport::TestCase
       # the entry beyond the limit is not reached either
       assert_raises(ConverterTooLarge) { extract(tgz, 'after.txt') }
     end
+  end
+
+  # the walk runs in Ruby: the time limit of the conversion is checked at each
+  # entry, and a walk that outlasts it fails, as a command does, rather than
+  # storing a listing cut short by the load of the server
+  def test_tgz_walk_beyond_the_time_limit_fails
+    tgz = build_tgz(path('a.tgz'), (1..20).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    # the clock stands still at first, then the time limit has long passed
+    RedmineMorePreviews::Lib::RmpProcess.stubs(:now).returns(*([0.0] * 6), 10_000.0)
+    Zippy.any_instance.expects(:list_name).at_least_once
+    # the conversion fails: nothing is stored, the failure is remembered
+    assert_equal '', listing(tgz)
+    assert_not File.exist?(target_of(tgz))
+    assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(target_of(tgz))
+  end
+
+  # a stored listing that outlasts the time limit does not store the names
+  # before it as a list that stopped at a limit: an entry after them is not
+  # refused as lying beyond it
+  def test_tgz_listing_beyond_the_time_limit_stores_no_names
+    tgz = build_tgz(path('a.tgz'), (1..20).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    clock = 0.0
+    links = 0
+    RedmineMorePreviews::Lib::RmpProcess.stub(:now, -> { clock }) do
+      Zippy.any_instance.stubs(:tarlink).with { (links += 1) < 5 || (clock = 10_000.0) }.returns('link')
+      assert_nil zippy_worker(target: target_of(tgz), request: fake_request).preview(File.new(tgz))
+      assert_not File.exist?(RedmineMorePreviews::Lib::RmpAssetList.path(File.dirname(target_of(tgz))))
+      clock = 0.0
+      assert_equal 'file 20', stored_asset(tgz, 'f20.txt')
+    end
+  end
+
+  # the time spent on the last entry, or on writing an entry out, is checked too:
+  # the time limit is not checked before each entry only
+  def test_tgz_walk_past_the_time_limit_in_the_last_entry_fails
+    tgz = build_tgz(path('a.tgz'), 'only.txt' => 'only')
+    clock = 0.0
+    RedmineMorePreviews::Lib::RmpProcess.stub(:now, -> { clock }) do
+      Zippy.any_instance.stubs(:tarlink).with { clock = 10_000.0 }.returns('only.txt')
+      assert_equal '', listing(tgz)
+      assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(target_of(tgz))
+      clock = 0.0
+      Zippy.any_instance.stubs(:check_asset_size).with { clock = 10_000.0 }
+      assert_nil stored_asset(tgz, 'only.txt')
+      assert_not File.exist?(asset_target(tgz, 'only.txt'))
+    end
+  end
+
+  # the walk for an asset outlasts the time limit: the conversion fails, and is
+  # not taken for an asset beyond the limits of the archive (413), nor are the
+  # names before it stored as a list that stopped at a limit
+  def test_tgz_asset_walk_beyond_the_time_limit_fails
+    tgz = build_tgz(path('a.tgz'), (1..20).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    RedmineMorePreviews::Lib::RmpProcess.stubs(:now).returns(*([0.0] * 6), 10_000.0)
+    # (no failure is kept for a name not known to be in the archive)
+    assert_nil stored_asset(tgz, 'f20.txt')
+    RedmineMorePreviews::Lib::RmpProcess.unstub(:now)
+    assert_equal 'file 19', stored_asset(tgz, 'f19.txt')
   end
 
   def test_complete_tar_list_is_not_marked_truncated
@@ -120,7 +179,7 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     preview_dir = File.dirname(@target)
     FileUtils.mkdir_p(preview_dir)
     File.binwrite(File.join(preview_dir, 'stored.bin'), 'x' * (1024 * 1024))
-    File.write("#{preview_dir}.converter", "zippy:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal")
+    File.write("#{preview_dir}.converter", RedmineMorePreviews::Conversion.cache_marker_for(:zippy))
     File.write(@target, '<p>listing</p>')
     with_zippy_limits('max_stored' => '1') do
       worker = zippy_worker(target: File.join(preview_dir, 'small.txt'), asset: 'small.txt')
@@ -137,7 +196,7 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     preview_dir = File.dirname(@target)
     FileUtils.mkdir_p(File.join(preview_dir, 'other'))
     File.binwrite(File.join(preview_dir, 'other', 'stored.bin'), 'x' * (1024 * 1024))
-    File.write("#{preview_dir}.converter", "zippy:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal")
+    File.write("#{preview_dir}.converter", RedmineMorePreviews::Conversion.cache_marker_for(:zippy))
     File.write(@target, '<p>listing</p>')
     with_zippy_limits('max_stored' => '1') do
       worker = zippy_worker(target: File.join(preview_dir, 'dir', 'small.txt'), asset: 'dir/small.txt')
@@ -150,7 +209,7 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     preview_dir = File.dirname(@target)
     FileUtils.mkdir_p(preview_dir)
     File.binwrite(File.join(preview_dir, 'stored.bin'), 'x' * (1024 * 1024))
-    File.write("#{preview_dir}.converter", "zippy:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal")
+    File.write("#{preview_dir}.converter", RedmineMorePreviews::Conversion.cache_marker_for(:zippy))
     File.write(@target, '<p>listing</p>')
     RedmineMorePreviews::Lib::RmpCacheSize.stubs(:full?).returns(true)
     with_zippy_limits('max_stored' => '1') do

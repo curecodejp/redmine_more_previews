@@ -157,8 +157,11 @@ module RedmineMorePreviews
       # Old browser ETags must not cause a 304 from a preview cached before
       # debug diagnostics were redacted. Debug/normal modes have distinct cache
       # representations and must never share an ETag.
-      [mtime, RedmineMorePreviews::Converter.responsible(file.to_s, options)&.id,
-       RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION,
+      # the revision of a converter (see Conversion.cache_revision) only where it
+      # has one: the ETags of the others stay as they were
+      converter = RedmineMorePreviews::Converter.responsible(file.to_s, options)&.id
+      revision  = RedmineMorePreviews::Conversion.cache_revision_for(converter)
+      [mtime, converter, RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION, *revision,
        RedmineMorePreviews::Converter.debug?]
     end
     private :preview_etag

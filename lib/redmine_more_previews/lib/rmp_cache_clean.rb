@@ -61,8 +61,9 @@ module RedmineMorePreviews
             next
           end
         end
-        # the previews of a deleted repository that a conversion held then
-        # (see RmpLifecycle)
+        # the previews of a deleted attachment or repository that a conversion
+        # held then (see RmpLifecycle)
+        RmpLifecycle.cleanup_pending( Attachment, RedmineMorePreviews::Patches::AttachmentPatch.previews_storagepath )
         RmpLifecycle.cleanup_pending( Repository, RedmineMorePreviews::Patches::RepositoryPatch.previews_storagepath )
         remove_failures
         removed

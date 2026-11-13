@@ -28,3 +28,9 @@ es:
   redmine_more_previews:
     zippy:
       text_explanation:          "Vista previa de los archivos zip"
+      text_list_truncated:       "La lista termina aquí: el archivo comprimido tiene más entradas, o más grandes, de las que se muestran."
+      label_max_entries:         "Máximo de entradas"
+      label_max_inflated:        "Máximo de bytes descomprimidos de un tar o tgz (MiB)"
+      label_max_asset:           "Archivo extraído más grande (MiB)"
+      label_max_stored:          "Tamaño total de los archivos guardados por archivo comprimido (MiB)"
+      text_help_limits:          "Un archivo comprimido con más entradas, o un archivo mayor que el límite, se responde con 413 (demasiado grande). La lista de un tar o tgz termina en los límites."

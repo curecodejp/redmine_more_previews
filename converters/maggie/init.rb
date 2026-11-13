@@ -33,6 +33,7 @@
 #         to a number of pixels; heic and heif keep the settings of their extension
 # 1.0.6
 #       - preview an animated GIF as its first frame in PNG or JPEG
+#       - the limits translated into de, es, fr, pt, pt-BR, ru and zh
 #
 require_relative 'lib/maggie'
 

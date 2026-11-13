@@ -34,10 +34,25 @@ pt:
   label_use_cache:                                         "Cache"
   text_more_previews_cache:                                "Caching da visualização gerada"
   text_help_redmine_more_previews_cache:                   "O cache torna a exibição repetida de visualizações muito mais rápida, mas pode inchar o diretório /tmp no diretório raiz da Redmine."
+  text_more_previews_limits:                               "Limites de conversão"
+  label_conversion_timeout:                                "Limite de tempo (segundos)"
+  label_lock_timeout:                                      "Limite de espera (segundos)"
+  label_max_conversions:                                   "Conversões em simultâneo"
+  label_max_repository_file:                               "Maior ficheiro do repositório (MiB)"
+  label_max_output:                                        "Maior pré-visualização servida (MiB)"
+  label_max_cache:                                         "Tamanho da cache (MiB)"
+  label_failure_ttl:                                       "Falhas memorizadas durante (minutos)"
+  text_help_redmine_more_previews_limits:                  "Uma conversão que demore mais do que o limite de tempo é interrompida juntamente com todos os programas que iniciou (o Libre dispõe de pelo menos 120 segundos). Um pedido recebe a resposta 503 (tente mais tarde) quando todas as conversões, contadas em todos os processos do Redmine, estão ocupadas, ou quando espera mais do que o limite de espera por uma pré-visualização que está a ser convertida. Um ficheiro do repositório ou uma pré-visualização maior do que o seu limite recebe a resposta 413. Quando a cache excede o seu tamanho, as novas pré-visualizações são convertidas a cada pedido e não são guardadas. Uma conversão falhada não é repetida enquanto estiver memorizada, até que um administrador recarregue a pré-visualização. Recarregar e a pré-visualização não segura de e-mails estão reservados aos administradores."
+  text_more_previews_busy:                                 "A pré-visualização está a ser gerada ou o servidor está ocupado. Tente novamente mais tarde."
+  text_more_previews_too_large:                            "O ficheiro é demasiado grande para ser pré-visualizado."
+  text_more_previews_image_failed:                         "Não foi possível mostrar a pré-visualização. A imagem pode ser demasiado grande (os limites são 16 000 píxeis de largura ou altura e 128 megapíxeis no total, e o tamanho definido nas configurações do Maggie para imagens HEIC e TIFF), ou a conversão pode ter falhado. Transfira o ficheiro para o consultar."
+  error_more_previews_invalid_libre_format:                "Formato de conversão do LibreOffice inválido; as configurações não foram guardadas."
+  error_more_previews_unreadable_image_format:             "O ImageMagick não consegue ler %{formats} (verifique com: convert -list format, ou magick -list format no ImageMagick 7); as configurações não foram guardadas."
   
   label_redmine_more_previews_plugins_settings:            "Configurações dos Plugins"
   
   button_unsafe_update:                                    "Atualização insegura"
+  label_debug:                                             "Depuração"
   
   text_help_redmine_more_previews_debug:                   "Mostrar informações de debug em vez de um arquivo convertido"
   
@@ -45,3 +60,6 @@ pt:
   text_help_redmine_more_previews_absolute:                "(usar URL com esquema e host) para <iframe>-tag ou <embed>-tag"
   text_more_previews_inline_too_large: "A pré-visualização excede o limite de tamanho. Transfira o ficheiro para o consultar."
   text_more_previews_inline_too_complex: "A pré-visualização é demasiado complexa para ser apresentada. Transfira o ficheiro para o consultar."
+  label_more_previews_bulk_actions:                        "Ações em massa"
+  label_more_previews_toggle_all_extensions:               "Ativar ou desativar todas as extensões"
+  label_more_previews_bulk_format:                         "Formato para todas as extensões"

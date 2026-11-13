@@ -24,3 +24,5 @@ fr:
   redmine_more_previews:
     maggie:
       text_explanation:          "Convertir et/ou réduire les fichiers image"
+      label_max_megapixels:      "Plus grande image HEIC ou TIFF (mégapixels)"
+      text_help_limits:          "Une image HEIC ou TIFF n’est convertie que si son en-tête indique sa taille et que cette taille respecte la limite ; une image plus grande reçoit la réponse 413 (trop volumineux). Les bibliothèques qui décodent ces images utilisent leur propre mémoire pour l’image entière, en dehors des limites d’ImageMagick."

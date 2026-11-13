@@ -48,6 +48,7 @@ fr:
     LABEL:                "Libellé de l'adresse"
     ORG:                  "Organisation"
     EMAIL:                "Email"
+    IMPP:                 "Messagerie instantanée"
     
     GENDER:               "Sexe"
     GENDER_VALUE:         

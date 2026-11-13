@@ -178,6 +178,17 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     assert_not_includes html, 'evil.example'
   end
 
+  # the table of the listing: a heading and a row for each entry; the names are
+  # escaped once, where the cells are written
+  def test_toc_table
+    html = toc(build_zip(archive('table.zip'), 'a <b>.txt' => 'x'))
+    heads = [:label_filename, :label_filesize, :label_compressed_filesize].map { |l| "<th>#{I18n.t(l)}</th>" }.join
+    assert_equal "<table class='list'><thead><tr>#{heads}</tr></thead><tbody><tr>" \
+                 '<td><a download="a &lt;b&gt;.txt" target="_top" href="/attachments/more_preview/1.html?asset=a+%3Cb%3E.txt">a &lt;b&gt;.txt</a></td>' \
+                 '<td>1 Byte</td><td>3 Bytes</td></tr></tbody></table>', html
+    assert_equal "<table class='list'><thead><tr>#{heads}</tr></thead></table>", toc(build_zip(archive('empty.zip'), {}))
+  end
+
   def test_tar_toc_lists_unsafe_entry_names_without_a_link
     html = toc(build_tar(archive('toc.tar'), 'ok.txt' => 'a', '../bad.txt' => 'b', '/abs.txt' => 'c'))
     assert_includes html, 'href="/attachments/more_preview/1.html?asset=ok.txt"'

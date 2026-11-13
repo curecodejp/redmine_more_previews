@@ -188,8 +188,7 @@ module VObject
 
     def add_line( arr, line )
       return if line.nil?
-      line.to_utf8!
-      arr << parse( line )
+      arr << parse( utf8( line ) )
     end #def
 
     # ------------------------------------------------------------------------------------
@@ -213,7 +212,7 @@ module VObject
       attributes  = atts.reject( &:empty? ).map do |a|
         key, val = a.include?( "=" ) ? a.split( "=", 2 ) : ["TYPE", a]
         [key.upcase, val && split_unquoted( val, "," ).map { |v| unquote( v ) }.join( "," )]
-      end.group_by_positions(0).apply(&:flatten)
+      end.group_by( &:first ).transform_values { |pairs| pairs.map( &:last ) }
       [name, value, attributes.symbolize_keys] # symbolize necessary to work with splat operator
     end #def
 

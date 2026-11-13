@@ -164,6 +164,16 @@ class VinceReaderTest < ActiveSupport::TestCase
     assert_includes c.tel.humanize, '+81 3 3333 3333'
   end
 
+  # a vCard 2.1 of Outlook is written in the code page of Windows: a line that is no
+  # UTF-8 is read as Windows-1252, where 0x80 is the euro sign (in ISO-8859-1 it is
+  # a control character)
+  def test_a_line_in_windows_1252_is_read
+    c = file_card("FN:Ren\xE9e M\xFCller\r\nNOTE:\x80 100 \x93quoted\x94\r\nTITLE:Caf\xC3\xA9\r\n".b)
+    assert_equal ['Renée Müller'], values(c, :fn)
+    assert_equal ['€ 100 “quoted”'], values(c, :note)
+    assert_equal ['Café'], values(c, :title), 'a line in UTF-8 is read as UTF-8'
+  end
+
   def test_blank_lines_and_a_card_without_its_end_are_read
     reader = VinceLib::VObject::Reader.new(object: :vcard,
       string: "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:First\r\n\r\nEND:VCARD\r\nBEGIN:VCARD\r\nFN:Second\r\n")

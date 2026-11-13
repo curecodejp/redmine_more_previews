@@ -156,12 +156,11 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
-  # String#to_utf8 comes from a gem of the Vince converter, which can be removed
-  def test_inline_preview_does_not_need_the_string_helper_of_vince
+  # an inline preview is shown from the cache, and as the conversion yields it
+  def test_inline_preview_is_shown_cached_and_uncached
     Dir.mktmpdir do |dir|
       a = attach(build_tar(File.join(dir, 'a.tar'), 'safe.txt' => 'safe'))
       with_zippy_format('tar', 'inline') do
-        String.any_instance.expects(:to_utf8).never
         a.class.any_instance.stubs(:more_preview).returns('<p>cached</p>')
         get :show, params: {id: a.id, filename: a.filename, format: 'html'}
         assert_response :success

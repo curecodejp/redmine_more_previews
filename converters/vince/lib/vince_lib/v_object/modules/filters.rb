@@ -39,7 +39,7 @@ module VObject
         fields = (fields.presence || self.class::FIELDS).map{|field| field.to_s.downcase.to_sym}
         self.class.new(
         fields.map do |field|
-          deep_try(field, :values).to_a.map do |args|
+          try( field ).try( :values ).to_a.map do |args|
             if block_given?
               # the attributes are given as keywords: Ruby 3 passes a hash given as the
               # last argument to the **attributes of a block no more
@@ -101,8 +101,8 @@ module VObject
       #
       def match_hashes(h1, h2, &block)
         array_minus(
-          h2.transform_keys{|k| k.to_s.upcase }.expand.map{|k,v| [k, block_given? ? yield( v ) : v]},
-          h1.transform_keys{|k| k.to_s.upcase }.expand.map{|k,v| [k, block_given? ? yield( v ) : v]}
+          expand_hash( h2.transform_keys{|k| k.to_s.upcase } ).map{|k,v| [k, block_given? ? yield( v ) : v]},
+          expand_hash( h1.transform_keys{|k| k.to_s.upcase } ).map{|k,v| [k, block_given? ? yield( v ) : v]}
         ).blank?
       end #def
       
@@ -112,11 +112,25 @@ module VObject
       #
       def share_hashes(h1, h2, &block)
         array_and(
-          h1.transform_keys{|k| k.to_s.upcase }.expand.map{|k,v| [k, block_given? ? yield( v ) : v]},
-          h2.transform_keys{|k| k.to_s.upcase }.expand.map{|k,v| [k, block_given? ? yield( v ) : v]}
+          expand_hash( h1.transform_keys{|k| k.to_s.upcase } ).map{|k,v| [k, block_given? ? yield( v ) : v]},
+          expand_hash( h2.transform_keys{|k| k.to_s.upcase } ).map{|k,v| [k, block_given? ? yield( v ) : v]}
         ).present?
       end #def
       
+      #-------------------------------------------------------------------------------------
+      # the paths through a nested hash, each the keys down to a value and the value:
+      # {"TYPE" => ["work", "pref"]} gives [["TYPE", "work"], ["TYPE", "pref"]]
+      #
+      def expand_hash( hash, path=[] )
+        hash.flat_map do |key, value|
+          case value
+          when Hash  then expand_hash( value, path + [key] )
+          when Array then value.map { |el| path + [key] + (el.is_a?(Array) ? el : [el]) }
+          else            [path + [key, value]]
+          end
+        end
+      end #def
+
       #-------------------------------------------------------------------------------------
       # compare two fields by PREF attribute for sorting fields by preference
       #

@@ -195,14 +195,13 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_select 'img[onerror] + p.nodata[style*="display:none"]', :text => I18n.t(:text_more_previews_image_failed), :count => 1
   end
 
-  # String#to_utf8 comes from a gem of the Vince converter, which can be removed
-  def test_inline_preview_does_not_need_the_string_helper_of_vince
+  # an inline preview is shown from the cache, and as the conversion yields it
+  def test_inline_preview_is_shown_cached_and_uncached
     settings = ZIPPY_SETTINGS.deep_dup
     settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
     Setting.plugin_redmine_more_previews = settings
     Setting.clear_cache
 
-    String.any_instance.expects(:to_utf8).never
     Repository::Filesystem.any_instance.stubs(:more_preview).returns('<p>cached</p>')
     get :entry, params: entry_params(format: 'html')
     assert_response :success

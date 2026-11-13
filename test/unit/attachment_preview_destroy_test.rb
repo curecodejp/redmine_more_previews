@@ -32,14 +32,12 @@ class AttachmentPreviewDestroyTest < ActiveSupport::TestCase
 
     assert_not File.exist?(preview)
     assert_not File.exist?(diskfile)
+    assert_empty Dir.children(attachment.previews_storagepath), 'a lock file or a marker is left'
   end
 
   # Redmine keeps a file that another attachment shares (Attachment#delete_from_disk)
   def test_destroy_removes_the_previews_of_an_attachment_sharing_its_file
-    kept = attach('a.txt', 'shared content')
-    gone = attach('b.txt', 'other content')
-    gone.update_columns(disk_directory: kept.disk_directory, disk_filename: kept.disk_filename)
-    gone.reload
+    kept, gone = attachments_sharing_a_file
     kept_preview = cache_of(kept)
     gone_preview = cache_of(gone)
 
@@ -48,6 +46,13 @@ class AttachmentPreviewDestroyTest < ActiveSupport::TestCase
     assert_not File.exist?(gone_preview), 'the previews of the destroyed attachment are left'
     assert_equal 'preview', File.read(File.join(kept_preview, 'preview.txt', 'index.txt'))
     assert File.file?(kept.diskfile), 'the shared file is removed'
+  end
+
+  # an attachment never previewed leaves nothing in the storage
+  def test_destroy_of_an_attachment_without_previews_writes_nothing
+    attachment = attach('a.txt', 'content')
+    attachment.destroy!
+    assert_not File.exist?(attachment.previews_storagepath)
   end
 
   def test_a_rolled_back_destroy_keeps_the_previews
@@ -77,6 +82,46 @@ class AttachmentPreviewDestroyTest < ActiveSupport::TestCase
     FileUtils.rm_rf(external) if external
   end
 
+  # a conversion may outlive the request that deletes the attachment: the
+  # preview it writes is removed when it ends (two attachments share the file,
+  # so that the source stays)
+  def test_a_conversion_during_the_destroy_leaves_no_preview
+    kept, gone = attachments_sharing_a_file
+    waited = nil
+    converter = proc do |_input, output, *_args, &_block|
+      Attachment.find(gone.id).destroy!
+      waited = File.file?("#{gone.preview_storagepath}.cleanup_pending")
+      FileUtils.mkdir_p(File.dirname(output))
+      File.write(output, 'preview')
+      'converted'
+    end
+
+    with_stubbed_conversion(converter) { gone.more_preview }
+
+    assert waited, 'the removal did not wait for the conversion'
+
+    assert_not File.exist?(gone.preview_storagepath), 'the conversion left its preview'
+    assert_not File.exist?("#{gone.preview_storagepath}.cleanup_pending")
+    assert_not File.exist?("#{gone.preview_storagepath}.lifecycle.lock")
+    assert File.file?(kept.diskfile)
+  end
+
+  # a request that loaded the attachment before it was deleted converts nothing
+  def test_a_request_after_the_destroy_converts_nothing
+    _kept, gone = attachments_sharing_a_file
+    loaded = Attachment.find(gone.id)
+    gone.destroy!
+    converted = false
+    converter = proc { |*_args, &_block| converted = true; 'converted' }
+
+    with_stubbed_conversion(converter) do
+      assert_nil loaded.more_preview
+      assert_nil loaded.more_asset(:asset => 'a.png')
+    end
+    assert_not converted, 'a deleted attachment was converted'
+    assert_empty Dir.children(gone.previews_storagepath), 'a lock file or a marker is left'
+  end
+
   private
 
   def attach(name, content)
@@ -92,5 +137,22 @@ class AttachmentPreviewDestroyTest < ActiveSupport::TestCase
     FileUtils.mkdir_p(File.join(dir, 'preview.txt'))
     File.write(File.join(dir, 'preview.txt', 'index.txt'), 'preview')
     dir
+  end
+
+  # two attachments of one file on disk
+  def attachments_sharing_a_file
+    kept = attach('a.txt', 'shared content')
+    gone = attach('b.txt', 'other content')
+    gone.update_columns(disk_directory: kept.disk_directory, disk_filename: kept.disk_filename)
+    [kept, gone.reload]
+  end
+
+  def with_stubbed_conversion(handler)
+    converter = RedmineMorePreviews::Converter
+    original = converter.method(:convert)
+    converter.define_singleton_method(:convert, &handler)
+    yield
+  ensure
+    converter.define_singleton_method(:convert, original) if original
   end
 end

@@ -37,31 +37,33 @@ module RedmineMorePreviews
           ################################################################################
           # class specific
           def more_preview(options={}, &block)
-            RedmineMorePreviews::Converter.convert(
-              diskfile, 
-              preview_filepath(options),
-              options.merge(
-                :object => {:type => :attachment, :object => self},
-                :converter => preview_selection["converter"],
-                :preview_format => preview_format
-              ), 
-              &block
-            )
+            convert_attachment(:preview_filepath, options, &block)
           end #def
           
           # class specific
           def more_asset(options={}, &block)
-            RedmineMorePreviews::Converter.convert(
-              diskfile, 
-              preview_assetpath(options),
-              options.merge(
-                :object => {:type => :attachment, :object => self},
-                :converter => preview_selection["converter"],
-                :preview_format => preview_format
-              ), 
-              &block
-            )
+            convert_attachment(:preview_assetpath, options, &block)
           end #def
+
+          # target: the method giving the path of the preview or asset. nil if
+          # the attachment was deleted: a conversion does not start after its
+          # deletion, and one running then removes its previews when it ends
+          # (see RmpLifecycle)
+          def convert_attachment(target, options, &block)
+            RedmineMorePreviews::Lib::RmpLifecycle.hold(Attachment, previews_storagepath, id) do
+              RedmineMorePreviews::Converter.convert(
+                diskfile,
+                send(target, options),
+                options.merge(
+                  :object => {:type => :attachment, :object => self},
+                  :converter => preview_selection["converter"],
+                  :preview_format => preview_format
+                ),
+                &block
+              )
+            end
+          end #def
+          private :convert_attachment
           
           def preview_convertible?
             RedmineMorePreviews::Converter.convertible?(filename)
@@ -152,7 +154,7 @@ module RedmineMorePreviews
           
           # directory of all previews
           def previews_storagepath
-            File.join(RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, self.class.name.underscore.pluralize)
+            RedmineMorePreviews::Patches::AttachmentPatch.previews_storagepath
           end #def
           
           # directory of this preview
@@ -195,24 +197,18 @@ module RedmineMorePreviews
           # it, also when its file stays because another attachment shares it
           # (Attachment#delete_from_disk keeps such a file, and removes the file
           # and the thumbnails as without the plugin). A link in place of the
-          # previews is removed, not followed
+          # previews is removed, not followed (see RmpLifecycle)
           def remove_more_preview_cache_on_destroy
-            dir = preview_storagepath
-            if File.symlink?(dir)
-              File.unlink(dir)
-            elsif File.directory?(dir)
-              unless RedmineMorePreviews::Lib::RmpFile.within_directory?(previews_storagepath, dir)
-                raise ArgumentError, 'attachment cache path is outside storage'
-              end
-              FileUtils.rm_rf(dir)
-            end
-          rescue StandardError => e
-            Rails.logger.error "Attachment preview cache cleanup failed: #{e.class}: #{e.message}"
+            RedmineMorePreviews::Lib::RmpLifecycle.remove(Attachment, previews_storagepath, id)
           end #def
           private :remove_more_preview_cache_on_destroy
           
         end #base
       end #self
+
+      def self.previews_storagepath
+        File.join(RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH, "attachments")
+      end #def
        
     end
   end  

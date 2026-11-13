@@ -28,7 +28,9 @@ module RedmineMorePreviews
     # and skipped while a request holds the lock: it is removed on the next run.
     # The lock files stay, as a request may be waiting on one; the list of its
     # assets goes with it (see RmpAssetList). Failures remembered longer than
-    # Converter.failure_ttl are removed as well.
+    # Converter.failure_ttl are removed as well, and the previews of a deleted
+    # attachment or repository that a conversion held when it was deleted (see
+    # RmpLifecycle).
     module RmpCacheClean
       
       # the number of previews removed
@@ -61,14 +63,10 @@ module RedmineMorePreviews
             next
           end
         end
-        # A repository deletion can race with an in-flight conversion. Its
-        # after-commit callback leaves a pending marker when the shared lock is
-        # busy; retry safely on subsequent cache-clean runs, even after restart.
-        pending = File.join(storage, "repository_previews", "*.cleanup_pending")
-        Dir.glob(pending).each do |marker|
-          id = File.basename(marker).delete_suffix(".cleanup_pending")
-          RedmineMorePreviews::Patches::RepositoryPatch.cleanup_removed_repository_cache(id)
-        end
+        # the previews of a deleted attachment or repository that a conversion
+        # held then (see RmpLifecycle)
+        RmpLifecycle.cleanup_pending( Attachment, RedmineMorePreviews::Patches::AttachmentPatch.previews_storagepath )
+        RmpLifecycle.cleanup_pending( Repository, RedmineMorePreviews::Patches::RepositoryPatch.previews_storagepath )
         remove_failures
         removed
       end #def

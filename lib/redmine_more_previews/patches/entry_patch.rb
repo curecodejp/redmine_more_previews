@@ -33,10 +33,6 @@ module RedmineMorePreviews
             RedmineMorePreviews::Converter.convertible?(name)
           end #def
           
-          def conversion_extension
-            RedmineMorePreviews::Converter.conversion_extension( File.extname( name ))
-          end #def
-          
           def info
             [name, path, kind, size, lastrev].join(" ").
             gsub(/[^a-z^A-Z^0-9^_]/, " ").squish.gsub(/\ /, "-")

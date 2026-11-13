@@ -25,6 +25,12 @@ require 'fileutils'
 module RedmineMorePreviews
   module Lib
     module RmpFile
+      # a file system takes a name of 255 bytes, not characters: a name in
+      # Japanese has three bytes to a character. unique_filename may add an
+      # index (".2") to the name
+      MAX_FILENAME_BYTES  = 240
+      MAX_EXTENSION_BYTES = 32
+
       class << self
         
         # ------------------------------------------------------------------------------ #
@@ -55,20 +61,24 @@ module RedmineMorePreviews
         def sanitize( filename, options = {} )
           # Bad as defined by wikipedia: https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
           # Also have to escape the backslash, ampersand, ", ', and ;
-          _bad_chars = /\/|\\|\?|%|\*|:|\|\"|\'|\<|\>| |;|&/
+          _bad_chars = /[\/\\?%*:|"'<> ;&]/
           _filename  = RmpText.to_utf8(filename.to_s.dup) # in case filename is nil
           _filename  = _filename.gsub(_bad_chars, '_') if options[:ignore_delimiters]
           _filename  = File.basename( _filename ) 
-          _filename  = _filename.presence || "noname"
+          _filename  = "noname" if _filename.blank? || _filename == "." || _filename == ".." # a directory
           _extension = File.extname(  _filename)
+          _extension = "" if _extension.bytesize > MAX_EXTENSION_BYTES # a dot in a long name
           _filestem  = File.basename( _filename, _extension)
-          # limit maximum length of filename to 260 characters
-          _extension = _extension[0..255]      # limit extension length
-          _fslength  = 260 - _extension.length # limit basename accordingly
-          _filename  = "#{_filestem[0.._fslength]}#{_extension}"
+          _filename  = "#{truncate_bytes( _filestem, MAX_FILENAME_BYTES - _extension.bytesize )}#{_extension}"
           _filename.gsub(_bad_chars, '_')
         end #def
         
+        # the first bytes of str, without a character cut in two
+        def truncate_bytes( str, bytes )
+          str.bytesize > bytes ? str.byteslice( 0, bytes ).scrub( "" ) : str
+        end #def
+        private :truncate_bytes
+
         # ------------------------------------------------------------------------------ #
         # safe_relative_path( path(string) )
         # returns a normalized relative path ("dir/file.txt") that cannot leave the

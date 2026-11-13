@@ -24,7 +24,7 @@ fr:
   label_mail_field_from:                        "De"
   label_mail_field_to:                          "Pour"
   label_mail_field_cc:                          "Cc" 
-  Label_mail_field_subject:                     "Sujet" 
+  label_mail_field_subject:                     "Sujet"
   
   redmine_more_previews:
     cliff:

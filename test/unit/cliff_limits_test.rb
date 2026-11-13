@@ -223,6 +223,24 @@ class CliffLimitsTest < ActiveSupport::TestCase
     GC.enable
   end
 
+  # an attachment named in Japanese, longer than a file system takes in bytes:
+  # writing it failed, and the email was not previewed at all
+  def test_attachments_with_long_names_in_japanese_are_saved
+    name = "#{'添付' * 60}.txt"
+    mail = Mail.new do
+      from 'a@example.test'
+      to 'b@example.test'
+      subject 'attachments'
+      text_part { body 'see attached' }
+    end
+    2.times {|n| mail.add_file(filename: name, content: "attachment #{n}")}
+    html = convert(mail.to_s)
+    assert_includes html, 'see attached'
+    assert_equal 2, @saved.size
+    @saved.each {|saved| assert_operator saved.bytesize, :<=, 255, saved }
+    assert @saved.all? {|saved| saved.start_with?('添付') && saved.end_with?('.txt') }, @saved.inspect
+  end
+
   def test_email_within_the_limits_is_previewed
     html = convert(mail_with_attachments(2))
     assert_not_includes html, 'more than'

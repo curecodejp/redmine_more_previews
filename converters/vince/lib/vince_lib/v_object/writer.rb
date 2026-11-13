@@ -94,7 +94,7 @@ module VObject
     def write
       
       v = object.class::FIELDS.map do |field|
-        object.deep_try(field, :dump)
+        object.try( field ).try( :dump )
       end.flatten.select(&:present?)
       
       v.unshift( "BEGIN:#{object.class::NAME}" )
@@ -110,7 +110,7 @@ module VObject
     def humanize(fields: nil)
       
       (fields || object.class::FIELDS).map do |field|
-        object.deep_try(field, :humanize)
+        object.try( field ).try( :humanize )
       end.
       flatten.select(&:present?).
       join("\n").encode("UTF-8", universal_newline: true)

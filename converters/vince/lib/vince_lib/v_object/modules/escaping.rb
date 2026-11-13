@@ -49,10 +49,20 @@ module VObject
       end #def
       
       # ----------------------------------------------------------------------------------
+      # a string in UTF-8: bytes that are no UTF-8 are read as Windows-1252, and a
+      # character that cannot be converted becomes "?"
+      #
+      def utf8( str )
+        str     = str.to_s
+        charset = str.dup.force_encoding( "UTF-8" ).valid_encoding? ? "UTF-8" : "Windows-1252"
+        str.encode( "UTF-8", charset, :invalid => :replace, :undef => :replace, :replace => "?" )
+      end #def
+
+      # ----------------------------------------------------------------------------------
       # escapes a string value from ,;: and \n
       #
       def esc_str(str)
-        str.to_s.to_utf8.gsub(/\\|,|;|:|\n/) do |match|
+        utf8( str ).gsub(/\\|,|;|:|\n/) do |match|
           case match
           when '\\' then '\\\\'
           when ','  then '\\,'
@@ -97,7 +107,7 @@ module VObject
       # unescapes a string value from \,\;\: and \n
       #
       def unesc_str(str)
-        str.to_s.to_utf8.gsub(/\\([\\,;:nN])/) do
+        utf8( str ).gsub(/\\([\\,;:nN])/) do
           case Regexp.last_match(1)
           when '\\' then '\\'
           when ','  then ','

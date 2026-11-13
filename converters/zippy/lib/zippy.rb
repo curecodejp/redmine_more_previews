@@ -200,15 +200,24 @@ class Zippy < RedmineMorePreviews::Conversion
     end
     list_assets( @names, complete )
     list << [CGI.escapeHTML(I18n.translate(:"redmine_more_previews.zippy.text_list_truncated"))] unless complete
-    html = list.to_html(
-        :table_class => "list",
-        :headings    => true,
-        :cell        => {:class => "description"},
-        :html_safe   => true
-      )
+    html = list_table( list )
     File.open(tmptarget, "wt"){|f| f.write html }
   end #def
   
+  #---------------------------------------------------------------------------------------
+  # list_table
+  #---------------------------------------------------------------------------------------
+  # the listing as a table, its first row the heading. The cells are HTML already:
+  # the names are escaped where they are written (see tarlink, ziplink). A listing
+  # without entries has no body
+  def list_table( list )
+    head, *body = list
+    row  = ->(cells, tag) { "<tr>" + cells.map { |cell| "<#{tag}>#{cell}</#{tag}>" }.join + "</tr>" }
+    html = "<table class='list'><thead>" + row.call( head, "th" ) + "</thead>"
+    html += "<tbody>" + body.map { |cells| row.call( cells, "td" ) }.join + "</tbody>" if body.any?
+    html + "</table>"
+  end #def
+
   #---------------------------------------------------------------------------------------
   # tarlist
   #---------------------------------------------------------------------------------------
@@ -565,12 +574,7 @@ class Zippy < RedmineMorePreviews::Conversion
     @names = Set.new
     zip_file.entries.each {|entry| list_name( entry.name ) if entry.ftype == :file }
     list_assets( @names, true )
-    html = list.to_html(
-      :table_class => "list",
-      :headings    => true,
-      :cell        => {:class => "description"},
-      :html_safe   => true
-    )
+    html = list_table( list )
     File.open(tmptarget, "wt"){|f| f.write html }
   end #def
   

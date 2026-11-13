@@ -45,8 +45,8 @@
 #       - link the entries of a listing shown inline to the preview of the attachment
 #       - stop the walk through a tar archive at the time limit of the conversion
 #       - show names written in CP932 in Japanese
+#       - write the table of a listing itself, without Array#to_html of the gem hash_base
 
-require_relative 'lib/array'
 require_relative 'lib/zippy'
 
 RedmineMorePreviews::Converter.register :zippy do

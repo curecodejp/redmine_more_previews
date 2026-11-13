@@ -28,4 +28,10 @@ es:
   
   redmine_more_previews:
     cliff:
-      text_explanation:                          "archivos de correo electrónico de Internet anteriores"  
+      text_explanation:                          "archivos de correo electrónico de Internet anteriores"
+      label_max_size:                            "Correo electrónico más grande (MiB)"
+      label_max_parts:                           "Máximo de partes MIME"
+      label_max_attachments:                     "Máximo de adjuntos mostrados"
+      text_help_limits:                          "No se muestra la vista previa de un correo más grande o con más partes MIME. Los adjuntos que superan el límite se cuentan en la lista, pero no se extraen."
+      text_more_attachments:                     "y %{count} adjuntos más"
+      text_not_previewed:                        "No se pudo mostrar la vista previa del correo electrónico."

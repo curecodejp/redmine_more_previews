@@ -29,3 +29,9 @@ de:
   redmine_more_previews:
     cliff:
       text_explanation:                          "Vorschau von Internet-E-Mail-Dateien"
+      label_max_size:                            "Größte E-Mail (MiB)"
+      label_max_parts:                           "Höchstzahl der MIME-Teile"
+      label_max_attachments:                     "Höchstzahl angezeigter Anhänge"
+      text_help_limits:                          "Eine größere E-Mail oder eine mit mehr MIME-Teilen wird nicht in der Vorschau angezeigt. Anhänge über dem Limit werden in der Liste gezählt, aber nicht extrahiert."
+      text_more_attachments:                     "und %{count} weitere Anhänge"
+      text_not_previewed:                        "Für die E-Mail konnte keine Vorschau erstellt werden."

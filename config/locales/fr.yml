@@ -34,6 +34,20 @@ fr:
   label_use_cache:                                         "Cache"
   text_more_previews_cache:                                "Mise en cache de l'aperçu généré"
   text_help_redmine_more_previews_cache:                   "La mise en cache rend l'affichage répété des prévisualisations beaucoup plus rapide, mais peut gonfler le répertoire /tmp dans le répertoire racine de Redmine."
+  text_more_previews_limits:                               "Limites de conversion"
+  label_conversion_timeout:                                "Durée maximale (secondes)"
+  label_lock_timeout:                                      "Attente maximale (secondes)"
+  label_max_conversions:                                   "Conversions simultanées"
+  label_max_repository_file:                               "Plus grand fichier de dépôt (Mio)"
+  label_max_output:                                        "Plus grand aperçu servi (Mio)"
+  label_max_cache:                                         "Taille du cache (Mio)"
+  label_failure_ttl:                                       "Durée de mémorisation des échecs (minutes)"
+  text_help_redmine_more_previews_limits:                  "Une conversion qui dure plus longtemps que la durée maximale est arrêtée avec tous les programmes qu’elle a lancés (Libre dispose d’au moins 120 secondes). Une requête reçoit la réponse 503 (réessayer plus tard) lorsque toutes les conversions, comptées sur l’ensemble des processus Redmine, sont occupées, ou lorsqu’elle attend plus longtemps que l’attente maximale un aperçu en cours de conversion. Un fichier de dépôt ou un aperçu plus grand que sa limite reçoit la réponse 413. Lorsque le cache dépasse sa taille, les nouveaux aperçus sont convertis à chaque requête et ne sont pas enregistrés. Une conversion échouée n’est pas retentée tant qu’elle est mémorisée, sauf si un administrateur recharge l’aperçu. Le rechargement et l’aperçu non sécurisé des e-mails sont réservés aux administrateurs."
+  text_more_previews_busy:                                 "L’aperçu est en cours de génération ou le serveur est occupé. Veuillez réessayer plus tard."
+  text_more_previews_too_large:                            "Le fichier est trop volumineux pour être prévisualisé."
+  text_more_previews_image_failed:                         "L’aperçu n’a pas pu être affiché. L’image est peut-être trop grande (les limites sont de 16 000 pixels en largeur ou en hauteur et de 128 mégapixels au total, ainsi que la taille définie dans les paramètres de Maggie pour les images HEIC et TIFF), ou la conversion a échoué. Téléchargez le fichier pour le consulter."
+  error_more_previews_invalid_libre_format:                "Format de conversion LibreOffice non valide ; les paramètres n’ont pas été enregistrés."
+  error_more_previews_unreadable_image_format:             "ImageMagick ne peut pas lire %{formats} (vérifiez avec : convert -list format, ou magick -list format avec ImageMagick 7) ; les paramètres n’ont pas été enregistrés."
   
   label_redmine_more_previews_plugins_settings:            "Configuration des plugins"
   
@@ -47,3 +61,6 @@ fr:
 
   text_more_previews_inline_too_large: "L’aperçu intégré dépasse la limite de taille. Téléchargez le fichier pour le consulter."
   text_more_previews_inline_too_complex: "L’aperçu intégré est trop complexe pour être affiché. Téléchargez le fichier pour le consulter."
+  label_more_previews_bulk_actions:                        "Actions groupées"
+  label_more_previews_toggle_all_extensions:               "Activer ou désactiver toutes les extensions"
+  label_more_previews_bulk_format:                         "Format pour toutes les extensions"

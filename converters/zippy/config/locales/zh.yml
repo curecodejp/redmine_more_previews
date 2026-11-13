@@ -28,3 +28,9 @@ zh:
   redmine_more_previews:
     zippy:
       text_explanation:          "预览zip文件"
+      text_list_truncated:       "列表到此为止：压缩包中的条目比列出的更多或更大。"
+      label_max_entries:         "条目数量上限"
+      label_max_inflated:        "从 tar 或 tgz 解压的字节上限（MiB）"
+      label_max_asset:           "提取的文件大小上限（MiB）"
+      label_max_stored:          "每个压缩包保存的文件总大小上限（MiB）"
+      text_help_limits:          "条目更多的压缩包或超过上限的文件返回 413（过大）。tar 或 tgz 的列表在达到上限时截止。"

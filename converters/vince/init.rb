@@ -40,6 +40,7 @@
 #       - show a telephone number of text; split data URIs and base64 photos without the URI parser
 #       - without the gems hbl_text, hash_base and deep_try
 #       - a revision of its cache (vince-1): previews stored before are converted again
+#       - instant messaging (IMPP) translated into de, es, fr, pt, pt-BR, ru and zh
 #
 
 require_relative 'lib/vince_lib/v_object'

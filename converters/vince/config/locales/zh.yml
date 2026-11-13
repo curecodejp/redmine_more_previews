@@ -48,6 +48,7 @@ zh:
     LABEL:                "地址标签"
     ORG:                  "组织"
     EMAIL:                "电子邮件"
+    IMPP:                 "即时通讯"
     
     GENDER:               "性别"
     GENDER_VALUE:         

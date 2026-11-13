@@ -48,6 +48,7 @@ es:
     LABEL:                "Etiqueta de dirección"
     ORG:                  "Organización"
     EMAIL:                "Correo electrónico"
+    IMPP:                 "Mensajería instantánea"
     
     GENDER:               "Género"
     GENDER_VALUE:         

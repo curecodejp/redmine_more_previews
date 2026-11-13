@@ -46,6 +46,7 @@
 #       - stop the walk through a tar archive at the time limit of the conversion
 #       - show names written in CP932 in Japanese
 #       - write the table of a listing itself, without Array#to_html of the gem hash_base
+#       - the limits and the message of a list cut short translated into de, es, fr, pt, pt-BR, ru and zh
 
 require_relative 'lib/zippy'
 

@@ -29,3 +29,9 @@ pt:
   redmine_more_previews:
     cliff:
       text_explanation:                          "Pré-visualização de ficheiros de e-mail na Internet"
+      label_max_size:                            "Maior e-mail (MiB)"
+      label_max_parts:                           "Máximo de partes MIME"
+      label_max_attachments:                     "Máximo de anexos mostrados"
+      text_help_limits:                          "Um e-mail maior, ou com mais partes MIME, não é pré-visualizado. Os anexos além do limite são contados na lista, mas não são extraídos."
+      text_more_attachments:                     "e mais %{count} anexos"
+      text_not_previewed:                        "Não foi possível pré-visualizar o e-mail."

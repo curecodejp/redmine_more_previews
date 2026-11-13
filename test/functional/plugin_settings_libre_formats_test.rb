@@ -28,6 +28,17 @@ class PluginSettingsLibreFormatsTest < Redmine::ControllerTest
     Setting.clear_cache
   end
 
+  # the bulk actions of Libre were written in English
+  def test_the_bulk_actions_are_shown_in_the_user_language
+    User.find(1).update!(language: 'ja')
+    get :plugin, params: {id: 'redmine_more_previews'}
+    assert_response :success
+    assert_select 'legend', :text => '一括操作'
+    assert_select 'label[for=toggle_all_libre]', :text => 'すべての拡張子を切り替える'
+    assert_select 'label[for=bulk_format_libre]', :text => 'すべての拡張子の形式'
+    assert_select 'select#bulk_format_libre option[value=""]', :text => '-- 選んでください --'
+  end
+
   def test_disallowed_format_does_not_save_settings
     updated = @settings.deep_dup
     updated['converter']['libre']['mime_types']['docx']['format'] = 'xml'

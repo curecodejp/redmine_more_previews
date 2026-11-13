@@ -28,3 +28,9 @@ fr:
   redmine_more_previews:
     zippy:
       text_explanation:          "Prévisualisation des fichiers zip"
+      text_list_truncated:       "La liste s’arrête ici : l’archive contient plus d’entrées, ou de plus grandes, que celles listées."
+      label_max_entries:         "Nombre maximal d’entrées"
+      label_max_inflated:        "Octets décompressés au maximum d’un tar ou tgz (Mio)"
+      label_max_asset:           "Plus grand fichier extrait (Mio)"
+      label_max_stored:          "Taille totale des fichiers enregistrés par archive (Mio)"
+      text_help_limits:          "Une archive comportant plus d’entrées, ou un fichier plus grand que la limite, reçoit la réponse 413 (trop volumineux). La liste d’un tar ou tgz s’arrête aux limites."

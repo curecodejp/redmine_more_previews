@@ -28,4 +28,10 @@ fr:
   
   redmine_more_previews:
     cliff:
-      text_explanation:                        "Prévisualisation des fichiers de courrier électronique sur Internet"  
+      text_explanation:                        "Prévisualisation des fichiers de courrier électronique sur Internet"
+      label_max_size:                          "Plus grand e-mail (Mio)"
+      label_max_parts:                         "Nombre maximal de parties MIME"
+      label_max_attachments:                   "Nombre maximal de pièces jointes affichées"
+      text_help_limits:                        "Un e-mail plus grand, ou comportant plus de parties MIME, n’est pas prévisualisé. Les pièces jointes au-delà de la limite sont comptées dans la liste, mais ne sont pas extraites."
+      text_more_attachments:                   "et %{count} autres pièces jointes"
+      text_not_previewed:                      "L’e-mail n’a pas pu être prévisualisé."

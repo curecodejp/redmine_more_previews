@@ -52,6 +52,7 @@
 # 1.1.8
 #       - show the header boxes for the file Cliff converts, selected by its content
 #       - save an attachment whose name is longer than a file system takes, or is . or ..; the subject in French
+#       - the limits and messages translated into de, es, fr, pt, pt-BR, ru and zh
 #
 
 require_relative 'lib/cliff'

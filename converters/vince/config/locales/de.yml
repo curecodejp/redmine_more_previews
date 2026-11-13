@@ -48,6 +48,7 @@ de:
     LABEL:                "Adress-Label"
     ORG:                  "Organisation"
     EMAIL:                "E-Mail"
+    IMPP:                 "Instant Messaging"
     
     GENDER:               "Geschlecht"
     GENDER_VALUE:         

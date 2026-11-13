@@ -61,6 +61,7 @@ ru:
   text_help_redmine_more_previews_absolute:                "(используйте URL со схемой и хостом) для <iframe>-тега или <embed>-тега."
   text_more_previews_inline_too_large: "Размер встроенного предварительного просмотра превышает допустимый предел. Скачайте файл для просмотра."
   text_more_previews_inline_too_complex: "Встроенный предварительный просмотр слишком сложен для отображения. Скачайте файл для просмотра."
+  text_more_previews_inline_failed:      "Не удалось показать предварительный просмотр. Скачайте файл для просмотра."
   label_more_previews_bulk_actions:                        "Групповые действия"
   label_more_previews_toggle_all_extensions:               "Включить или выключить все расширения"
   label_more_previews_bulk_format:                         "Формат для всех расширений"

@@ -60,6 +60,7 @@ pt:
   text_help_redmine_more_previews_absolute:                "(usar URL com esquema e host) para <iframe>-tag ou <embed>-tag"
   text_more_previews_inline_too_large: "A pré-visualização excede o limite de tamanho. Transfira o ficheiro para o consultar."
   text_more_previews_inline_too_complex: "A pré-visualização é demasiado complexa para ser apresentada. Transfira o ficheiro para o consultar."
+  text_more_previews_inline_failed:      "Não foi possível mostrar a pré-visualização. Transfira o ficheiro para o consultar."
   label_more_previews_bulk_actions:                        "Ações em massa"
   label_more_previews_toggle_all_extensions:               "Ativar ou desativar todas as extensões"
   label_more_previews_bulk_format:                         "Formato para todas as extensões"

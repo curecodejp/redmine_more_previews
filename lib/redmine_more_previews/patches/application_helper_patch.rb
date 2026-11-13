@@ -200,6 +200,26 @@ module RedmineMorePreviews
             }
           end
 
+          # an inline preview of object (an attachment, or a repository with the
+          # path and revision of the entry in args), converted while the page is
+          # rendered: the HTML, sanitized, or a message. A conversion that failed,
+          # or failed before, gives nil, or no call of the block without the cache;
+          # an empty preview (pandoc gives a line break for an empty Markdown file)
+          # is no failure
+          def inline_more_preview(object, *args)
+            html = if RedmineMorePreviews::Converter.cache_previews?
+              object.more_preview(*args, inline_preview_options)
+            else
+              converted = nil
+              object.more_preview(*args, inline_preview_options) { |preview| converted = preview }
+              converted
+            end
+            return content_tag(:p, l(:text_more_previews_inline_failed), :class => "nodata") if html.nil?
+            sanitize_inline_preview(RedmineMorePreviews::Lib::RmpText.to_utf8(html))
+          rescue RedmineMorePreviews::Exceptions::ConverterTooLarge
+            content_tag(:p, l(:text_more_previews_inline_too_large), :class => "nodata")
+          end #def
+
           def sanitize_inline_preview(html)
             html = html.to_s
             return ''.html_safe if html.empty?

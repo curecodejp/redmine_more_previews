@@ -60,6 +60,7 @@ de:
   text_help_redmine_more_previews_absolute:                "(URL mit Schema und Host) für <iframe>-tag oder <embed>-tag nutzen."
   text_more_previews_inline_too_large: "Die Inline-Vorschau überschreitet die Größenbegrenzung. Laden Sie die Datei herunter, um sie anzusehen."
   text_more_previews_inline_too_complex: "Die Inline-Vorschau ist zu komplex für die Anzeige. Laden Sie die Datei herunter, um sie anzusehen."
+  text_more_previews_inline_failed:      "Die Vorschau konnte nicht angezeigt werden. Laden Sie die Datei herunter, um sie anzusehen."
   label_more_previews_bulk_actions:                        "Sammelaktionen"
   label_more_previews_toggle_all_extensions:               "Alle Erweiterungen umschalten"
   label_more_previews_bulk_format:                         "Format für alle Erweiterungen"

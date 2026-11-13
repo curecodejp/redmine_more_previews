@@ -212,6 +212,55 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     get :entry, params: entry_params(format: 'html')
     assert_response :success
     assert_includes response.body, 'uncached'
+    assert_not_includes response.body, I18n.t(:text_more_previews_inline_failed)
+  end
+
+  # a conversion that failed gives nothing: the page said nothing about it
+  def test_inline_preview_that_failed_is_said_cached_and_uncached
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    Repository::Filesystem.any_instance.stubs(:more_preview).returns(nil)
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_select 'p.nodata', :text => I18n.t(:text_more_previews_inline_failed), :count => 1
+
+    RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+    Repository::Filesystem.any_instance.stubs(:more_preview).returns(nil) # the block is not called
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_select 'p.nodata', :text => I18n.t(:text_more_previews_inline_failed), :count => 1
+
+    Repository::Filesystem.any_instance.stubs(:more_preview).yields(nil) # no output file
+    get :entry, params: entry_params(format: 'html')
+    assert_response :success
+    assert_select 'p.nodata', :text => I18n.t(:text_more_previews_inline_failed), :count => 1
+  end
+
+  # an empty preview is no failure, as for the conversion (which remembers only
+  # nil as one): a file of 0 bytes, or a line break (pandoc's output for an
+  # empty Markdown file)
+  def test_inline_preview_that_is_empty_is_no_failure
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+
+    ['', "\n"].each do |empty|
+      RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(true)
+      Repository::Filesystem.any_instance.stubs(:more_preview).returns(empty)
+      get :entry, params: entry_params(format: 'html')
+      assert_response :success
+      assert_not_includes response.body, I18n.t(:text_more_previews_inline_failed), empty.inspect
+
+      RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+      Repository::Filesystem.any_instance.stubs(:more_preview).yields(empty)
+      get :entry, params: entry_params(format: 'html')
+      assert_response :success
+      assert_not_includes response.body, I18n.t(:text_more_previews_inline_failed), empty.inspect
+    end
   end
 
   def test_inline_preview_over_the_parser_limit_preserves_repository_page

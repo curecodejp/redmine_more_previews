@@ -422,10 +422,6 @@ module RedmineMorePreviews
       h.select{|key,vals| [true, 1, "1"].include?(vals["active"]) }
     end #def
     
-    def self.conversion_extension( ext )
-      active_mime_types.dig(ext, "format")
-    end #def
-    
     ######################################################################################
     # instance methods
     ######################################################################################

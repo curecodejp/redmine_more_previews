@@ -254,7 +254,7 @@ module RedmineMorePreviews
               content_tag(:div, 
                 content_tag(
                   :object,
-                  tag(:embed, :href => path, :type => options[:type]),
+                  tag(:embed, :src => path, :type => options[:type]),
                   { :style   => "position:absolute;top:0;left:0;width:95%;height:100%;",
                     :title   => filename,
                     :type    => options[:type],

@@ -75,6 +75,24 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_nil worker.preview(File.new(@source))
   end
 
+  # a failure of the file is kept, and the file is not converted again for a
+  # while; running out of memory or a signal is no failure of the file
+  def test_an_error_of_the_file_is_kept_and_running_out_of_memory_is_not
+    worker = pass_worker
+    worker.define_singleton_method(:convert) { raise 'broken file' }
+    assert_nil worker.preview(File.new(@source))
+    assert_equal 'error', RedmineMorePreviews::Lib::RmpFailures.recorded(@target)
+    RedmineMorePreviews::Lib::RmpFailures.forget(@target)
+
+    [NoMemoryError, Interrupt].each do |error|
+      worker = pass_worker
+      worker.define_singleton_method(:convert) { raise error }
+      assert_raises(error) { worker.preview(File.new(@source)) }
+      assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(@target), error.name
+    end
+    assert_equal 'plain text', pass_worker.preview(File.new(@source)), 'the file is converted on the next request'
+  end
+
   def test_a_preview_is_converted_and_cached
     assert_equal 'plain text', pass_worker.preview(File.new(@source))
     assert_equal 'plain text', File.read(@target)

@@ -85,6 +85,18 @@ class HtmlPreviewSandboxTest < ActiveSupport::TestCase
     assert_equal 'position:absolute;top:0;left:0;width:95%;height:100%;', frame['style']
   end
 
+  # the fallback of the <object> loads its preview by src: href is no attribute
+  # of an <embed>, which then showed nothing
+  def test_the_embed_fallback_loads_the_preview
+    Setting.plugin_redmine_more_previews = ZIPPY_SETTINGS.merge('embedding' => '0')
+    Setting.clear_cache
+
+    embed = Nokogiri::HTML.fragment(helper.more_previews_tag('/attachments/more_preview/1.pdf', 'preview.pdf', type: 'application/pdf').to_s).at_css('object > embed')
+    assert embed, 'an <embed> in the <object>'
+    assert_equal '/attachments/more_preview/1.pdf', embed['src']
+    assert_nil embed['href']
+  end
+
   # A pane sized by its width is taller than the window on a wide screen. The
   # page then scrolls as well as the frame or viewer inside it.
   def test_non_html_panes_are_sized_by_the_window_in_both_embedding_modes

@@ -5,6 +5,35 @@ require File.expand_path('../../test_helper', __FILE__)
 class RmpFileSafePathTest < ActiveSupport::TestCase
   RmpFile = RedmineMorePreviews::Lib::RmpFile
 
+  # the characters were matched as alternatives, "|" and '"' only as a pair
+  def test_sanitize_replaces_each_character_a_file_name_may_not_have
+    assert_equal 'a_b_c_d.txt', RmpFile.sanitize('a|b"c?d.txt')
+    assert_equal '_________.txt', RmpFile.sanitize(%q(%*:|"'<> .txt))
+    assert_equal 'a_b_c.txt', RmpFile.sanitize('a;b&c.txt')
+    assert_equal 'file.txt', RmpFile.sanitize('dir/file.txt')
+    assert_equal 'dir_file.txt', RmpFile.sanitize('dir/file.txt', ignore_delimiters: true)
+  end
+
+  # a file system takes a name of 255 bytes: a name in Japanese was cut at 260
+  # characters, some 780 bytes, and could not be written
+  def test_sanitize_bounds_a_name_by_its_bytes
+    name = RmpFile.sanitize("#{'あ' * 100}.pdf")
+    assert_operator name.bytesize, :<=, RmpFile::MAX_FILENAME_BYTES
+    assert name.valid_encoding?
+    assert_equal "#{'あ' * 78}.pdf", name, 'no character is cut in two, the extension is kept'
+    assert_equal 'a' * 236 + '.txt', RmpFile.sanitize("#{'a' * 300}.txt")
+    long_extension = "a.#{'x' * 40}"
+    assert_equal long_extension, RmpFile.sanitize(long_extension), 'a long extension is part of the name'
+    assert_equal 'short.txt', RmpFile.sanitize('short.txt')
+  end
+
+  # a name of a directory could not be written: the whole email was not previewed
+  def test_sanitize_names_a_directory_noname
+    %w[. .. a/.. ../..].each { |name| assert_equal 'noname', RmpFile.sanitize(name), name }
+    assert_equal '.._..', RmpFile.sanitize('../..', ignore_delimiters: true)
+    assert_equal '...', RmpFile.sanitize('...')
+  end
+
   def test_safe_relative_path_accepts_plain_relative_paths
     assert_equal 'file.txt',      RmpFile.safe_relative_path('file.txt')
     assert_equal 'dir/file.txt',  RmpFile.safe_relative_path('dir/file.txt')

@@ -51,6 +51,7 @@
 #       - embed the inline images of HTML previews as data: URIs
 # 1.1.8
 #       - show the header boxes for the file Cliff converts, selected by its content
+#       - save an attachment whose name is longer than a file system takes, or is . or ..; the subject in French
 #
 
 require_relative 'lib/cliff'

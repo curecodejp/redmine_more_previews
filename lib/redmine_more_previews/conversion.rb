@@ -377,7 +377,11 @@ module RedmineMorePreviews
         failure ||= targetpath if asset && (@asset_too_large || asset_listed == true)
         Lib::RmpFailures.record( failure || whole_failed( whole ), "too_large" )
         raise
-      rescue Exception => e
+      rescue StandardError, ScriptError, SystemStackError => e
+        # a failure of the file, kept for a while (see RmpFailures). Running out of
+        # memory, a signal or an exit of the Redmine process is no failure of the
+        # file: it is not kept. In a child process or a command (see isolated,
+        # command) the file met its limits: that is kept as an error
         Rails.logger.error "An error occured while generating preview for #{source}"
         Rails.logger.error "Exception was: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")

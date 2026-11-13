@@ -27,10 +27,6 @@ module RedmineMorePreviews
         
         def to_img(markup, format="PNG")
         
-          Rails.logger.warn('rmagick_font_path option is deprecated. Use minimagick_font_path instead.') \
-            unless Redmine::Configuration['rmagick_font_path'].nil?
-          font_path = Redmine::Configuration['minimagick_font_path'].presence || Redmine::Configuration['rmagick_font_path'].presence
-          
           width  =800
           height =1220
           
@@ -44,8 +40,9 @@ module RedmineMorePreviews
             #gc.xc('white')
             gc.background('lightblue')
             
-            # font
-            gc.font(font_path) if font_path.present?
+            # font: pango takes the name of a font family, not a file, so the font
+            # file of the Redmine configuration (minimagick_font_path) cannot be
+            # given here. Pango finds a font for the characters Arial does not have
             gc.font('Arial')
             
             # Hello World

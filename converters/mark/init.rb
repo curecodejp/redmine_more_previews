@@ -32,6 +32,7 @@
 #       - fixed japanese localization
 # 1.1.2
 #       - convert to the configured format, not to the format of the request
+#       - pandoc runs with a limit of its address space (1 GiB), and with --sandbox from 2.15
 ##
 
 require_relative 'lib/mark'

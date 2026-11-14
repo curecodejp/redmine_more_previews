@@ -209,6 +209,8 @@ Mark uses Pandoc to do the conversion. Currently supported is:
 
 .md, .textile, .html
 
+Pandoc 2.15 and later run with `--sandbox`: Pandoc reads no file but the one converted. Earlier versions do not know the option and run without it. Mark asks Pandoc its version once, at its first conversion: restart Redmine after upgrading Pandoc.
+
 ---
 
 ![Peek](doc/peek/logo.png "Peek")
@@ -315,6 +317,7 @@ Native speakers: please help to improve localizations
 - **NilText** is not registered when Redmine runs in production, so it cannot be enabled there by mistake. Settings saved for it are not used (and are dropped the next time the settings are saved).
 - For the authors of converters: `Converter.conversion_extension` and `Entry#conversion_extension`, which always gave `nil` and were not used, are removed.
 - The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
+- **Libre** and **Mark** run LibreOffice and Pandoc with a limit of their memory (address space: 4 GiB for LibreOffice, 1 GiB for Pandoc); they had a time limit only. A document that needs more fails, as one that runs out of time does. Pandoc 2.15 and later run with `--sandbox`, and read no file but the one converted.
 - **Libre:** the check of its sandbox (on the administration pages, and before each conversion) is stopped after 5 seconds, with what it started. A check that hung was not stopped: it held the conversion of the file and a conversion slot while it hung.
 - Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4, Libre 1.1.6, NilText 1.0.3.
 
@@ -594,7 +597,9 @@ A preview shown inline in the page (the `inline` format, and the email headers, 
 
 A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. An asset that the cached preview does not offer (a name not in the list of an archive, or a file not among the assets stored with a preview) is answered with `404` without converting, and its failure is not remembered: only the failures of assets known to exist are. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown. A preview shown inline in the page of a file ignores the unsafe parameter for administrators as well.
 
-On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn, and Cliff parses an email within the Redmine process, with neither the time limit nor the memory limit.
+LibreOffice (Libre) and Pandoc (Mark) also have a limit of their address space: 4 GiB for LibreOffice, which reserves some 5 GiB without a limit but uses a few hundred MiB, and 1 GiB for Pandoc, which takes some 180 MiB for a Markdown file of 450 KB. A document that needs more fails, as one that runs out of time does. These limits are not settings, and never above a limit that Redmine itself runs with (`ulimit -v`, or `LimitAS=` of systemd).
+
+On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn, Pandoc has no memory limit (Libre is not available there), and Cliff parses an email within the Redmine process, with neither the time limit nor the memory limit.
 
 ## Benchmarking inline preview sanitization (test/staging only)
 

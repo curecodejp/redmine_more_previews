@@ -38,6 +38,7 @@
 #       - embed the images of HTML previews as data: URIs
 # 1.1.6
 #       - the sandbox probe is stopped with its process group at its time limit
+#       - soffice runs with a limit of its address space (4 GiB)
 ##
 
 require_relative 'lib/libre'

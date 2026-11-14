@@ -816,11 +816,13 @@ module RedmineMorePreviews
     
     # execute command, within the time limit of the conversion: a command that
     # runs out of it is stopped with all the processes it started, and the
-    # conversion fails (ConverterTimeout) even with options[:dontfail]
+    # conversion fails (ConverterTimeout) even with options[:dontfail].
+    # options[:memory]: bytes of address space each of its processes may take
+    # (see Lib::RmpProcess.run)
     def command( cmd, options={})
       remaining = @deadline ? @deadline - Lib::RmpProcess.now : conversion_timeout
       raise ConverterTimeout, "no time left" unless remaining > 0
-      status = Lib::RmpProcess.run( cmd, :timeout => remaining )
+      status = Lib::RmpProcess.run( cmd, :timeout => remaining, :memory => options[:memory] )
       unless status.success?
         Rails.logger.error("Creating preview with #{name} failed (#{status}):\nCommand: #{cmd}")
         raise ConverterShellError unless options[:dontfail]

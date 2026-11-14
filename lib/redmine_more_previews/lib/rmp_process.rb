@@ -46,9 +46,9 @@ module RedmineMorePreviews
       #
       # memory: bytes of address space each process of the command may take
       # (RLIMIT_AS, which the processes it starts inherit), never more than the
-      # limit of this process; none on Windows. A process that runs out of it
-      # cannot take more memory: it may fail, or exit 0 having written nothing,
-      # so the caller checks the output as well.
+      # limit of this process; none on Windows, nor where Ruby knows no RLIMIT_AS.
+      # A process that runs out of it cannot take more memory: it may fail, or
+      # exit 0 having written nothing, so the caller checks the output as well.
       #
       # Returns the Process::Status; raises ConverterTimeout when the time limit
       # passes. Also after a normal exit, processes left behind in the group are
@@ -174,7 +174,7 @@ module RedmineMorePreviews
       # LimitAS=): a hard limit above its own is refused (EPERM), and a soft one
       # would loosen it
       def self.memory_option( memory )
-        return {} if memory.nil? || Redmine::Platform.mswin?
+        return {} if memory.nil? || Redmine::Platform.mswin? || !defined?( Process::RLIMIT_AS )
         soft, hard = Process.getrlimit( Process::RLIMIT_AS )
         { :rlimit_as => [[memory, soft].min, [memory, hard].min] }
       end #def

@@ -37,8 +37,9 @@ class Mark < RedmineMorePreviews::Conversion
   # the default time limit an input nested deep reached some 255 MiB; the limit
   # bounds what it takes when the time limit is raised
   MAX_MEMORY = 1024**3
-  # with --sandbox, pandoc reads no file but those on its command line, f.i.
-  # none that LaTeX in the input includes. pandoc before 2.15 refuses the option
+  # with --sandbox, the readers and writers of pandoc read no file but those on
+  # its command line: the input cannot make it read another, f.i. one that LaTeX
+  # in it includes. pandoc before 2.15 refuses the option
   SANDBOX_VERSION = Gem::Version.new("2.15")
   
   class << self

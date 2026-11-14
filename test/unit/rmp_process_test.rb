@@ -84,6 +84,17 @@ class RmpProcessTest < ActiveSupport::TestCase
     assert_equal [(128 * 1024).to_s, (192 * 1024).to_s], File.read(limit).split
   end
 
+  # a system that has no such limit runs the command without it
+  def test_memory_is_left_out_where_ruby_knows_no_limit_of_the_address_space
+    rlimit_as = Process.send(:remove_const, :RLIMIT_AS)
+    begin
+      assert_equal({}, RmpProcess.send(:memory_option, 256 * 1024**2))
+      assert RmpProcess.run([RbConfig.ruby, '-e', 'exit 0'], timeout: 30, memory: 256 * 1024**2).success?
+    ensure
+      Process.const_set(:RLIMIT_AS, rlimit_as)
+    end
+  end
+
   def test_a_command_beyond_its_memory_fails
     grow = 'x = "x" * (512 * 1024 * 1024); exit 0'
     assert RmpProcess.run([RbConfig.ruby, '-e', 'exit 0'], timeout: 30, memory: 256 * 1024**2).success?

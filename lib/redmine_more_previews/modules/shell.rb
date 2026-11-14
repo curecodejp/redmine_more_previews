@@ -48,7 +48,7 @@ module RedmineMorePreviews
        def execute(command, options = {})
          stdout, stderr, status =
            log(command.join(" ")) do
-             send("execute_#{shell_api.gsub("-", "_")}", command, options)
+             execute_open3(command, options)
            end
            
          [stdout, stderr, status.exitstatus]
@@ -87,14 +87,6 @@ module RedmineMorePreviews
          raise RedmineMorePreviews::Exceptions::ConverterTimeout, "Converter command timed out: #{command}"
        ensure
          [in_r, in_w, out_r, out_w, err_r, err_w].each { |io| io.close unless io.nil? || io.closed? }
-       end
-       
-       def execute_posix_spawn(command, options = {})
-         require "posix-spawn"
-         child = POSIX::Spawn::Child.new(*command, input: options[:stdin].to_s, timeout: timeout)
-         [child.out, child.err, child.status]
-       rescue POSIX::Spawn::TimeoutExceeded
-         raise RedmineMorePreviews::Exceptions::ConverterTimeout, "Converter command timed out: #{command}"
        end
        
        def log(command, &block)

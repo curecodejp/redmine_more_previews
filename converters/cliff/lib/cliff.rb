@@ -20,7 +20,6 @@
 #
 
 require "nokogiri"
-require 'active_support/core_ext/hash/conversions'
 
 class Cliff < RedmineMorePreviews::Conversion
 
@@ -579,37 +578,5 @@ class Cliff < RedmineMorePreviews::Conversion
     erb = ERB.new(File.read(File.join(views, 'cliff', 'attachments.html.erb')))
     erb.result(b).squish.html_safe
   end #def
-  
-  #---------------------------------------------------------------------------------------
-  # obj_to_xml( label, obj, xml=nil )
-  # creates xml from an arbitrary nested mixture of arrays and hashes
-  #
-  def obj_to_xml( label, obj, xml=nil )
-  
-    if xml
-      if obj.is_a?(Array)
-        obj.each do |value|
-          obj_to_xml(label,value,xml)     # Recurse
-        end
-      elsif obj.is_a?(Hash)
-        if obj.any?
-          xml.send(label) do
-            obj.each do |key, value|
-              obj_to_xml(key,value,xml)   # Recurse
-            end
-          end
-        end
-      else
-        xml.send(label,obj)               # Create <label>obj(value)</label>
-      end #if 
-    else
-      _xml = Nokogiri::XML::Builder.new(encoding: 'UTF-8') do |xml|
-        xml.root do                       # Wrap everything in one element.
-         obj_to_xml(label, obj ,xml)      # Start the recursion with a custom name.
-        end #_xml
-      end #Nokogiri
-    end #if
-    _xml
-  end #def 
   
 end #class

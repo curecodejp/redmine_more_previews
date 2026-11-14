@@ -68,6 +68,13 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_equal (256 * 1024).to_s, File.read(limit).strip
   end
 
+  # commands run with open3 whatever shell_api says: the posix-spawn way did not
+  # stop what a command started, and its gem is not bundled
+  def test_commands_run_with_open3_whatever_shell_api_says
+    worker = RedmineMorePreviews::Converter.find(:pass).worker(preview_format: 'txt', object: {}, target: @target, shell_api: 'posix-spawn')
+    assert_equal ['1', '', 0], worker.run([RbConfig.ruby, '-e', 'print 1'])
+  end
+
   def test_commands_of_one_conversion_share_the_time_limit
     worker = pass_worker
     worker.instance_variable_set(:@deadline, now - 1)

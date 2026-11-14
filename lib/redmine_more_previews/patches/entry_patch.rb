@@ -33,11 +33,6 @@ module RedmineMorePreviews
             RedmineMorePreviews::Converter.convertible?(name)
           end #def
           
-          def info
-            [name, path, kind, size, lastrev].join(" ").
-            gsub(/[^a-z^A-Z^0-9^_]/, " ").squish.gsub(/\ /, "-")
-          end #def
-          
         end #base
       end #self
       

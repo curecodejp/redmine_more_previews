@@ -179,14 +179,18 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
   end
 
   # the table of the listing: a heading and a row for each entry; the names are
-  # escaped once, where the cells are written
+  # escaped once, where the cells are written. The preview comes as bytes: it is
+  # read as UTF-8, with headings in Japanese whatever locale a test before left
   def test_toc_table
-    html = toc(build_zip(archive('table.zip'), 'a <b>.txt' => 'x'))
-    heads = [:label_filename, :label_filesize, :label_compressed_filesize].map { |l| "<th>#{I18n.t(l)}</th>" }.join
-    assert_equal "<table class='list'><thead><tr>#{heads}</tr></thead><tbody><tr>" \
-                 '<td><a download="a &lt;b&gt;.txt" target="_top" href="/attachments/more_preview/1.html?asset=a+%3Cb%3E.txt">a &lt;b&gt;.txt</a></td>' \
-                 '<td>1 Byte</td><td>3 Bytes</td></tr></tbody></table>', html
-    assert_equal "<table class='list'><thead><tr>#{heads}</tr></thead></table>", toc(build_zip(archive('empty.zip'), {}))
+    I18n.with_locale(:ja) do
+      html = toc(build_zip(archive('table.zip'), 'a <b>.txt' => 'x')).dup.force_encoding('UTF-8')
+      heads = [:label_filename, :label_filesize, :label_compressed_filesize].map { |l| "<th>#{I18n.t(l)}</th>" }.join
+      assert_equal "<table class='list'><thead><tr>#{heads}</tr></thead><tbody><tr>" \
+                   '<td><a download="a &lt;b&gt;.txt" target="_top" href="/attachments/more_preview/1.html?asset=a+%3Cb%3E.txt">a &lt;b&gt;.txt</a></td>' \
+                   "<td>1 #{I18n.t('number.human.storage_units.units.byte.one')}</td><td>3 #{I18n.t('number.human.storage_units.units.byte.other')}</td></tr></tbody></table>", html
+      assert_equal "<table class='list'><thead><tr>#{heads}</tr></thead></table>",
+                   toc(build_zip(archive('empty.zip'), {})).dup.force_encoding('UTF-8')
+    end
   end
 
   def test_tar_toc_lists_unsafe_entry_names_without_a_link

@@ -60,6 +60,7 @@ es:
   text_help_redmine_more_previews_absolute:                "(usar URL con esquema y host) para la etiqueta <iframe> o la etiqueta <embed>"
   text_more_previews_inline_too_large: "La vista previa integrada supera el límite de tamaño. Descargue el archivo para verlo."
   text_more_previews_inline_too_complex: "La vista previa integrada es demasiado compleja para mostrarse. Descargue el archivo para verlo."
+  text_more_previews_inline_failed:      "No se pudo mostrar la vista previa. Descargue el archivo para verlo."
   label_more_previews_bulk_actions:                        "Acciones en bloque"
   label_more_previews_toggle_all_extensions:               "Activar o desactivar todas las extensiones"
   label_more_previews_bulk_format:                         "Formato para todas las extensiones"

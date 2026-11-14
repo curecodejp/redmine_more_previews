@@ -60,6 +60,7 @@ zh:
   text_help_redmine_more_previews_absolute:                "使用带有方案和主机的URL）用于<iframe>-标签或<embed>-标签。"
   text_more_previews_inline_too_large: "内嵌预览超过大小限制。请下载文件查看。"
   text_more_previews_inline_too_complex: "内嵌预览过于复杂，无法显示。请下载文件查看。"
+  text_more_previews_inline_failed:      "无法显示预览。请下载文件查看。"
   label_more_previews_bulk_actions:                        "批量操作"
   label_more_previews_toggle_all_extensions:               "切换所有扩展名"
   label_more_previews_bulk_format:                         "所有扩展名的格式"

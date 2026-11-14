@@ -24,23 +24,27 @@
 #       - required files for non eager loading
 # 1.0.2
 #       - fixed japanese localization
+# 1.0.3
+#       - not registered in production: it cannot be enabled there
 #
 
 require_relative 'lib/nil_text'
 
-RedmineMorePreviews::Converter.register :nil_text do
-  name           'Nil Text'
-  author         'Stephan Wenzel'
-  description    'Empty Converter'
-  version        '1.0.2'
-  url            'https://github.com/HugoHasenbein/redmine_more_previews_nil_text'
-  author_url     'https://github.com/HugoHasenbein/redmine_more_previews_nil_text'
-                 
-  settings       :default => {:example => "12345678"},
-                 :partial => 'settings/redmine_more_previews/nil_text/settings',
-                 :logo   => "logo.png"
-                 
-  mime_types     :txt  =>    {:formats => [:html, :inline, :pdf, :jpg, :png, :gif], :mime => "text/plain", :synonyms => [] }
-  
-end
+# a converter for development and diagnostics: not offered in production
+unless Rails.env.production?
+  RedmineMorePreviews::Converter.register :nil_text do
+    name           'Nil Text'
+    author         'Stephan Wenzel'
+    description    'Empty Converter'
+    version        '1.0.3'
+    url            'https://github.com/HugoHasenbein/redmine_more_previews_nil_text'
+    author_url     'https://github.com/HugoHasenbein/redmine_more_previews_nil_text'
 
+    settings       :default => {:example => "12345678"},
+                   :partial => 'settings/redmine_more_previews/nil_text/settings',
+                   :logo   => "logo.png"
+
+    mime_types     :txt  =>    {:formats => [:html, :inline, :pdf, :jpg, :png, :gif], :mime => "text/plain", :synonyms => [] }
+
+  end
+end

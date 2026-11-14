@@ -171,6 +171,55 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
         get :show, params: {id: a.id, filename: a.filename, format: 'html'}
         assert_response :success
         assert_includes response.body, 'uncached'
+        assert_not_includes response.body, I18n.t(:text_more_previews_inline_failed)
+      end
+    end
+  end
+
+  # a conversion that failed gives nothing: the page said nothing about it
+  def test_inline_preview_that_failed_is_said_cached_and_uncached
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'safe.txt' => 'safe'))
+      with_zippy_format('tar', 'inline') do
+        a.class.any_instance.stubs(:more_preview).returns(nil)
+        get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+        assert_response :success
+        assert_select 'p.nodata', :text => I18n.t(:text_more_previews_inline_failed), :count => 1
+
+        RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+        a.class.any_instance.stubs(:more_preview).returns(nil) # the block is not called
+        get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+        assert_response :success
+        assert_select 'p.nodata', :text => I18n.t(:text_more_previews_inline_failed), :count => 1
+
+        a.class.any_instance.stubs(:more_preview).yields(nil) # no output file
+        get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+        assert_response :success
+        assert_select 'p.nodata', :text => I18n.t(:text_more_previews_inline_failed), :count => 1
+      end
+    end
+  end
+
+  # an empty preview is no failure, as for the conversion (which remembers only
+  # nil as one): a file of 0 bytes, or a line break (pandoc's output for an
+  # empty Markdown file)
+  def test_inline_preview_that_is_empty_is_no_failure
+    Dir.mktmpdir do |dir|
+      a = attach(build_tar(File.join(dir, 'a.tar'), 'safe.txt' => 'safe'))
+      with_zippy_format('tar', 'inline') do
+        ['', "\n"].each do |empty|
+          RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(true)
+          a.class.any_instance.stubs(:more_preview).returns(empty)
+          get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+          assert_response :success
+          assert_not_includes response.body, I18n.t(:text_more_previews_inline_failed), empty.inspect
+
+          RedmineMorePreviews::Converter.stubs(:cache_previews?).returns(false)
+          a.class.any_instance.stubs(:more_preview).yields(empty)
+          get :show, params: {id: a.id, filename: a.filename, format: 'html'}
+          assert_response :success
+          assert_not_includes response.body, I18n.t(:text_more_previews_inline_failed), empty.inspect
+        end
       end
     end
   end

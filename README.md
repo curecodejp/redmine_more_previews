@@ -264,7 +264,7 @@ A vCard larger than 20 MiB is not previewed (`413`). On platforms with Ruby `for
 
 ![NilText](doc/nil_text/logo.png "NilText") *DO NOT USE IN PRODUCTION* 
 
-NilText is a development and diagnostics converter for understanding the plugin's conversion interface; **do not enable it in production**. Current debug previews expose only the allowlisted metadata fields `converter`, `converter_version`, `plugin_version`, `source_type` and `preview_format`, rather than arbitrary internal objects or repository credentials. Even limited diagnostic metadata should not be exposed to end users. NilText is **disabled by default**. If diagnostic previews were enabled on older versions, legacy cache files can remain on disk: follow the cache-removal upgrade precaution in the [6.1.3 Change-Log](#change-log).
+NilText is a development and diagnostics converter for understanding the plugin's conversion interface; **do not enable it in production**. Current debug previews expose only the allowlisted metadata fields `converter`, `converter_version`, `plugin_version`, `source_type` and `preview_format`, rather than arbitrary internal objects or repository credentials. Even limited diagnostic metadata should not be exposed to end users. NilText is **disabled by default**, and since 6.1.10 it is not registered at all when Redmine runs in production (`RAILS_ENV=production`): it is not listed in the settings and cannot be enabled there. If diagnostic previews were enabled on older versions, legacy cache files can remain on disk: follow the cache-removal upgrade precaution in the [6.1.3 Change-Log](#change-log).
 
 ---
 
@@ -311,10 +311,12 @@ Native speakers: please help to improve localizations
 - The Redmine process running out of memory, or getting a signal or an exit, during a conversion is no longer remembered as a failure of the file: the file is converted again on the next request. Before, it was not converted for the time a failure is remembered. A converter's child process or command that runs out of memory or time is a failure of the file, as before.
 - Translations: the subject of an email in French (Cliff), and the warning of NilText in Portuguese, were shown in English (misspelt keys).
 - Translations: the settings and messages added in recent versions (the limits of the conversions, of Cliff, Maggie and Zippy, the messages of a busy server, a file too large or an image not shown, the errors of saving the settings, and *Instant messaging* of Vince) were shown in English in German, Spanish, French, Portuguese (both), Russian and Chinese; they are translated now. The bulk actions of Libre on the settings page are translated, in Japanese as well.
+- An inline preview whose conversion failed (or failed before, and is remembered) says so (*The preview could not be shown. Download the file to view it.*); the page showed an empty area.
+- **NilText** is not registered when Redmine runs in production, so it cannot be enabled there by mistake. Settings saved for it are not used (and are dropped the next time the settings are saved).
 - For the authors of converters: `Converter.conversion_extension` and `Entry#conversion_extension`, which always gave `nil` and were not used, are removed.
 - The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
 - **Libre:** the check of its sandbox (on the administration pages, and before each conversion) is stopped after 5 seconds, with what it started. A check that hung was not stopped: it held the conversion of the file and a conversion slot while it hung.
-- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4, Libre 1.1.6.
+- Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4, Libre 1.1.6, NilText 1.0.3.
 
 **6.1.9**
 

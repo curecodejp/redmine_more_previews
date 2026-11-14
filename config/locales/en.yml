@@ -61,6 +61,7 @@ en:
   text_help_redmine_more_previews_absolute:                "(use URL with scheme and host) for <iframe>-tag or <embed>-tag."
   text_more_previews_inline_too_large: "Inline preview exceeds the size limit. Download the file to view it."
   text_more_previews_inline_too_complex: "Inline preview is too complex to display. Download the file to view it."
+  text_more_previews_inline_failed:      "The preview could not be shown. Download the file to view it."
   label_more_previews_bulk_actions:                        "Bulk actions"
   label_more_previews_toggle_all_extensions:               "Toggle all extensions"
   label_more_previews_bulk_format:                         "Format for all extensions"

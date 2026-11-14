@@ -62,6 +62,7 @@ ja:
 
   text_more_previews_inline_too_large: "インラインプレビューのサイズ上限を超えました。ファイルをダウンロードして確認してください。"
   text_more_previews_inline_too_complex: "インラインプレビューの構造が複雑すぎるため表示できません。ファイルをダウンロードして確認してください。"
+  text_more_previews_inline_failed:      "プレビューを表示できませんでした。ファイルをダウンロードして確認してください。"
   label_more_previews_bulk_actions:                        "一括操作"
   label_more_previews_toggle_all_extensions:               "すべての拡張子を切り替える"
   label_more_previews_bulk_format:                         "すべての拡張子の形式"

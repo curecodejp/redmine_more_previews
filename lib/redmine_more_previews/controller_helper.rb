@@ -198,8 +198,7 @@ module RedmineMorePreviews
     def cliff_embedded_fragment_asset?
       return false unless RedmineMorePreviews::Conversion::CLIFF_EMBEDDED_FRAGMENTS.include?(@asset.to_s)
       # the converter the conversion selects, by the content of the file
-      selection = @attachment ? @attachment.preview_selection : (@entry ? @repository.preview_selection(@path, @rev) : {})
-      selection["converter"].to_s == 'cliff'
+      more_preview_record.preview_selection(*more_preview_args)["converter"].to_s == 'cliff'
     end
     private :cliff_embedded_fragment_asset?
 
@@ -222,6 +221,134 @@ module RedmineMorePreviews
       requested_disposition || 'inline'
     end
     private :secure_asset_disposition
+    
+    ################################################################################
+    #
+    # The preview of the record a controller serves, the same for an attachment
+    # and for a repository entry. The controller must give all four:
+    #
+    #   more_preview_record  the record: @attachment, or @repository
+    #   more_preview_args    the arguments that name the file in it: none, or
+    #                        [@path, @rev] (as for inline_more_preview)
+    #   more_preview_name    the name of the file, f.i. for a PDF download
+    #   more_preview_source  [file, options] the converter is selected on (see
+    #                        ControllerHelper.preview_allows_downloads?): the CSP,
+    #                        the media type and the ETag are decided on them
+    #
+    ################################################################################
+    
+    # a preview, or the asset named by params[:asset]
+    def respond_with_more_preview
+      if params[:asset]
+        @disposition = "attachment"
+        respond_with_more_asset
+      else
+        respond_to do |format|
+          format.html  { send_more_preview }
+          format.xml   { send_more_preview }
+          format.text  { send_more_preview }
+          format.pdf   { send_more_preview }
+          format.png   { send_more_preview }
+          format.jpeg  { send_more_preview }
+          format.gif   { send_more_preview }
+        end
+      end
+    end #def
+    private :respond_with_more_preview
+    
+    def respond_with_more_asset
+      respond_to do |format|
+        format.any { send_more_asset }
+      end
+    end #def
+    private :respond_with_more_asset
+    
+    def send_more_preview
+      file, source  = more_preview_source
+      apply_preview_security_headers(file, source)
+      download_name = preview_download_filename(more_preview_name, more_preview_record.preview_filename(*more_preview_args, preview_params))
+      preview_type  = RedmineMorePreviews::ControllerHelper.preview_content_type(params[:format], file, source)
+
+      if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+        # PDF download names are response metadata: include them in the ETag
+        # so browsers do not reuse an old index.pdf filename after a deploy
+        # or after the file is renamed. Leave other formats unchanged.
+        etag = preview_etag(more_preview_record.preview_mtime(*more_preview_args, preview_params), file, source)
+        etag << download_name if params[:format].to_s.downcase == 'pdf'
+        # a browser that kept a listing served without the charset must fetch it again
+        etag << preview_type if preview_type.include?("charset")
+        if preview_reload? || stale?(:etag => etag)
+          # nil: the conversion failed or timed out (see Conversion#preview)
+          data = more_preview_record.more_preview(*more_preview_args, preview_params)
+          return render_404 if data.nil?
+          send_data data,
+            :filename    => filename_for_content_disposition( download_name ),
+            :type        => preview_type,
+            :disposition => 'inline'
+        end
+      else #no cache
+        more_preview_record.more_preview(*more_preview_args, preview_params) do |preview_data|
+           # no output: answered with 404 below, not with an empty 200
+           next if preview_data.nil?
+           send_data preview_data,
+             :filename    => filename_for_content_disposition( download_name ),
+             :type        => preview_type,
+             :disposition => 'inline'
+        end
+        # the conversion failed or timed out: nothing was yielded
+        render_404 unless performed?
+      end
+    end #def
+    private :send_more_preview
+    
+    def send_more_asset
+      apply_asset_security_headers
+
+      if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
+        # A Cliff fragment cached before its size limit keeps its file and
+        # mtime, hence its ETag: check it before a conditional request can
+        # answer 304. The fragments are small; other assets (archive
+        # entries of the same name included) are not read first.
+        if cliff_embedded_fragment_asset?
+          data = more_preview_record.more_asset(*more_preview_args, preview_params)
+          return render_404 if data.nil?
+          reject_oversized_cliff_fragment!(data)
+        end
+        if preview_reload? || stale?(:etag => more_preview_record.asset_mtime(*more_preview_args, preview_params))
+          # nil: the archive has no such entry (read_safe no longer falls back to the preview)
+          data ||= more_preview_record.more_asset(*more_preview_args, preview_params)
+          return render_404 if data.nil?
+          send_data data,
+            :filename    => filename_for_content_disposition( File.basename(@asset) ),
+            :type        => Rack::Mime.mime_type( File.extname(@asset) ),
+            :disposition => secure_asset_disposition(@asset, @disposition)
+        end
+      else #no cache
+        more_preview_record.more_asset(*more_preview_args, preview_params) do |preview_data, asset_data|
+           return render_404 if asset_data.nil?
+           reject_oversized_cliff_fragment!(asset_data)
+           send_data asset_data,
+             :filename    => filename_for_content_disposition( File.basename(@asset) ),
+             :type        => Rack::Mime.mime_type( File.extname(@asset) ),
+             :disposition => secure_asset_disposition(@asset, @disposition)
+        end
+        # the converter failed (f.i. Zip::EntrySizeError): nothing was yielded
+        render_404 unless performed?
+      end
+    end #def
+    private :send_more_asset
+    
+    # the asset named by a request, with params[:assetformat]; nil for none. The
+    # converters join it to directories on disk: a name that could leave them
+    # (see RmpFile.safe_relative_path) is answered with 404
+    def more_preview_asset(asset)
+      asset = [asset, params[:assetformat]].compact.join(".").presence
+      return if asset.nil?
+      safe = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(asset)
+      render_404 if safe.blank?
+      safe
+    end #def
+    private :more_preview_asset
     
   end #module
 end #module

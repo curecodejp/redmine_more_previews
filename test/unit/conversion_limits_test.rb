@@ -61,6 +61,13 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_operator now - start, :<, 5
   end
 
+  # options[:memory]: the address space of each process of the command
+  def test_command_runs_with_its_memory_limit
+    limit = File.join(@dir, 'limit')
+    pass_worker.command("ulimit -v > #{limit}", :memory => 256 * 1024**2)
+    assert_equal (256 * 1024).to_s, File.read(limit).strip
+  end
+
   # commands run with open3 whatever shell_api says: the posix-spawn way did not
   # stop what a command started, and its gem is not bundled
   def test_commands_run_with_open3_whatever_shell_api_says

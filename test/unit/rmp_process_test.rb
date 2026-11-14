@@ -68,6 +68,39 @@ class RmpProcessTest < ActiveSupport::TestCase
     assert_process_gone File.read(child).to_i
   end
 
+  # memory: the address space of each process of the command, which the processes
+  # it starts inherit (RLIMIT_AS)
+  def test_memory_limits_the_address_space_of_the_command
+    limit = File.join(@dir, 'limit')
+    assert RmpProcess.run("sh -c 'ulimit -v' > #{limit}", timeout: 5, memory: 256 * 1024**2).success?
+    assert_equal (256 * 1024).to_s, File.read(limit).strip
+  end
+
+  # never above the limit of this process: a hard limit above it is refused
+  def test_memory_stays_within_the_limit_of_this_process
+    limit = File.join(@dir, 'limit')
+    Process.stubs(:getrlimit).with(Process::RLIMIT_AS).returns([128 * 1024**2, 192 * 1024**2])
+    assert RmpProcess.run("sh -c 'ulimit -S -v; ulimit -H -v' > #{limit}", timeout: 5, memory: 256 * 1024**2).success?
+    assert_equal [(128 * 1024).to_s, (192 * 1024).to_s], File.read(limit).split
+  end
+
+  # a system that has no such limit runs the command without it
+  def test_memory_is_left_out_where_ruby_knows_no_limit_of_the_address_space
+    rlimit_as = Process.send(:remove_const, :RLIMIT_AS)
+    begin
+      assert_equal({}, RmpProcess.send(:memory_option, 256 * 1024**2))
+      assert RmpProcess.run([RbConfig.ruby, '-e', 'exit 0'], timeout: 30, memory: 256 * 1024**2).success?
+    ensure
+      Process.const_set(:RLIMIT_AS, rlimit_as)
+    end
+  end
+
+  def test_a_command_beyond_its_memory_fails
+    grow = 'x = "x" * (512 * 1024 * 1024); exit 0'
+    assert RmpProcess.run([RbConfig.ruby, '-e', 'exit 0'], timeout: 30, memory: 256 * 1024**2).success?
+    assert_not RmpProcess.run([RbConfig.ruby, '-e', grow], timeout: 30, memory: 256 * 1024**2, err: File::NULL).success?
+  end
+
   # --- a block in a forked child ------------------------------------------------------
 
   def test_block_runs_in_a_child_and_leaves_files

@@ -35,7 +35,10 @@ class LibreSandboxIntegrationTest < ActiveSupport::TestCase
       worker.tmpdir = sandbox_output
       worker.preview_format = 'pdf'
       command = Shellwords.split(worker.soffice(input, File.join(profile, 'user_installation')))
-      stdout, stderr, status = Timeout.timeout(120) { Open3.capture3(*command) }
+      # with the limit of its address space of a conversion (see Libre::MAX_MEMORY),
+      # kept within the limit of this process as a conversion keeps it
+      limit = RedmineMorePreviews::Lib::RmpProcess.send(:memory_option, Libre::MAX_MEMORY)
+      stdout, stderr, status = Timeout.timeout(120) { Open3.capture3(*command, **limit) }
       assert status.success?, "Sandboxed LibreOffice failed: #{stdout} #{stderr}"
       pdf = File.join(sandbox_output, 'external-image.pdf')
       assert File.file?(pdf), 'Sandboxed conversion must still produce a PDF'

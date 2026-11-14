@@ -209,6 +209,8 @@ Mark uses Pandoc to do the conversion. Currently supported is:
 
 .md, .textile, .html
 
+Pandoc 2.15 and later run with `--sandbox`: the document converted cannot make Pandoc read another file, such as one that LaTeX `\input` names. Earlier versions do not know the option and run without it. Mark asks Pandoc its version once, at its first conversion: restart Redmine after upgrading Pandoc.
+
 ---
 
 ![Peek](doc/peek/logo.png "Peek")
@@ -317,6 +319,7 @@ Native speakers: please help to improve localizations
 - For the authors of converters: the conversion methods `lock`, `unlock`, `try_lock`, `locked?`, `owned?` and `asset_path` are removed; none of the converters used them, and `lock` waited with no wait limit (`sync` waits within it). Commands run with `open3` whatever `shell_api` says: the setting is still accepted, but `posix-spawn` is no longer used. That way did not stop what a command started when it timed out, and its gem was not bundled. Unused code is removed as well: branches for Redmine before 5, an install error page that nothing loaded, five file helpers, `Cliff#obj_to_xml` and two exception classes (`ConverterNilArgument`, `ConverterNoConverter`).
 - For the authors of converters: `unique_id` of a repository entry names its file and the identifier of its last revision (`a-md-doc-a-md-file-10-abc123`). It took the revision object as text, with its memory address, and so changed each time the entry was looked up. Redmine's `Entry` no longer gets an `info` method.
 - The preview cache format is not changed. A cache directory left by an earlier request for another format is never served; the cache cleanup task removes it with the other previews of its age.
+- **Libre** and **Mark** run LibreOffice and Pandoc with a limit of their memory (address space: 4 GiB for LibreOffice, 1 GiB for Pandoc); they had a time limit only. A document that needs more fails, as one that runs out of time does. Pandoc 2.15 and later run with `--sandbox`: a document cannot make them read another file.
 - **Libre:** the check of its sandbox (on the administration pages, and before each conversion) is stopped after 5 seconds, with what it started. A check that hung was not stopped: it held the conversion of the file and a conversion slot while it hung.
 - Zippy 1.1.7, Mark 1.1.2, Cliff 1.1.8, Maggie 1.0.6, Vince 1.1.4, Libre 1.1.6, NilText 1.0.3.
 
@@ -596,7 +599,9 @@ A preview shown inline in the page (the `inline` format, and the email headers, 
 
 A conversion that failed, timed out or was too large is remembered for 10 minutes (a setting) and not tried again meanwhile: the same request is answered at once. An asset that the cached preview does not offer (a name not in the list of an archive, or a file not among the assets stored with a preview) is answered with `404` without converting, and its failure is not remembered: only the failures of assets known to exist are. Reloading a preview, which converts it again and forgets a failure, and the unsafe preview of emails are for administrators only; for anyone else the parameters are ignored and the links not shown. A preview shown inline in the page of a file ignores the unsafe parameter for administrators as well.
 
-On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn, and Cliff parses an email within the Redmine process, with neither the time limit nor the memory limit.
+LibreOffice (Libre) and Pandoc (Mark) also have a limit of their address space: 4 GiB for LibreOffice, which reserves some 5 GiB without a limit but uses a few hundred MiB, and 1 GiB for Pandoc, which takes some 180 MiB for a Markdown file of 450 KB. A document that needs more fails, as one that runs out of time does. These limits are not settings, and never above a limit that Redmine itself runs with (`ulimit -v`, or `LimitAS=` of systemd). Where Ruby knows no such limit (`Process::RLIMIT_AS`), they run without it.
+
+On Windows, only the program started directly is stopped at the time limit, not the programs it started in turn, Pandoc has no memory limit (Libre is not available there), and Cliff parses an email within the Redmine process, with neither the time limit nor the memory limit.
 
 ## Benchmarking inline preview sanitization (test/staging only)
 

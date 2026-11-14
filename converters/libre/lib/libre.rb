@@ -24,6 +24,13 @@ class Libre < RedmineMorePreviews::Conversion
   BWRAP_BIN = '/usr/bin/bwrap'.freeze
   ENV_BIN = '/usr/bin/env'.freeze
   ALLOWED_OUTPUT_FORMATS = %w(html txt pdf png jpg).freeze
+  # bytes of address space soffice may take (see Lib::RmpProcess.run). Without
+  # a limit it reserves some 5 GiB while it uses a few hundred MiB, but it
+  # converts with less: with 2 GiB still a text of 1.5 MB. 4 GiB is the least
+  # with which it started Java on the machine measured (below, javaldx warned,
+  # and the conversion went on). A document that needs more fails, as one that
+  # runs out of time does
+  MAX_MEMORY = 4 * 1024**3
 
   # A missing or unusable sandbox must never fall back to host soffice.
   # This profile supports system-packaged /usr/bin/soffice on Linux.
@@ -36,7 +43,7 @@ class Libre < RedmineMorePreviews::Conversion
 
     Dir.mktmpdir do |tdir|
       user_installation = File.join(tdir, 'user_installation')
-      command(cd + join + soffice(source, user_installation))
+      command(cd + join + soffice(source, user_installation), memory: MAX_MEMORY)
       # Everything in /output is untrusted even after the converter exits.
       # In particular, never follow an output symlink in fix_image_path or
       # copy it into the shared preview cache.

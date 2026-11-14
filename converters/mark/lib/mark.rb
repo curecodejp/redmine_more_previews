@@ -32,6 +32,20 @@ class Mark < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------
   PANDOC_BIN = 'pandoc'.freeze
   PANDOC_FRM = {"text/markdown" => "markdown", "text/x-web-textile" => "textile", "text/html" => "html"}
+  # bytes of address space pandoc may take (see Lib::RmpProcess.run). It takes
+  # some 90 MiB for a Markdown file of 60 KB, and 180 MiB for 450 KB. Within
+  # the default time limit an input nested deep reached some 255 MiB; the limit
+  # bounds what it takes when the time limit is raised
+  MAX_MEMORY = 1024**3
+  # with --sandbox, the readers and writers of pandoc read no file but those on
+  # its command line: the input cannot make it read another, f.i. one that LaTeX
+  # in it includes. pandoc before 2.15 refuses the option
+  SANDBOX_VERSION = Gem::Version.new("2.15")
+  
+  class << self
+    # the version of pandoc, asked once per process (see #pandoc_bin)
+    attr_accessor :pandoc_version
+  end
   
   #---------------------------------------------------------------------------------
   # check: is Pandoc available?
@@ -47,8 +61,24 @@ class Mark < RedmineMorePreviews::Conversion
   #
   ########################################################################################
   def convert
-    command(cd + join + pandoc + join + move(thisdir(outfile)))
+    command(cd + join + pandoc + join + move(thisdir(outfile)), memory: MAX_MEMORY)
   end #def
+  
+  #---------------------------------------------------------------------------------
+  # pandoc_bin: pandoc, with --sandbox where the version is known to take it
+  #---------------------------------------------------------------------------------
+  def pandoc_bin
+    version = (self.class.pandoc_version ||= installed_pandoc_version)
+    version && version >= SANDBOX_VERSION ? "#{PANDOC_BIN} --sandbox" : PANDOC_BIN
+  end #def
+  
+  # nil if pandoc does not tell it: it is asked again for the next conversion
+  def installed_pandoc_version
+    out, _, status = run [PANDOC_BIN, "--version"], :stderr => false
+    version = status == 0 && out.to_s[/\Apandoc(?:\.exe)? (\d+(?:\.\d+)*)/, 1]
+    Gem::Version.new(version) if version
+  end #def
+  private :installed_pandoc_version
   
   #---------------------------------------------------------------------------------
   # pandoc
@@ -85,15 +115,15 @@ class Mark < RedmineMorePreviews::Conversion
       
       if base_url
         base = "<base href='#{ERB::Util.html_escape(base_url)}'>"
-        "#{PANDOC_BIN} #{shell_quote source} -f #{frompts} -t html -s -V header-includes=#{shell_quote base} -o #{shell_quote outfile}"
+        "#{pandoc_bin} #{shell_quote source} -f #{frompts} -t html -s -V header-includes=#{shell_quote base} -o #{shell_quote outfile}"
       else
-        "#{PANDOC_BIN} #{shell_quote source} -f #{frompts} -t html -s -o #{shell_quote outfile}"
+        "#{pandoc_bin} #{shell_quote source} -f #{frompts} -t html -s -o #{shell_quote outfile}"
       end
       
     when "inline"
-      "#{PANDOC_BIN} #{shell_quote source} -f #{frompts} -t html -o #{shell_quote outfile}"
+      "#{pandoc_bin} #{shell_quote source} -f #{frompts} -t html -o #{shell_quote outfile}"
     when "txt"
-      "#{PANDOC_BIN} #{shell_quote source} -f #{frompts} -t plain -o #{shell_quote outfile}"
+      "#{pandoc_bin} #{shell_quote source} -f #{frompts} -t plain -o #{shell_quote outfile}"
     end.to_s
     
   end #def

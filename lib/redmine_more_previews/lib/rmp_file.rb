@@ -20,8 +20,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #
 
-require 'fileutils'
-
 module RedmineMorePreviews
   module Lib
     module RmpFile
@@ -32,16 +30,6 @@ module RedmineMorePreviews
       MAX_EXTENSION_BYTES = 32
 
       class << self
-        
-        # ------------------------------------------------------------------------------ #
-        #
-        def create_filename( filename, mime_type, options={} )
-          extension = File.extname(filename.to_s)
-          basename  = File.basename(filename.to_s, extension)
-          extension = Rack::Mime::MIME_TYPES.invert[mime_type.to_s].presence.to_s if extension.blank?
-          basename  = mime_type.to_s =~ /image/ ? "image" : "file" if basename.blank?
-          sanitize( "#{basename}#{extension}", options)
-        end #def
         
         #---------------------------------------------------------------------------------
         # sanitize
@@ -156,51 +144,6 @@ module RedmineMorePreviews
           end
         end #def
         private :unique_filename_series
-        
-        # ------------------------------------------------------------------------------ #
-        # make_filenames_unique( filenames(array) )
-        # returns array of filenames, with each name unique
-        # whereby extensions are kept
-        #
-        def make_filenames_unique( filenames )
-        
-           new_filenames = []
-           # all but the first name must be unique_filename
-           filenames.each do |filename|
-             new_filenames << unique_filename( new_filenames, filename )
-           end #each
-           new_filenames
-        end#def
-        
-        # ------------------------------------------------------------------------------ #
-        # sanitize_subdir(subdir, dir)
-        # returns sanitized subdir(string), which does not expand higher than dir(string)
-        #        
-        def sanitize_subdir( subdir, dir )
-          subpath  = Pathname.new( subdir )
-          path     = Pathname.new( dir )
-          expanded = subpath.expand_path( path )
-          relative = expanded.relative_path_from( path )
-          #puts relative.to_path
-          subdir unless !!(relative.to_path =~ /\A\.\./)
-        end #def
-        
-        #-----------------------------------------------------------------------------------
-        # get directory, if it does not exist, create directory
-        #-----------------------------------------------------------------------------------
-        def directory( subdir, dir=nil )
-          subdir = sanitize_subdir(subdir, dir) if dir
-          FileUtils.mkdir_p subdir if subdir && !File.exist?(subdir)
-          subdir
-        end #def
-        
-        #-----------------------------------------------------------------------------------
-        # get directory, if it does not exist, create directory
-        #-----------------------------------------------------------------------------------
-        def file_directory( filepath, dir=nil )
-          filedir = File.dirname( filepath )
-          directory( filedir, dir=nil )
-        end #def
         
       end #class
     end #module

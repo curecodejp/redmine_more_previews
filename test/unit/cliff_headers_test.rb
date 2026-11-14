@@ -158,7 +158,9 @@ class CliffHeadersTest < ActiveSupport::TestCase
   end
 
   def test_cliff_hooks_build_the_stylesheet_url_from_the_converter
+    # both top hooks render _cliff_preview_top, which links the stylesheet
     hooks = %w[
+      _cliff_preview_top.html.erb
       _cliff_preview_attachment_top.html.erb
       _cliff_preview_repository_entry_top.html.erb
     ]
@@ -167,9 +169,10 @@ class CliffHeadersTest < ActiveSupport::TestCase
     hooks.each do |hook|
       path = File.expand_path("../../converters/cliff/app/views/redmine_more_previews/hooks/#{hook}", __dir__)
       source = File.read(path)
+      assert_not_includes source, '/plugin_assets'
+      next unless hook == '_cliff_preview_top.html.erb'
       assert_includes source, 'redmine_more_previews_cliff.css'
       assert_includes source, 'converter.public_web_directory'
-      assert_not_includes source, '/plugin_assets'
     end
   end
 end

@@ -102,6 +102,8 @@ module RedmineMorePreviews
       self.timeout        = options[:timeout].presence
       raise ConverterWrongArgument unless timeout.is_a?(Numeric)
       
+      # accepted for the converters that set it: Modules::Shell runs every
+      # command with open3, whatever it says
       self.shell_api      = options[:shell_api].presence
       raise ConverterWrongArgument unless shell_api.present?
       
@@ -194,15 +196,6 @@ module RedmineMorePreviews
     end #def
     private :ensure_within!
     
-    #-------------------------------------------------------------------------------------
-    # lock and unlock, if converter is not thread safe
-    #-------------------------------------------------------------------------------------
-    def lock;     threadsafe ||               (semaphore && semaphore.lock);      end #def
-    def unlock;   threadsafe ||               (semaphore && semaphore.unlock);    end #def
-    def try_lock; threadsafe ||               (semaphore && semaphore.try_lock);  end #def
-    def locked?;  return false if threadsafe; (semaphore && semaphore.locked?);   end #def
-    def owned?;   return true  if threadsafe; (semaphore && semaphore.owned?);    end #def
-    
     # the converter's semaphore, waited for no longer than the wait limit
     # (ConverterLockTimeOut): a conversion holds it until it ends or times out
     def sync
@@ -274,11 +267,19 @@ module RedmineMorePreviews
         object['object'].id
       when :repository
         entry = object['object'].try(:preview_entry, object['path'], object['rev'])
-        entry.try(:info)
+        entry_id( entry ) if entry
       else
         object['object'].try(:object_id)
       end
     end #def
+    
+    # the file of a repository entry in its revision, as letters, digits, "_" and
+    # "-": its name, path, kind, size and the identifier of its last revision
+    def entry_id( entry )
+      [entry.name, entry.path, entry.kind, entry.size, entry.lastrev.try(:identifier)].join(" ").
+        gsub(/[^a-zA-Z0-9_]/, " ").squish.tr(" ", "-")
+    end #def
+    private :entry_id
 
     #-------------------------------------------------------------------------------------
     # convertible?
@@ -748,35 +749,6 @@ module RedmineMorePreviews
       [fullpath, directory, filename, extension]
     end #def
     
-    #-------------------------------------------------------------------------------------
-    # urls for assets
-    #-------------------------------------------------------------------------------------
-    def asset_path(asset)
-      asset_format = File.extname(asset)
-      asset_base   = File.basename(asset, asset_format)
-      asset_format.gsub!(/\A\./, "") # remove preceeding dot
-      case object['type']
-      when :attachment
-        url_helpers.more_asset_path(object['object'].id, :asset => asset_base, :assetformat => asset_format)
-      when :repository
-        ext  = File.extname(object['path'])
-        path = File.join(File.dirname(object['path']),File.basename(object['path'], ext))
-        ext.gsub!(/\A\./, "") # remove preceeding dot
-        url_helpers.url_for(
-          :controller    => "repositories", 
-          :action        => "more_asset",
-          :id            => object['object'].project.identifier,
-          :repository_id => object['object'].identifier,
-          :rev           => object['rev'],
-          :path          => path,
-          :baseformat    => ext.gsub(/\A\./, ""), 
-          :asset         => asset_base,
-          :assetformat   => asset_format,
-          :only_path     => true
-        )
-      end
-    end #def
-    
     ######################################################################################
     #
     # unix and windows command line helpers
@@ -976,13 +948,13 @@ module RedmineMorePreviews
       # asset, asset=, assetdir, assetdir=, assetext, assetext=, assetfile, assetfile=, 
       # assets, assets=, cached_preview, cd, check, command, convert, convertible?, 
       # copy_over, dir, dir=, execute, ext, ext=, file, file=, format, format=, id, id=, 
-      # join, lock, locked?, mime_types, mime_types=, move, name, name=, object, object=, 
-      # outfile, owned?, path_set, preview, preview_format, preview_format=, project, 
-      # project=, read_safe, reload, reload=, request, request=, run, semaphore, 
-      # semaphore=, settings, settings=, shell_api, shell_api=, source, source=, status, 
-      # sync, target, target=, threadsafe, threadsafe=, timeout, timeout=, tmpdir, 
-      # tmpdir=, tmpext, tmpext=, tmpfile, tmpfile=, tmptarget, tmptarget=, transient, 
-      # transient_preview, transient=, try_lock, unlock, valid
+      # join, mime_types, mime_types=, move, name, name=, object, object=, outfile,
+      # path_set, preview, preview_format, preview_format=, project, project=,
+      # read_safe, reload, reload=, request, request=, run, semaphore, semaphore=,
+      # settings, settings=, shell_api, shell_api=, source, source=, status, sync,
+      # target, target=, threadsafe, threadsafe=, timeout, timeout=, tmpdir, tmpdir=,
+      # tmpext, tmpext=, tmpfile, tmpfile=, tmptarget, tmptarget=, transient,
+      # transient_preview, transient=, valid
       
       #
       # when here, then do conversion

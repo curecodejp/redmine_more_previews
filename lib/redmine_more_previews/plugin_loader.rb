@@ -129,19 +129,8 @@ module RedmineMorePreviews
         engine_cfg = Rails::Engine::Configuration.new(directory.to_s)
         engine_cfg.paths.add 'lib', eager_load: true
         
-        if Redmine::VERSION.to_s < '5'
-#         engine_cfg.paths['lib'].eager_load! # create all paths
-          Rails.application.config.eager_load_paths    += engine_cfg.eager_load_paths
-          Rails.application.config.autoload_once_paths += engine_cfg.autoload_once_paths
-          Rails.application.config.autoload_paths      += engine_cfg.autoload_paths
-          ActiveSupport::Dependencies.autoload_paths   += (engine_cfg.eager_load_paths + 
-                                                           engine_cfg.autoload_once_paths + 
-                                                           engine_cfg.autoload_paths -
-                                                           [File.join(PluginLoader.public_directory, 'lib')]) # lib was already added in self.load
-        else # > = Redmine 5
-          engine_cfg.eager_load_paths.each do |dir|
-            Rails.autoloaders.main.push_dir dir
-          end
+        engine_cfg.eager_load_paths.each do |dir|
+          Rails.autoloaders.main.push_dir dir
         end
       end
     end

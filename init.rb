@@ -208,34 +208,6 @@ require_relative "lib/redmine_more_previews"
 RedmineMorePreviews::Converter.load
 
 #-----------------------------------------------------------------------------------------
-# File reloader for development environment. In Redmine 5 init.rb is called in to_prepare
-#-----------------------------------------------------------------------------------------
-# if Redmine::VERSION.to_s < "5"
-#   Rails.configuration.to_prepare do
-#     Rails.logger.info "-------------reloading"
-#     require_relative "lib/redmine_more_previews"
-#     RedmineMorePreviews::Converter.load
-#   end
-# end
-
-#-----------------------------------------------------------------------------------------
-# File reloader for development environment. In Redmine 5 init.rb is called in to_prepare
-# fix proposed in
-# https://zenn-dev.translate.goog/tohosaku/articles/3ccdeb2f38bb07?_x_tr_sl=auto&_x_tr_tl\
-# =en&_x_tr_hl=ja&_x_tr_pto=wapp
-#-----------------------------------------------------------------------------------------
-if Rails.version > '6.0' && Rails.autoloaders.zeitwerk_enabled?
-    # リロード時の処理 
-else
-  Rails.configuration.to_prepare do
-    Rails.logger.info "-------------reloading"
-    require_relative "lib/redmine_more_previews"
-    RedmineMorePreviews::Converter.load
-  end
-end
-
-
-#-----------------------------------------------------------------------------------------
 # Add permissions
 #-----------------------------------------------------------------------------------------
 Rails.application.config.after_initialize do

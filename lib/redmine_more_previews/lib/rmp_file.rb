@@ -72,7 +72,8 @@ module RedmineMorePreviews
         # returns a normalized relative path ("dir/file.txt") that cannot leave the
         # directory it is joined to, or nil if the path is empty, absolute, contains
         # a NUL byte or a ".." segment. Used for asset names coming from request
-        # parameters and from archive entries.
+        # parameters and from archive entries, and for the paths of repository
+        # entries (see Repository#preview_path).
         #
         def safe_relative_path( path )
           _path = RmpText.to_utf8(path.to_s.dup)

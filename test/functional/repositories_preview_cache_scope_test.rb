@@ -118,6 +118,48 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
     )
   end
 
+  # an SCM that gives an entry for a path with ".." (git and Filesystem refuse
+  # one) gets no preview of it: the path names the directory of its preview
+  def test_a_path_that_would_leave_the_repository_directory_is_not_previewed
+    path = 'dir/../../../escape.zip'
+    zip  = File.binread(File.join(@dir_a, 'a.zip'))
+    entry = Redmine::Scm::Adapters::Entry.new(name: 'escape.zip', path: path, kind: 'file', size: zip.bytesize)
+    Repository::Filesystem.any_instance.stubs(:entry).with(path, anything).returns(entry)
+    Repository::Filesystem.any_instance.stubs(:cat).with(path, anything).returns(zip)
+    params = {id: PRJ_A, repository_id: @repo_a.identifier_param, path: repository_path_hash(path.split('/'))[:param]}
+
+    get :more_preview, params: params.merge(format: 'html')
+    assert_response :not_found
+    get :more_asset, params: params.merge(path: 'dir/../../../escape', baseformat: 'zip', asset: 'dir/secret', assetformat: 'txt')
+    assert_response :not_found
+    # the page of the entry is Redmine's own
+    get :entry, params: params
+    assert_response :success
+    assert_select 'iframe', 0
+    assert_empty Dir.glob(File.join(@storage, '**', '*escape*'))
+    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) { @repo_a.preview_dirname(path, nil) }
+  end
+
+  # the page of an entry adds the base format of an asset request to the path
+  def test_an_asset_base_format_that_would_leave_the_directory_is_not_found
+    get :entry, params: {id: PRJ_A, repository_id: @repo_a.identifier_param, path: 'a.zip',
+                         asset: 'dir/secret', assetformat: 'txt', baseformat: '/../../x.zip'}
+    assert_response :not_found
+    assert_empty Dir.glob(File.join(@storage, '**', 'x.zip*'))
+  end
+
+  # the preview of no path (the root of the repository) is not found
+  def test_the_preview_of_no_path_is_not_found
+    get :more_preview, params: {id: PRJ_A, repository_id: @repo_a.identifier_param, format: 'html'}
+    assert_response :not_found
+  end
+
+  # the directory of a preview is named by the path as it is normalized
+  def test_the_directory_is_named_by_the_normalized_path
+    assert_equal @repo_a.preview_dirname('a.zip', nil), @repo_a.preview_dirname('./a.zip', nil)
+    assert_equal @repo_a.preview_dirname('a.zip', nil), @repo_a.preview_dirname('/a.zip', nil)
+  end
+
   # the previous layout (per repository class and identifier) is removed on start
   def test_legacy_cache_is_removed
     legacy = File.join(@storage, 'repository', 'filesystems', 'a.zip', 'preview.html')

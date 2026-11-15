@@ -238,7 +238,17 @@ module RedmineMorePreviews
           # named after the configured format: the format of a request names no
           # directory
           def preview_dirname(path, rev, options={})
-            File.join(preview_storagepath, path, preview_digest(path, rev), ["preview", preview_format(path, rev).presence ].compact.join("."))
+            dir = preview_path(path) or raise RedmineMorePreviews::Exceptions::ConverterBadArgument, "unsafe repository path"
+            File.join(preview_storagepath, dir, preview_digest(path, rev), ["preview", preview_format(path, rev).presence ].compact.join("."))
+          end #def
+
+          # the path of the entry as a directory below preview_storagepath; nil
+          # for a path that could leave it (see RmpFile.safe_relative_path: "..",
+          # also "..." and "c:x", which leave it on Windows) and for none. git
+          # and Filesystem give no file for "..", not every SCM is known to. A
+          # leading "/" names the same entry, as it named the same directory
+          def preview_path(path)
+            RedmineMorePreviews::Lib::RmpFile.safe_relative_path(path.to_s.sub(%r{\A/+}, ""))
           end #def
           
           def preview_digest(path, rev)

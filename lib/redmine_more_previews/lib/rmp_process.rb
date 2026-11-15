@@ -44,11 +44,17 @@ module RedmineMorePreviews
       # without a shell). The block, if given, is called right after the spawn,
       # f.i. to close the child's ends of pipes.
       #
+      # memory: bytes of address space each process of the command may take
+      # (RLIMIT_AS, which the processes it starts inherit), never more than the
+      # limit of this process; none on Windows, nor where Ruby knows no RLIMIT_AS.
+      # A process that runs out of it cannot take more memory: it may fail, or
+      # exit 0 having written nothing, so the caller checks the output as well.
+      #
       # Returns the Process::Status; raises ConverterTimeout when the time limit
       # passes. Also after a normal exit, processes left behind in the group are
       # killed.
-      def self.run( command, timeout:, **options )
-        pid = Process.spawn( *Array(command), **options, **group_option )
+      def self.run( command, timeout:, memory: nil, **options )
+        pid = Process.spawn( *Array(command), **options, **group_option, **memory_option( memory ) )
         yield pid if block_given?
         status = wait( pid, now + timeout )
         raise Exceptions::ConverterTimeout, "command timed out after #{timeout}s" unless status
@@ -163,6 +169,16 @@ module RedmineMorePreviews
         Redmine::Platform.mswin? ? { :new_pgroup => true } : { :pgroup => true }
       end #def
       private_class_method :group_option
+
+      # within the limit this process has (a server started with ulimit -v or
+      # LimitAS=): a hard limit above its own is refused (EPERM), and a soft one
+      # would loosen it
+      def self.memory_option( memory )
+        return {} if memory.nil? || Redmine::Platform.mswin? || !defined?( Process::RLIMIT_AS )
+        soft, hard = Process.getrlimit( Process::RLIMIT_AS )
+        { :rlimit_as => [[memory, soft].min, [memory, hard].min] }
+      end #def
+      private_class_method :memory_option
       
       # waits for the command until deadline; nil if it is still running then
       def self.wait( pid, deadline )

@@ -219,7 +219,7 @@ class LibreCommandTest < ActiveSupport::TestCase
       File.binwrite(@worker.source, 'fake odt')
       @worker.stubs(:sandbox_available?).returns(true)
       @worker.stubs(:soffice).returns('fake soffice')
-      @worker.expects(:command).once.with(anything).returns(true)
+      @worker.expects(:command).once.with(anything, :memory => Libre::MAX_MEMORY).returns(true)
       # Stubbing command means nothing writes the PDF automatically; supply the
       # same output filename that LibreOffice would create for index.odt.
       File.binwrite(@worker.tmptarget, '%PDF-safe')

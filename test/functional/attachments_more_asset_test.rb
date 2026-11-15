@@ -150,7 +150,7 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
         Attachment.any_instance.stubs(:preview_format).returns('png')
         get :show, params: {id: a.id, filename: a.filename, format: 'html'}
         assert_response :success
-        assert_select 'img[onerror]', 1
+        assert_select 'img[onerror][alt=?]', a.filename, 1
         assert_select 'img[onerror] + p.nodata[style*="display:none"]', :text => I18n.t(:text_more_previews_image_failed), :count => 1
       end
     end

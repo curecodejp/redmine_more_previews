@@ -1,0 +1,83 @@
+<%# the email headers, fields and attachment list above a Cliff preview, for an
+    attachment (record: the attachment, args: []) and for a repository entry
+    (record: the repository, args: [path, rev]); params: those of the hook %>
+<%# the converter of the file as the conversion selects it, by its content (see
+    Attachment#preview_selection, Repository#preview_selection) %>
+<%-if record.preview_selection(*args)["converter"].to_s == "cliff" %>
+  <%- converter = RedmineMorePreviews::Converter.find(:cliff) %>
+  <%# emitted here, once, rather than inside headers.html / fields.html:
+      those fragments pass the inline sanitiser (a <link> in them would live
+      only while its path matched PLUGIN_STYLESHEET_HREF), there are three of
+      them, and they are also served on their own as assets %>
+  <%= tag(:link, :rel => "stylesheet", :media => "all",
+          :href => "#{converter.public_web_directory}/stylesheets/redmine_more_previews_cliff.css") %>
+  
+  <% html_id = SecureRandom.uuid.to_s
+    js = "$('##{html_id}-show, ##{html_id}-hide').toggle(); $('##{html_id}').fadeToggle(150);"
+    toggler = ''.html_safe
+    toggler << link_to_function("...", js, :id => "#{html_id}-show", :class => 'collapsible collapsed')
+    toggler << link_to_function(" x", js, :id => "#{html_id}-hide", :class => 'collapsible', :style => 'display:none;')
+  %>
+  
+  <%# Fetch the generated header fragments from the same persistent cache as
+      the email body. A block argument to more_asset forces a full temporary
+      conversion even when the preview is already cached. %>
+  <% names = %w(headers.html fields.html attachments.html)
+     # An administrator's explicit reload must refresh the header fragments as
+     # well as the body; unsafe also keeps its existing transient behavior.
+     reload = params[:reload].present? && User.current.admin?
+     unsafe = params[:unsafe].present? && User.current.admin?
+     cache_enabled = RedmineMorePreviews::Converter.cache_previews?
+     current = cache_enabled &&
+       RedmineMorePreviews::Conversion.current_cached_preview?(record.preview_filepath(*args), :cliff)
+     same_locale = current && Cliff.cache_locale_matches?(record.preview_filepath(*args), I18n.locale)
+     begin
+       if cache_enabled && !reload && !unsafe &&
+          (same_locale || (!current && !RedmineMorePreviews::Lib::RmpCacheSize.full?))
+         # The first asset lookup generates the preview when it is not cached.
+         fragments = names.map { |name| record.more_asset(*args, :asset => name) }
+       else
+         # Explicit reload, locale mismatch, disabled/full cache, or an old marker:
+         # convert all three fragments together. The block gets the body, the
+         # asset slot (nil: no :asset is asked for), then headers, fields and
+         # attachments.
+         fragments = record.more_asset(*args, :assets => names, :reload => reload) { |_html, _asset, *data| data }
+       end
+     rescue RedmineMorePreviews::Exceptions::ConverterTooLarge
+       # An email beyond the Cliff limits must not replace the whole page with
+       # the controller's 413: keep the page and its download link, and show
+       # the notice the inline previews use (the body iframe still answers 413).
+       fragments = nil
+       email_too_large = true
+     end
+     # A fragment may be refused without hiding the email body or other fragments.
+     marker = RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE
+     too_large = Array(fragments).map { |fragment| fragment == marker }
+     email_headers, email_fields, email_attachments = fragments || []
+  %>
+  
+    <% if email_too_large %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <%- end %>
+    
+    <% if too_large[0] %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <% elsif email_headers %>
+      <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_headers) ) %></div>
+    <%- end %>
+    
+    <% if too_large[1] %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <% elsif email_fields %>
+      <%= toggler.html_safe %>
+      <div class="box" id="<%= html_id %>" style="display:none;"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_fields) ) %></div>
+    <%- end %>
+    
+    <% if too_large[2] %>
+      <p class="nodata"><%= l(:text_more_previews_inline_too_large) %></p>
+    <% elsif email_attachments %>
+      <div class="box"><%= sanitize_inline_preview( RedmineMorePreviews::Lib::RmpText.to_utf8(email_attachments) ) %></div>
+    <%- end %>
+    
+<% end %>
+

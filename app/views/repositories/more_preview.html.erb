@@ -49,7 +49,7 @@
                 :only_path     => ::Setting['plugin_redmine_more_previews']['absolute'].to_i == 0
                 }.merge(preview_query_parameters)
           ),
-         :alt => @repository.preview_mime(@path, @rev),
+         :alt => @entry.name,
          :style => "max-width:95%"
         ) %>
   <%- else %>

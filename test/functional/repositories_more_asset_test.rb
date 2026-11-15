@@ -191,7 +191,8 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     Repository::Filesystem.any_instance.stubs(:preview_format).returns('png')
     get :entry, params: entry_params(format: 'html')
     assert_response :success
-    assert_select 'img[onerror]', 1
+    # named after the file, as on the page of an attachment, not its media type
+    assert_select 'img[onerror][alt=?]', 'a.zip', 1
     assert_select 'img[onerror] + p.nodata[style*="display:none"]', :text => I18n.t(:text_more_previews_image_failed), :count => 1
   end
 

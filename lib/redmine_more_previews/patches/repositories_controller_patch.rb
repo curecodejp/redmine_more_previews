@@ -54,22 +54,7 @@ module RedmineMorePreviews
             # see ControllerHelper#preview_format_requested?; the entry is read
             # here, once (a file too large to read is answered with 413)
             if @entry&.convertible? && preview_format_requested?(@repository.preview_format(@path, @rev))
-              if params[:asset]
-                @disposition = "attachment"
-                respond_to do |format|
-                  format.any { send_more_asset }
-                end #respond
-              else
-                respond_to do |format|
-                  format.html  { send_more_preview }
-                  format.xml   { send_more_preview }
-                  format.text  { send_more_preview }
-                  format.pdf   { send_more_preview }
-                  format.png   { send_more_preview }
-                  format.jpeg  { send_more_preview }
-                  format.gif   { send_more_preview }
-                end
-              end
+              respond_with_more_preview
             else #no convertible document
               render_404
             end
@@ -78,9 +63,7 @@ module RedmineMorePreviews
           def more_asset
             @entry = @repository.preview_entry(@path, @rev)
             if @entry&.convertible?
-              respond_to do |format|
-                format.any { send_more_asset }
-              end #respond
+              respond_with_more_asset
             else #no convertible document
               render_404
             end #if
@@ -98,104 +81,28 @@ module RedmineMorePreviews
           end
           private :ensure_more_previews_module_enabled
 
-          def send_more_preview
-            download_name = preview_download_filename(@entry.name, @repository.preview_filename(@path, @rev, preview_params))
-            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
-              # read before the freshness check: the ETag needs the selected converter
-              content = entry_content_for_preview
-              type    = preview_type(content)
-              # Revalidated PDFs must also carry the latest suggested filename.
-              etag = preview_etag(@repository.preview_mtime(@path, @rev, preview_params), @entry&.name || @path, :content => content)
-              etag << download_name if params[:format].to_s.downcase == 'pdf'
-              # a browser that kept a listing served without the charset must fetch it again
-              etag << type if type.include?("charset")
-              if preview_reload? || stale?(:etag => etag)
-                # nil: the conversion failed or timed out (see Conversion#preview)
-                data = @repository.more_preview(@path, @rev, preview_params)
-                return render_404 if data.nil?
-                send_data data,
-                  :filename    => filename_for_content_disposition( download_name ),
-                  :type        => type,
-                  :disposition => 'inline'
-              end
-            else #no cache
-              content = entry_content_for_preview
-              @repository.more_preview(@path, @rev, preview_params) do |preview_data|
-                 # no output: answered with 404 below, not with an empty 200
-                 next if preview_data.nil?
-                 send_data preview_data,
-                   :filename    => filename_for_content_disposition( download_name ),
-                   :type        => preview_type(content),
-                   :disposition => 'inline'
-              end
-              # the conversion failed or timed out: nothing was yielded
-              render_404 unless performed?
-            end
-          end #def
-          private :send_more_preview
-
-          # reads the entry once: the CSP and the ETag are decided on these bytes (the
-          # entry is not on disk, and the converter is chosen by content) and the
-          # repository keeps them for the conversion, so they cannot disagree
-          def entry_content_for_preview
-            content = @repository.preview_content(@path, @rev)
-            apply_preview_security_headers(@entry&.name || @path, :content => content)
-            content
+          # see ControllerHelper#send_more_preview
+          def more_preview_record; @repository;    end
+          def more_preview_args;   [@path, @rev];  end
+          def more_preview_name;   @entry.name;    end
+          # the bytes more_preview read (Repository#preview_content keeps them for
+          # the request): the CSP, the media type and the ETag are decided on them
+          # (the entry is not on disk, and the converter is chosen by content), and
+          # the conversion uses them, so they cannot disagree
+          def more_preview_source
+            [@entry.name, {:content => @repository.preview_content(@path, @rev)}]
           end
-          private :entry_content_for_preview
-
-          # decided on the bytes read for the CSP, like the download sandbox
-          def preview_type(content)
-            RedmineMorePreviews::ControllerHelper.preview_content_type(params[:format], @entry&.name || @path, :content => content)
-          end
-          private :preview_type
+          private :more_preview_record, :more_preview_args, :more_preview_name, :more_preview_source
           
-          def send_more_asset
-            apply_asset_security_headers
-
-            if !preview_unsafe? && RedmineMorePreviews::Converter.cache_previews?
-              # see AttachmentsControllerPatch#send_more_asset: an old oversized
-              # Cliff fragment must not answer 304 under its unchanged ETag
-              if cliff_embedded_fragment_asset?
-                data = @repository.more_asset(@path, @rev, preview_params)
-                return render_404 if data.nil?
-                reject_oversized_cliff_fragment!(data)
-              end
-              if preview_reload? || stale?(:etag => @repository.asset_mtime(@path, @rev, preview_params))
-                data ||= @repository.more_asset(@path, @rev, preview_params)
-                return render_404 if data.nil?
-                send_data data,
-                  :filename    => filename_for_content_disposition( File.basename(@asset) ),
-                  :type        => Rack::Mime.mime_type( File.extname(@asset) ),
-                  :disposition => secure_asset_disposition(@asset, @disposition)
-              end
-            else #no cache
-              @repository.more_asset(@path, @rev, preview_params) do |preview_data, asset_data|
-                 return render_404 if asset_data.nil?
-                 reject_oversized_cliff_fragment!(asset_data)
-                 send_data asset_data,
-                   :filename    => filename_for_content_disposition( File.basename(@asset) ),
-                   :type        => Rack::Mime.mime_type( File.extname(@asset) ),
-                   :disposition => secure_asset_disposition(@asset, @disposition)
-              end
-              # the converter failed (f.i. Zip::EntrySizeError): nothing was yielded
-              render_404 unless performed?
-            end
-          end #def
-          private :send_more_asset
-          
-          # see AttachmentsControllerPatch#find_asset_param for the asset validation
+          # see ControllerHelper#more_preview_asset
           def find_path_param
             @path  = [@path, params[:baseformat]].compact.join(".")
-            @asset = params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]
+            asset  = params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]
             # the asset route matches ".../file.ext@/image.png": the name it
             # takes starts with the "/" after the "@", a link relative to the
             # preview (".../file.ext@/index.html") always has it
-            @asset = @asset.delete_prefix("/") if action_name == "more_asset" && @asset.is_a?(String)
-            @asset = [@asset, params[:assetformat]].compact.join(".").presence
-            return if @asset.nil?
-            @asset = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(@asset)
-            render_404 if @asset.blank?
+            asset  = asset.delete_prefix("/") if action_name == "more_asset" && asset.is_a?(String)
+            @asset = more_preview_asset(asset)
           end #def
           private :find_path_param
           
@@ -228,9 +135,7 @@ module RedmineMorePreviews
               find_path_param
               return if performed?
               @disposition = "attachment"
-              respond_to do |format|
-                format.any { send_more_asset }
-              end #respond
+              respond_with_more_asset
             else
               # only the html preview is sandboxed, so only that page needs the
               # download decision (made on the entry's content, like the conversion)

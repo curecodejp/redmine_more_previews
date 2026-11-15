@@ -265,12 +265,88 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     assert_not_includes output, 'alert(1)'
   end
 
+  # --- markup written in the input (Mark) ---------------------------------------------
+
+  SPOOF = '<div class="flash error" style="margin:-500px;width:100%;background-color:white">' \
+          'Your session has expired</div>'
+
+  # a converter's own markup keeps its classes and its safe styles (Vince's
+  # business card, Cliff's header table)
+  def test_classes_and_styles_of_a_converter_are_kept
+    output = sanitize(SPOOF)
+    assert_includes output, 'class="flash error"'
+    assert_includes output, 'margin:-500px'
+  end
+
+  # markup written in the input takes none of Redmine's classes nor styles: it
+  # cannot draw a message of Redmine, nor cover the page around it
+  def test_classes_and_styles_written_in_the_input_are_removed
+    assert_equal '<div>Your session has expired</div>', sanitize(SPOOF, input_markup: true)
+    assert_equal '<span>x</span>', sanitize('<span class="hidden" style="color:red">x</span>', input_markup: true)
+  end
+
+  # pandoc aligns the columns of a table with style="text-align: ..."
+  def test_the_alignment_of_a_table_column_written_in_the_input_is_kept
+    output = sanitize('<table><tr><th style="text-align: right;">a</th><td style="text-align:center">b</td>' \
+                      '<td style="text-align: right; margin:-9px">c</td></tr></table>', input_markup: true)
+    cells = Nokogiri::HTML.fragment(output).css('th, td')
+    assert_equal ['text-align:right;', 'text-align:center;', 'text-align:right;'], cells.map { |c| c['style'] }
+    assert_equal '<p>x</p>', sanitize('<p style="margin:-9px">x</p>', input_markup: true)
+  end
+
+  # pandoc gives a table, its columns and an image a width relative to the box
+  def test_a_relative_width_written_in_the_input_is_kept_on_tables_columns_and_images
+    output = sanitize('<table style="width:38%;"><colgroup><col style="width: 8%"><col style="width:100%">' \
+                      '</colgroup></table><img src="/a.png" style="width:50.0%;height:3in">', input_markup: true)
+    fragment = Nokogiri::HTML.fragment(output)
+    assert_equal 'width:38%;', fragment.at_css('table')['style']
+    assert_equal ['width:8%;', 'width:100%;'], fragment.css('col').map { |c| c['style'] }
+    assert_equal 'width:50.0%;', fragment.at_css('img')['style']
+  end
+
+  def test_other_widths_written_in_the_input_are_removed
+    %w(width:101% width:100.5% width:5000px width:-5% width:50vw).each do |style|
+      assert_equal '<img src="/a.png">', sanitize(%Q{<img src="/a.png" style="#{style}">}, input_markup: true), style
+    end
+    assert_equal '<div>x</div>', sanitize('<div style="width:50%">x</div>', input_markup: true)
+  end
+
+  # Vince's stylesheet has rules for Redmine's page (".tabular p")
+  def test_a_stylesheet_linked_in_the_input_is_removed
+    html = '<link rel="stylesheet" href="/plugin_assets/redmine_more_previews/converters/vince/stylesheets/vince.css">'
+    assert_includes sanitize(html), '<link'
+    assert_equal '', sanitize(html, input_markup: true)
+  end
+
+  def test_every_caller_says_whether_the_markup_is_written_in_the_input
+    helper = Object.new.extend(ApplicationHelper)
+    assert_raises(ArgumentError) { helper.sanitize_inline_preview('<p>x</p>') }
+  end
+
+  # only Zippy and Vince build their markup themselves; any other converter,
+  # one not found included, is taken to show markup written in its input
+  def test_the_converters_that_build_their_markup_themselves
+    conversion = RedmineMorePreviews::Conversion
+    assert_equal [true, false, false], %w(mark zippy vince).map { |id| conversion.inline_input_markup_for(id) }
+    assert conversion.inline_input_markup_for('no_such_converter')
+    assert conversion.inline_input_markup_for(nil)
+    klass = Class.new(conversion) { def self.inline_input_markup?; nil; end }
+    RedmineMorePreviews::Converter.stubs(:find).with('nilly').returns(stub(:converter_class => klass))
+    assert conversion.inline_input_markup_for('nilly')
+  end
+
+  def test_the_cache_keeps_input_markup_apart
+    assert_includes sanitize(SPOOF), 'class='
+    assert_not_includes sanitize(SPOOF, input_markup: true), 'class='
+    assert_includes sanitize(SPOOF), 'class='
+  end
+
   private
 
-  def sanitize(html)
+  def sanitize(html, input_markup: false)
     helper = Object.new
     helper.extend(ApplicationHelper)
-    helper.sanitize_inline_preview(html)
+    helper.sanitize_inline_preview(html, input_markup: input_markup)
   end
 
   # [the block's result, how many times the html was really sanitized]
@@ -278,9 +354,9 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     scrubber = RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber
     original = scrubber.method(:new)
     count = 0
-    scrubber.define_singleton_method(:new) do |*args|
+    scrubber.define_singleton_method(:new) do |*args, **options|
       count += 1
-      original.call(*args)
+      original.call(*args, **options)
     end
     [yield, count]
   ensure

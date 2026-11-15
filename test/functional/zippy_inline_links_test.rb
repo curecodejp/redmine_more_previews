@@ -48,6 +48,8 @@ class ZippyInlineLinksTest < Redmine::ControllerTest
     assert_response :success
     links = entry_links
     assert_equal ENTRIES.keys.map { |name| File.basename(name) }.sort, links.keys.sort
+    # Zippy builds the listing itself, so it keeps Redmine's classes
+    assert_select 'table.list a[download]', ENTRIES.size
 
     ENTRIES.each do |name, content|
       href = links[File.basename(name)]

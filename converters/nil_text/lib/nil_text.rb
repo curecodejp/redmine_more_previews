@@ -132,6 +132,17 @@ class NilText < RedmineMorePreviews::Conversion
   # the name 'index.html' ('index.txt', 'index.inline'). The filenames of the assets
   # (here: the image) will be untouched and copied with identical name.
   #
+  # == Inline html
+  #
+  # Inline html is embedded into the Redmine page, and is taken to carry markup
+  # written in the input: it keeps no class nor stylesheet, and little of a style.
+  # If your plugin builds all of its markup itself and escapes every value of the
+  # input, it may use Redmine's classes by saying so:
+  #
+  #   def self.inline_input_markup?
+  #     false
+  #   end
+  #
   #---------------------------------------------------------------------------------
   def convert
     super

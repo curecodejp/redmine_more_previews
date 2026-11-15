@@ -60,14 +60,14 @@ class SubUriAssetsTest < ActiveSupport::TestCase
 
   def test_inline_sanitizer_keeps_the_plugin_stylesheet_without_a_sub_uri
     Redmine::Utils.relative_url_root = ''
-    out = helper.sanitize_inline_preview(stylesheet_link(vince_stylesheet_path)).to_s
+    out = helper.sanitize_inline_preview(stylesheet_link(vince_stylesheet_path), input_markup: false).to_s
     assert_includes out, vince_stylesheet_path
   end
 
   def test_inline_sanitizer_keeps_the_plugin_stylesheet_under_a_sub_uri
     Redmine::Utils.relative_url_root = '/redmine'
     href = "/redmine#{vince_stylesheet_path}"
-    out = helper.sanitize_inline_preview(stylesheet_link(href)).to_s
+    out = helper.sanitize_inline_preview(stylesheet_link(href), input_markup: false).to_s
     assert_includes out, href, 'the converter\'s own stylesheet must survive under a sub-URI'
   end
 
@@ -77,7 +77,7 @@ class SubUriAssetsTest < ActiveSupport::TestCase
     ['', '/', '/redmine', '/redmine/'].each do |root|
       Redmine::Utils.relative_url_root = root
       href = "#{RedmineMorePreviews::Converter.find(:vince).public_web_directory}/stylesheets/redmine_more_previews_vince.css"
-      out = helper.sanitize_inline_preview(stylesheet_link(href)).to_s
+      out = helper.sanitize_inline_preview(stylesheet_link(href), input_markup: false).to_s
       assert_includes out, href, "the stylesheet emitted for relative_url_root #{root.inspect} must survive"
     end
   end
@@ -94,7 +94,7 @@ class SubUriAssetsTest < ActiveSupport::TestCase
       # not served below the sub-URI: this is some other application's path
       vince_stylesheet_path
     ].each do |href|
-      out = helper.sanitize_inline_preview(stylesheet_link(href)).to_s
+      out = helper.sanitize_inline_preview(stylesheet_link(href), input_markup: false).to_s
       assert_not_includes out, '<link', "#{href} must not be kept"
     end
   end

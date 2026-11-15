@@ -88,6 +88,12 @@ class Zippy < RedmineMorePreviews::Conversion
   def self.cache_revision
     "zippy-1"
   end #def
+
+  # the listing is built here, with the names of the entries escaped (see
+  # Conversion.inline_input_markup?)
+  def self.inline_input_markup?
+    false
+  end #def
   
   def convert
     case archive_type

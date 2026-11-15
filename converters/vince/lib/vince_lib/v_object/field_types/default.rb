@@ -115,6 +115,13 @@ module VObject
       def parent_class_symbol
         parent.class.name.demodulize.downcase.to_sym
       end #def
+
+      # a value of the vCard (KIND, LANG, the sex of GENDER) names the icon as
+      # one word of its own: "x flash error" would add Redmine's classes
+      #
+      def icon_name(value)
+        value.to_s.downcase.gsub(/[^a-z0-9_]+/, '-')
+      end #def
       
       # ----------------------------------------------------------------------------------
       # arrays with field names
@@ -253,7 +260,7 @@ module VObject
             if webalize_proc.is_a?(Proc)
               webalize_proc.call(hash,iconize)
             else
-              icon = iconize.presence && "icon icon-#{name}-#{hash[:symbol].to_s.downcase}"
+              icon = iconize.presence && "icon icon-#{name}-#{icon_name(hash[:symbol])}"
               content_tag(:span, translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_VALUE.#{hash[:symbol]}", :default => hash[:symbol]), :class => "#{parent_class_symbol} #{name} #{icon}") 
             end
           end
@@ -286,7 +293,7 @@ module VObject
       def webalize_symbol_with_list(iconize:false)
         to_h[name].map do |hash|
           content_tag(:p) do
-            icon = iconize.presence && "icon icon-#{name}-#{hash[:fields][name].to_s.downcase}"
+            icon = iconize.presence && "icon icon-#{name}-#{icon_name(hash[:fields][name])}"
             [ content_tag(:label, translate(:"#{parent_class_symbol}.#{name.to_s.upcase}"), :class => "#{parent_class_symbol} #{name} symbol-with-list") + tag(:br) +
               content_tag(:label, "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_FIELD.#{name}")}: ", :class => "#{parent_class_symbol} #{name} field") +
               content_tag(:span,  translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_VALUE.#{hash[:fields][name]}"), :class => "#{parent_class_symbol} #{name} #{icon}"),

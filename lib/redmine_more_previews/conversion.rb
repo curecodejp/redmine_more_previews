@@ -535,6 +535,25 @@ module RedmineMorePreviews
       nil
     end
 
+    # the inline output of a converter is taken to carry markup written in its
+    # input (f.i. the HTML of a Markdown file): that markup keeps no class nor
+    # stylesheet, and little of a style (see
+    # ApplicationHelperPatch::InlinePreviewScrubber). A converter that builds
+    # all of its markup itself, with the values of its input escaped, says
+    # false, and may then use Redmine's classes (Zippy, Vince)
+    def self.inline_input_markup?
+      true
+    end
+
+    # only a converter found to say false is trusted with Redmine's classes; a
+    # converter not found (removed since) is not
+    def self.inline_input_markup_for(converter_id)
+      return true if converter_id.blank?
+      RedmineMorePreviews::Converter.find(converter_id).converter_class.inline_input_markup? != false
+    rescue RedmineMorePreviews::Exceptions::ConverterNotFound
+      true
+    end
+
     def self.cache_revision_for(converter_id)
       return nil if converter_id.blank?
       RedmineMorePreviews::Converter.find(converter_id).converter_class.try(:cache_revision)

@@ -63,6 +63,7 @@ class ConversionLimitsTest < ActiveSupport::TestCase
 
   # options[:memory]: the address space of each process of the command
   def test_command_runs_with_its_memory_limit
+    skip 'Ruby knows no limit of the address space here' unless defined?(Process::RLIMIT_AS)
     limit = File.join(@dir, 'limit')
     pass_worker.command("ulimit -v > #{limit}", :memory => 256 * 1024**2)
     assert_equal (256 * 1024).to_s, File.read(limit).strip

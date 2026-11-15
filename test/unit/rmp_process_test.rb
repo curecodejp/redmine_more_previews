@@ -71,6 +71,7 @@ class RmpProcessTest < ActiveSupport::TestCase
   # memory: the address space of each process of the command, which the processes
   # it starts inherit (RLIMIT_AS)
   def test_memory_limits_the_address_space_of_the_command
+    skip_without_rlimit_as
     limit = File.join(@dir, 'limit')
     assert RmpProcess.run("sh -c 'ulimit -v' > #{limit}", timeout: 5, memory: 256 * 1024**2).success?
     assert_equal (256 * 1024).to_s, File.read(limit).strip
@@ -78,6 +79,7 @@ class RmpProcessTest < ActiveSupport::TestCase
 
   # never above the limit of this process: a hard limit above it is refused
   def test_memory_stays_within_the_limit_of_this_process
+    skip_without_rlimit_as
     limit = File.join(@dir, 'limit')
     Process.stubs(:getrlimit).with(Process::RLIMIT_AS).returns([128 * 1024**2, 192 * 1024**2])
     assert RmpProcess.run("sh -c 'ulimit -S -v; ulimit -H -v' > #{limit}", timeout: 5, memory: 256 * 1024**2).success?
@@ -96,6 +98,7 @@ class RmpProcessTest < ActiveSupport::TestCase
   end
 
   def test_a_command_beyond_its_memory_fails
+    skip_without_rlimit_as
     grow = 'x = "x" * (512 * 1024 * 1024); exit 0'
     assert RmpProcess.run([RbConfig.ruby, '-e', 'exit 0'], timeout: 30, memory: 256 * 1024**2).success?
     assert_not RmpProcess.run([RbConfig.ruby, '-e', grow], timeout: 30, memory: 256 * 1024**2, err: File::NULL).success?
@@ -191,6 +194,12 @@ class RmpProcessTest < ActiveSupport::TestCase
   end
 
   private
+
+  # where Ruby knows no RLIMIT_AS, a command runs without a memory limit (see
+  # test_memory_is_left_out_where_ruby_knows_no_limit_of_the_address_space)
+  def skip_without_rlimit_as
+    skip 'Ruby knows no limit of the address space here' unless defined?(Process::RLIMIT_AS)
+  end
 
   def measure
     start = RmpProcess.now

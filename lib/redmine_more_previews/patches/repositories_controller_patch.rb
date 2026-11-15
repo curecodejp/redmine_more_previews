@@ -53,7 +53,8 @@ module RedmineMorePreviews
             @entry = @repository.preview_entry(@path, @rev)
             # see ControllerHelper#preview_format_requested?; the entry is read
             # here, once (a file too large to read is answered with 413)
-            if @entry&.convertible? && preview_format_requested?(@repository.preview_format(@path, @rev))
+            if @entry&.convertible? && @repository.preview_path(@path) &&
+               preview_format_requested?(@repository.preview_format(@path, @rev))
               respond_with_more_preview
             else #no convertible document
               render_404
@@ -62,7 +63,7 @@ module RedmineMorePreviews
           
           def more_asset
             @entry = @repository.preview_entry(@path, @rev)
-            if @entry&.convertible?
+            if @entry&.convertible? && @repository.preview_path(@path)
               respond_with_more_asset
             else #no convertible document
               render_404
@@ -119,9 +120,11 @@ module RedmineMorePreviews
           # If the entry is a dir, show the browser
           (show; return) if @entry.is_dir?
           
-          # a file too large to preview is shown as Redmine shows it
+          # a file too large to preview, or whose path could not name the directory
+          # of its preview (see Repository#preview_path), is shown as Redmine shows it
           if @repository.project.module_enabled?('redmine_more_previews') &&
-             @entry.convertible? && !@repository.preview_too_large?(@path, @rev)
+             @entry.convertible? && @repository.preview_path(@path) &&
+             !@repository.preview_too_large?(@path, @rev)
               
             parent_path = @path.split('/')[0...-1].join('/')
             @entries = @repository.entries(parent_path, @rev).reject(&:is_dir?)

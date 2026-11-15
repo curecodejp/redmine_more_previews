@@ -44,6 +44,8 @@ class VinceCacheRevisionTest < Redmine::ControllerTest
     a = attach_vcf("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:Stored Before\r\nORG:Example Corp.;Sales\r\nEND:VCARD\r\n")
     get :show, params: {id: a.id}
     assert_response :success
+    # Vince builds the card itself, so it keeps Redmine's classes
+    assert_select 'div.box.business-card'
     index = a.preview_filepath
     marker = "#{File.dirname(index)}.converter"
     assert_equal RedmineMorePreviews::Conversion.cache_marker_for(:vince), File.read(marker)

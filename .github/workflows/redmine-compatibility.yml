@@ -234,7 +234,7 @@ jobs:
                       '<img src="https://example.invalid/t.png"><img src="//example.invalid/t.png">' \
                       "<img src=\"/\t/example.invalid/t.png\"><img src=\"/\n\\example.invalid/t.png\">" \
                       '<div id="preview_frame">d</div><input type="text" name="q">'
-          out = helper.sanitize_inline_preview(untrusted).to_s
+          out = helper.sanitize_inline_preview(untrusted, input_markup: false).to_s
           # example.invalid: no off-site image is fetched, including one whose
           # tab or newline the browser would strip into a protocol relative url;
           # id="preview_frame": converter ids cannot clobber Redmine's elements
@@ -242,14 +242,14 @@ jobs:
             raise "inline preview sanitiser leaked #{needle}: #{out}" if out.include?(needle)
           end
           raise 'inline preview sanitiser must keep benign markup' unless out.include?('<h1 id="rmp-t">T</h1>') && out.include?('<img>') && out.include?('font-weight')
-          raise 'inline preview sanitiser must return html_safe' unless helper.sanitize_inline_preview('<p>x</p>').html_safe?
+          raise 'inline preview sanitiser must return html_safe' unless helper.sanitize_inline_preview('<p>x</p>', input_markup: false).html_safe?
 
           kept = helper.sanitize_inline_preview(
             '<table class="list"><tbody><tr><td class="description"><a download="a.txt" href="/attachments/more_preview/1?asset=a.txt">a.txt</a></td></tr></tbody></table>' \
             '<link rel="stylesheet" media="all" href="/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css">' \
             '<a href="#fn1" id="fnref1">1</a><li id="fn1"><a href="#fnref1">back</a></li>' \
             '<img src="/plugin_assets/redmine_more_previews/converters/vince/images/logo.png"><img src="data:image/png;base64,iVBORw0KGgo=">' \
-            '<input type="checkbox" checked>'
+            '<input type="checkbox" checked>', input_markup: false
           ).to_s
           # footnote links still reach their target, inside the rmp- namespace;
           # same-origin and inline images load; a task list keeps its checkbox,
@@ -269,10 +269,10 @@ jobs:
             vince_css = '/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css'
             emitted = RedmineMorePreviews::Converter.find(:vince).public_web_directory
             raise "converter assets ignore the sub-URI: #{emitted}" unless emitted == '/redmine/plugin_assets/redmine_more_previews/converters/vince'
-            sub_uri = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="/redmine#{vince_css}">)).to_s
+            sub_uri = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="/redmine#{vince_css}">), input_markup: false).to_s
             raise "sub-URI stylesheet dropped: #{sub_uri}" unless sub_uri.include?("/redmine#{vince_css}")
             [vince_css, '/redmine/attachments/download/1/evil.css', '/redmine/plugin_assets/redmine_more_previews/../../x.css'].each do |href|
-              leaked = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">)).to_s
+              leaked = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">), input_markup: false).to_s
               raise "sub-URI stylesheet allow-list accepted #{href}: #{leaked}" if leaked.include?('<link')
             end
             # a root written with a trailing slash works for Redmine itself, so the
@@ -281,7 +281,7 @@ jobs:
               Redmine::Utils.relative_url_root = root
               href = "#{RedmineMorePreviews::Converter.find(:vince).public_web_directory}/stylesheets/redmine_more_previews_vince.css"
               raise "doubled slash for relative_url_root #{root.inspect}: #{href}" if href.include?('//')
-              emitted = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">)).to_s
+              emitted = helper.sanitize_inline_preview(%(<link rel="stylesheet" href="#{href}">), input_markup: false).to_s
               raise "stylesheet emitted for relative_url_root #{root.inspect} was dropped: #{emitted}" unless emitted.include?(href)
             end
           ensure

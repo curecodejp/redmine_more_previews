@@ -308,6 +308,31 @@ class PreviewFormatSelectionTest < Redmine::ControllerTest
     assert_equal ['preview.inline'], preview_directories(a)
   end
 
+  # the classes and styles written in a document shown inline are not Redmine's
+  # to draw with; the alignment of a table column is kept
+  def test_mark_inline_takes_no_classes_nor_styles_of_the_document
+    skip 'pandoc is not installed' unless pandoc?
+    settings = SETTINGS.deep_dup
+    settings['converter']['mark'] = {'active' => '1', 'mime_types' => {'md' => {'active' => '1', 'format' => 'inline'}}}
+    use_settings(settings)
+    md = %Q{<div class="flash error" style="margin:-500px">Your session has expired</div>\n\n| a |\n|--:|\n| 1 |\n\n} +
+         %Q{![a](/favicon.ico){width=50%}\n\n<link rel="stylesheet" href="#{VINCE_STYLESHEET}">\n}
+    a = attach(write('notes.md', md), 'text/markdown')
+
+    get :show, params: {id: a.id}
+    assert_response :success
+    assert_select 'div.flash', 0
+    assert_select 'div', text: 'Your session has expired'
+    assert_not_includes response.body, 'margin:-500px'
+    assert_select 'td[style=?]', 'text-align:right;', text: '1'
+    assert_select 'img[src="/favicon.ico"][style=?]', 'width:50.0%;'
+    assert_select "link[href='#{VINCE_STYLESHEET}']", 0
+    # what floats or is wide stays in the box of the preview
+    assert_select 'div[style=?] img[src="/favicon.ico"]', 'overflow:auto;'
+  end
+
+  VINCE_STYLESHEET = '/plugin_assets/redmine_more_previews/converters/vince/stylesheets/redmine_more_previews_vince.css'
+
   # a preview stored before Mark passed --sandbox is converted again when it is
   # first viewed; the previews of the other converters keep their markers
   def test_a_mark_preview_stored_before_the_sandbox_is_converted_again

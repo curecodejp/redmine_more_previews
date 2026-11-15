@@ -32,7 +32,7 @@
     <div id="preview_repository_entry_top">
       <%= call_hook(:preview_repository_entry_top, :repository => @repository, :path => @path, :rev => @rev, :entry => @entry, :project => @project, :params => inline_preview_options ) %>
     </div>
-    <div>
+    <div style="<%= RedmineMorePreviews::Patches::ApplicationHelperPatch::INLINE_PREVIEW_PANE_STYLE %>">
     <%= inline_more_preview( @repository, @path, @rev ) %>
     </div>
     

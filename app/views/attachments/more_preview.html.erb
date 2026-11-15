@@ -18,7 +18,7 @@
     <div id="preview_repository_entry_top">
       <%= call_hook(:preview_attachment_top, :attachment => @attachment, :project => @project, :params => inline_preview_options ) %>
     </div>
-    <div>
+    <div style="<%= RedmineMorePreviews::Patches::ApplicationHelperPatch::INLINE_PREVIEW_PANE_STYLE %>">
     <%= inline_more_preview( @attachment ) %>
     </div>
   <%- when "jpg", "jpeg", "png", "gif" %>

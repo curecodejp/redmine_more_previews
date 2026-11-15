@@ -41,6 +41,11 @@ module RedmineMorePreviews
       # page shows around it (about 310px: header, title, footer).
       NON_HTML_PREVIEW_PANE_STYLE = "position:relative;height:calc(100vh - 320px);min-height:280px;"
 
+      # an inline preview is embedded into the page: what floats in it (an image
+      # with align="left") or is wider than the page stays within its box
+      # instead of reaching over what the page shows below it
+      INLINE_PREVIEW_PANE_STYLE = "overflow:auto;"
+
       # Allow-list scrubber for converter output that is embedded directly
       # into the Redmine page (preview_format = inline). Converter input is
       # attacker controlled, so script-capable markup must never reach the
@@ -95,6 +100,17 @@ module RedmineMorePreviews
         ID_PREFIX = 'rmp-'
         ID_VALUE  = /\A\S+\z/.freeze
 
+        # markup written in the input (see Conversion.inline_input_markup?) keeps
+        # no class, no stylesheet and of a style only the declarations below:
+        # with Redmine's classes it would draw a message of Redmine ("flash
+        # error"), and with a negative margin and a background it would cover the
+        # page around it. pandoc writes the alignment of a table column and the
+        # relative width of a table, a column or an image as a style; a width of
+        # up to 100% stays within the preview's box
+        INPUT_MARKUP_TEXT_ALIGN = /\Atext-align:\s*(?:left|right|center|justify)\z/i.freeze
+        INPUT_MARKUP_WIDTH      = /\Awidth:\s*(?:100(?:\.0+)?|\d{1,2}(?:\.\d+)?)%\z/i.freeze
+        INPUT_MARKUP_WIDTH_TAGS = %w[table col img].freeze
+
         # +href+ must be the plugin's own stylesheet as this Redmine serves it:
         # under a sub-URI the bare "/plugin_assets/..." path belongs to whatever
         # else is mounted at the server root, so it is not accepted there.
@@ -108,8 +124,9 @@ module RedmineMorePreviews
           href.match?(PLUGIN_STYLESHEET_HREF)
         end
 
-        def initialize
-          super
+        def initialize(input_markup:)
+          super()
+          @input_markup   = input_markup
           self.tags       = ALLOWED_TAGS
           self.attributes = ALLOWED_ATTRIBUTES
         end
@@ -121,8 +138,10 @@ module RedmineMorePreviews
           return true  unless node.name == 'link'
           # only this plugin's own static stylesheets (Vince ships its css this
           # way); anything else - other same-origin urls included, since
-          # uploaded .css attachments are served as text/css - is dropped
-          node['rel'].to_s.strip.casecmp?('stylesheet') &&
+          # uploaded .css attachments are served as text/css - is dropped. The
+          # input links none: Vince's stylesheet has rules for Redmine's page
+          !@input_markup &&
+            node['rel'].to_s.strip.casecmp?('stylesheet') &&
             self.class.plugin_stylesheet_href?(node['href'])
         end
 
@@ -151,6 +170,13 @@ module RedmineMorePreviews
           return if value.nil?   # super removed it (javascript:, data:text/html, ...)
 
           case name
+          when 'class'
+            node.remove_attribute(name) if @input_markup
+          when 'style'
+            if @input_markup
+              kept = input_markup_style(node.name, value)
+              kept.empty? ? node.remove_attribute(name) : node[name] = kept
+            end
           when 'src'
             node.remove_attribute(name) unless value.gsub(URL_IGNORED_CHARS, '').match?(LOCAL_IMAGE_SRC)
           when 'id'
@@ -169,6 +195,17 @@ module RedmineMorePreviews
           # a preview is a document, not a form: the checkbox shows what the
           # source said, and must not look like something the reader can change
           node['disabled'] = 'disabled' if node.name == 'input'
+        end
+
+        private
+
+        # the declarations of +style+ (as Loofah's css scrub left it) that markup
+        # written in the input keeps on a +tag+, see INPUT_MARKUP_TEXT_ALIGN
+        def input_markup_style(tag, style)
+          style.split(';').map(&:strip).select do |declaration|
+            declaration.match?(INPUT_MARKUP_TEXT_ALIGN) ||
+              (INPUT_MARKUP_WIDTH_TAGS.include?(tag) && declaration.match?(INPUT_MARKUP_WIDTH))
+          end.map { |declaration| "#{declaration};" }.join
         end
 
       end #class
@@ -215,14 +252,22 @@ module RedmineMorePreviews
               converted
             end
             return content_tag(:p, l(:text_more_previews_inline_failed), :class => "nodata") if html.nil?
-            sanitize_inline_preview(RedmineMorePreviews::Lib::RmpText.to_utf8(html))
+            # the converter that made the preview is the one preview_selection
+            # names: it chose the cached file, or the conversion just made
+            sanitize_inline_preview(RedmineMorePreviews::Lib::RmpText.to_utf8(html),
+              :input_markup => RedmineMorePreviews::Conversion.inline_input_markup_for(object.preview_selection(*args)["converter"]))
           rescue RedmineMorePreviews::Exceptions::ConverterTooLarge
             content_tag(:p, l(:text_more_previews_inline_too_large), :class => "nodata")
           end #def
 
-          def sanitize_inline_preview(html)
+          # input_markup: the html carries markup written in the input, and keeps
+          # no class nor stylesheet, and little of a style (see
+          # InlinePreviewScrubber::INPUT_MARKUP_TEXT_ALIGN). Every caller says
+          # which: only markup a converter built itself may use Redmine's classes
+          def sanitize_inline_preview(html, input_markup:)
             html = html.to_s
             return ''.html_safe if html.empty?
+            input_markup = input_markup ? true : false
 
             # Never parse oversized converter output in the Rails process.
             # Do not truncate: partial markup could change sanitizer semantics.
@@ -230,30 +275,36 @@ module RedmineMorePreviews
               return ERB::Util.html_escape(l(:text_more_previews_inline_too_large)).html_safe
             end
 
-            begin
-              # keyed on the content, so query parameters cannot bypass the cache
-              # (the scrubber's result depends on the sub-URI as well). While the
-              # preview cache is disabled nothing new is kept; results stored
-              # before that are not read and expire on their own.
-              if RedmineMorePreviews::Converter.cache_previews?
-                key = "#{Redmine::Utils.relative_url_root}:#{Digest::SHA256.hexdigest(html)}"
-                RedmineMorePreviews::Patches::ApplicationHelperPatch::INLINE_PREVIEW_CACHE.fetch(key) do
-                  sanitize_inline_preview_html(html)
-                end.html_safe
-              else
-                sanitize_inline_preview_html(html).html_safe
+            # keyed on the content, so query parameters cannot bypass the cache
+            # (the scrubber's result depends on the sub-URI as well). While the
+            # preview cache is disabled nothing new is kept; results stored
+            # before that are not read and expire on their own. A failure (nil)
+            # is not kept.
+            sanitized = if RedmineMorePreviews::Converter.cache_previews?
+              key = "#{Redmine::Utils.relative_url_root}:#{input_markup}:#{Digest::SHA256.hexdigest(html)}"
+              RedmineMorePreviews::Patches::ApplicationHelperPatch::INLINE_PREVIEW_CACHE.fetch(key, :skip_nil => true) do
+                sanitize_inline_preview_html(html, :input_markup => input_markup)
               end
-            rescue ArgumentError => e
-              # The HTML5 parser refuses markup over its tree depth and attribute
-              # limits by raising. Keep the page and never fall back to the input.
-              Rails.logger.warn("Inline preview not sanitized: #{e.message}")
-              ERB::Util.html_escape(l(:text_more_previews_inline_too_complex)).html_safe
+            else
+              sanitize_inline_preview_html(html, :input_markup => input_markup)
             end
+            return ERB::Util.html_escape(l(:text_more_previews_inline_too_complex)).html_safe if sanitized.nil?
+            sanitized.html_safe
           end #def
 
-          def sanitize_inline_preview_html(html)
+          # nil if the HTML5 parser refuses +html+
+          def sanitize_inline_preview_html(html, input_markup:)
             sanitizer = defined?(Rails::HTML5::SafeListSanitizer) ? Rails::HTML5::SafeListSanitizer : Rails::HTML::SafeListSanitizer
-            sanitizer.new.sanitize(html, :scrubber => RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new).to_s
+            scrubber  = RedmineMorePreviews::Patches::ApplicationHelperPatch::InlinePreviewScrubber.new(:input_markup => input_markup)
+            sanitizer = sanitizer.new
+            begin
+              sanitizer.sanitize(html, :scrubber => scrubber).to_s
+            rescue ArgumentError => e
+              # The parser refuses markup over its tree depth and attribute limits
+              # by raising. Keep the page and never fall back to the input.
+              Rails.logger.warn("Inline preview not sanitized: #{e.class}: #{e.message}")
+              nil
+            end
           end #def
 
           # the preview is a request of its own, so only the browser learns that it

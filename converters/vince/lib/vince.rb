@@ -36,6 +36,12 @@ class Vince < RedmineMorePreviews::Conversion
     "vince-1"
   end #def
 
+  # the business card is built here, with the values of the vCard escaped (see
+  # Conversion.inline_input_markup?)
+  def self.inline_input_markup?
+    false
+  end #def
+
   def convert
     # Fetch Redmine configuration before forking. A forked child must not use
     # its inherited ActiveRecord connection, including via Vince translations.

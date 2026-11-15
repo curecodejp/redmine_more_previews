@@ -160,6 +160,18 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
     assert_equal @repo_a.preview_dirname('a.zip', nil), @repo_a.preview_dirname('/a.zip', nil)
   end
 
+  # Zippy builds the listing itself, so on the page of an entry too it keeps
+  # Redmine's classes (the converter is looked up by the path and revision)
+  def test_an_inline_listing_keeps_the_classes_of_zippy
+    settings = ZIPPY_SETTINGS.deep_dup
+    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
+    Setting.plugin_redmine_more_previews = settings
+    Setting.clear_cache
+    get :entry, params: {id: PRJ_A, repository_id: @repo_a.identifier_param, path: 'a.zip', format: 'html'}
+    assert_response :success
+    assert_select 'table.list', text: /secret\.txt/
+  end
+
   # the previous layout (per repository class and identifier) is removed on start
   def test_legacy_cache_is_removed
     legacy = File.join(@storage, 'repository', 'filesystems', 'a.zip', 'preview.html')

@@ -100,12 +100,12 @@ end
 # translation lookup can load all locales and otherwise dominate the rejection
 # timing, although rejection itself never parses the oversized HTML.
 notice = ERB::Util.html_escape(helper.l(:text_more_previews_inline_too_large))
-helper.sanitize_inline_preview('<b>warm-up</b>')
+helper.sanitize_inline_preview('<b>warm-up</b>', input_markup: true)
 
 rss_before = process_memory_kib('VmRSS')
 hwm_before = process_memory_kib('VmHWM')
 output = nil
-seconds = Benchmark.realtime { output = helper.sanitize_inline_preview(html) }
+seconds = Benchmark.realtime { output = helper.sanitize_inline_preview(html, input_markup: true) }
 rss_after = process_memory_kib('VmRSS')
 hwm_after = process_memory_kib('VmHWM')
 

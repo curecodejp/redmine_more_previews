@@ -43,7 +43,7 @@ module VObject
       FIELDS = [
         :values
       ]
-      attr_accessor :name, :parent, :fields, :humanize_proc, :webalize_proc, :readable_proc
+      attr_accessor :name, :parent, :fields, :webalize_proc, :readable_proc
       
       LABEL_WIDTH=24
       LINKABLE_URI_SCHEMES = %w[http https ftp mailto tel geo].freeze
@@ -63,14 +63,12 @@ module VObject
       #   - name:   name of field
       #   - parent: name of parent object, i.e. 'vcard', 'vcalendar', etc.
       #   - fields: array of sub fields
-      #   - humanize_proc: optional proc to format to humanized format
       #   - webalize_proc: optional proc to format to webalized format
       #
-      def initialize(name, parent: nil, fields: nil, humanize_proc: nil, webalize_proc: nil, readable_proc: nil)
+      def initialize(name, parent: nil, fields: nil, webalize_proc: nil, readable_proc: nil)
         self.name          = name.to_s.downcase.to_sym
         self.parent        = parent
         self.fields        = fields && fields.map{|f| f.to_s.downcase.to_sym}
-        self.humanize_proc = humanize_proc
         self.webalize_proc = webalize_proc
         self.readable_proc = readable_proc
       end #def
@@ -132,11 +130,7 @@ module VObject
       def humanize_fields
         to_h[name].map do |hash| 
           [ "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}")}:",
-            if humanize_proc.is_a?(Proc)
-              humanize_proc.call(hash)
-            else
-              hash[:fields].map{|field, value| "  #{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_FIELD.#{field}")}:".ljust(LABEL_WIDTH) + "#{value}"}
-            end
+            hash[:fields].map{|field, value| "  #{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_FIELD.#{field}")}:".ljust(LABEL_WIDTH) + "#{value}"}
           ].join("\n")
         end.flatten.compact.join("\n")
       end #def
@@ -170,11 +164,7 @@ module VObject
       def humanize_list
         to_h[name].map do |hash| 
           [ "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}")}:",
-            if humanize_proc.is_a?(Proc)
-              humanize_proc.call(hash)
-            else
-              hash[:fields].map{|field, value| "".ljust(LABEL_WIDTH) + "#{value}"}
-            end
+            hash[:fields].map{|field, value| "".ljust(LABEL_WIDTH) + "#{value}"}
           ].join("\n")
         end.flatten.compact.join("\n")
       end #def
@@ -208,11 +198,7 @@ module VObject
       def humanize_value
         to_h[name].map do |hash|
           [  "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}")}:".ljust(LABEL_WIDTH),
-            if humanize_proc.is_a?(Proc)
-              humanize_proc.call(hash)
-            else
-              "#{hash[:value]}"
-            end
+            "#{hash[:value]}"
           ].join
         end.join("\n")
       end #def
@@ -242,11 +228,7 @@ module VObject
       def humanize_symbol
         to_h[name].map do |hash| 
            [ "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}")}:".ljust(LABEL_WIDTH),
-             if humanize_proc.is_a?(Proc)
-               humanize_proc.call(hash)
-             else
-               "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_VALUE.#{hash[:symbol]}", :default => hash[:symbol])}"
-             end
+             "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_VALUE.#{hash[:symbol]}", :default => hash[:symbol])}"
            ].join
         end.join("\n")
       end #def
@@ -277,13 +259,9 @@ module VObject
         to_h[name].map do |hash| 
           [ "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}")}:".ljust(LABEL_WIDTH) + 
             translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_VALUE.#{hash[:fields][name]}" ),
-            if humanize_proc.is_a?(Proc)
-              humanize_proc.call(hash[:fields].except(name))
-            else
-              hash[:fields].except(name).map do |field, value| 
-                "  #{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_FIELD.#{field}")}:".ljust(LABEL_WIDTH) + value.to_s
-              end.join("\n")
-            end
+            hash[:fields].except(name).map do |field, value| 
+              "  #{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}_FIELD.#{field}")}:".ljust(LABEL_WIDTH) + value.to_s
+            end.join("\n")
           ].join("\n")
         end.flatten.compact.join("\n")
       end #def
@@ -320,11 +298,7 @@ module VObject
       def humanize_uri
         to_h[name].map do |hash|
           [ "#{translate(:"#{parent_class_symbol}.#{name.to_s.upcase}")}:".ljust(LABEL_WIDTH),
-            if humanize_proc.is_a?(Proc)
-              humanize_proc.call(hash)
-            else
-              hash[:fields][:full]
-            end
+            hash[:fields][:full]
           ].join
         end.join("\n")
       end #def

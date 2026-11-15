@@ -254,13 +254,10 @@ module VObject
       url.present? ? tag(:img, src: url, alt: I18n.with_locale(Modules::Localization.global_lang) { I18n.t(:"vcard.PHOTO") }, :class => "vcard photo box") : ""
     end #def
     
-    PHOTO_HUMANIZE_PROC = Proc.new{|hash| ":-)"}
-    
     def photo(*val, **att)
       if[val,att].all?(&:blank?)
         @photo ||= FieldTypes::VUri.new(:photo, parent: self,
           webalize_proc: PHOTO_WEBALIZE_PROC,
-          humanize_proc: PHOTO_HUMANIZE_PROC,
           readable_proc: PHOTO_WEBALIZE_PROC
         )
       else
@@ -569,13 +566,10 @@ module VObject
       url.present? ? tag(:img, src: url, alt: I18n.with_locale(Modules::Localization.global_lang) { I18n.t(:"vcard.LOGO") }, :class => "vcard logo box") : ""
     end #def
     
-    LOGO_HUMANIZE_PROC = Proc.new{|hash| "|/|"}
-    
     def logo(*val, **att)
       if[val,att].all?(&:blank?)
         @logo ||= FieldTypes::VUri.new(:logo, parent: self,
           webalize_proc: LOGO_WEBALIZE_PROC,
-          humanize_proc: LOGO_HUMANIZE_PROC,
           readable_proc: LOGO_WEBALIZE_PROC
         )
       else

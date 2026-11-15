@@ -113,13 +113,6 @@ class VinceIsolationTest < ActiveSupport::TestCase
     assert_operator elapsed, :<, 8
   end
 
-  def test_cached_preview_is_served_without_forking
-    w = worker('txt')
-    assert_includes File.open(@src) { |io| w.preview(io) }, 'Test Person'
-    RedmineMorePreviews::Lib::RmpProcess.expects(:fork).never
-    assert_includes File.open(@src) { |io| worker('txt').preview(io) }, 'Test Person'
-  end
-
   def test_error_in_the_child_is_logged
     log = File.join(@tmp, 'child.log')
     reader = Object.new

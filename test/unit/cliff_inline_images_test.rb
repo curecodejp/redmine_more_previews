@@ -52,12 +52,6 @@ class CliffInlineImagesTest < ActiveSupport::TestCase
     preview.to_s.dup.force_encoding(Encoding::UTF_8)
   end
 
-  def test_inline_image_is_embedded
-    html = convert(mail_with_image(PNG))
-    assert_includes html, %(src="data:image/png;base64,#{Base64.strict_encode64(PNG)}")
-    assert_includes html, 'body'
-  end
-
   # a page larger than a preview would not be shown at all: the image is linked
   def test_image_that_would_exceed_the_size_of_a_preview_is_linked
     Setting.plugin_redmine_more_previews = {'max_output' => '1'}

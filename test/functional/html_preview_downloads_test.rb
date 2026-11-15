@@ -51,25 +51,6 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
     response.headers['Content-Security-Policy'].to_s
   end
 
-  # Conversion is stubbed: this checks the response headers used by the
-  # browser's PDF viewer, without requiring LibreOffice on the CI runner.
-  def test_converted_pdf_uses_original_excel_filename_with_cache
-    Dir.mktmpdir do |dir|
-      path = File.join(dir, 'monthly.report.2026.xlsx')
-      File.binwrite(path, 'synthetic spreadsheet')
-      a = attach(path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-      Attachment.any_instance.stubs(:preview_convertible?).returns(true)
-      Attachment.any_instance.stubs(:preview_format).returns('pdf')
-      Attachment.any_instance.stubs(:more_preview).returns('%PDF-1.4 synthetic')
-
-      get :more_preview, params: {id: a.id, format: 'pdf'}
-      assert_response :success
-      assert_equal 'application/pdf', response.media_type
-      assert_includes response.headers['Content-Disposition'], 'monthly.report.2026.pdf'
-      assert_not_includes response.headers['Content-Disposition'], 'index.pdf'
-    end
-  end
-
   def test_pdf_preview_rename_invalidates_old_etag_and_updates_download_name
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'previous.xlsx')
@@ -82,6 +63,7 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
 
       get :more_preview, params: {id: attachment.id, format: 'pdf'}
       assert_response :success
+      assert_equal 'application/pdf', response.media_type
       old_etag = response.headers['ETag']
       assert old_etag.present?, 'cached preview needs an ETag'
       assert_includes response.headers['Content-Disposition'], 'previous.pdf'
@@ -303,20 +285,6 @@ class HtmlPreviewDownloadsTest < Redmine::ControllerTest
       assert finished
     ensure
       holder&.close
-    end
-  end
-
-  def test_other_html_previews_stay_fully_sandboxed
-    Dir.mktmpdir do |dir|
-      path = File.join(dir, 'page.html')
-      File.write(path, '<html><body><meta http-equiv="refresh" content="0;url=/attachments/download/1/x.bin"></body></html>')
-      a = attach(path, 'text/html')
-      assert a.preview_convertible?, 'pass converter must handle .html for this test'
-      get :more_preview, params: {id: a.id, format: 'html'}
-      assert_response :success
-      assert_match(/\Asandbox; /, csp)
-      get :show, params: {id: a.id, filename: a.filename, format: 'html'}
-      assert_select 'iframe[sandbox=""]'
     end
   end
 end

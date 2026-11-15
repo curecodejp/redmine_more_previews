@@ -58,19 +58,6 @@ class SubUriAssetsTest < ActiveSupport::TestCase
 
   # --- the allow-list the inline sanitizer matches them against ----------------------
 
-  def test_inline_sanitizer_keeps_the_plugin_stylesheet_without_a_sub_uri
-    Redmine::Utils.relative_url_root = ''
-    out = helper.sanitize_inline_preview(stylesheet_link(vince_stylesheet_path), input_markup: false).to_s
-    assert_includes out, vince_stylesheet_path
-  end
-
-  def test_inline_sanitizer_keeps_the_plugin_stylesheet_under_a_sub_uri
-    Redmine::Utils.relative_url_root = '/redmine'
-    href = "/redmine#{vince_stylesheet_path}"
-    out = helper.sanitize_inline_preview(stylesheet_link(href), input_markup: false).to_s
-    assert_includes out, href, 'the converter\'s own stylesheet must survive under a sub-URI'
-  end
-
   # the url a converter emits and the allow-list it is matched against must
   # normalize the root the same way, whatever it is set to
   def test_inline_sanitizer_keeps_the_stylesheet_a_converter_emits_for_any_root

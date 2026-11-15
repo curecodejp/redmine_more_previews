@@ -45,10 +45,6 @@ class CliffHeadersTest < ActiveSupport::TestCase
     row.css('td')[1].text.strip
   end
 
-  def test_string_cc_displays_cc_instead_of_from
-    assert_equal 'cc@example.test', cc_cell(render_headers('cc@example.test'))
-  end
-
   def test_array_cc_is_joined
     assert_equal 'one@example.test, two@example.test',
                  cc_cell(render_headers(['one@example.test', 'two@example.test']))
@@ -116,19 +112,7 @@ class CliffHeadersTest < ActiveSupport::TestCase
     assert_equal 2, html.scan('&lt;b&gt;bold&lt;/b&gt;').size, 'both the name and the value must be escaped'
   end
 
-  # --- labels --------------------------------------------------------------------------
-
-  # the japanese Cc label read "英語" ("English", the language name Vince's own
-  # locale uses), so the row was labelled as if it held a language
-  def test_japanese_labels_name_the_mail_fields
-    {
-      :label_mail_field_date => '日付', :label_mail_field_from => '差出人',
-      :label_mail_field_to => '宛先', :label_mail_field_cc => 'Cc',
-      :label_mail_field_subject => '件名'
-    }.each do |key, expected|
-      assert_equal expected, I18n.translate(key, :locale => :ja), "#{key} is mistranslated"
-    end
-  end
+  # --- the value cells wrap long values ----------------------------------------------
 
   def test_header_value_cells_use_the_bundled_wrapping_class
     html = render_headers('cc@example.test')

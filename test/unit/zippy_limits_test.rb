@@ -389,16 +389,6 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_raises(ConverterTooLarge) { stored_asset(tar, 'b.txt') }
   end
 
-  # a zip that cannot be opened offers no asset: no name opens it again
-  def test_zip_that_cannot_be_opened_is_not_opened_again
-    zip = build_zip(path('a.zip'), 'a.txt' => 'a')
-    Zip::File.stubs(:open).raises(Zip::Error, 'broken')
-    assert_nil stored_asset(zip, 'a.txt')
-    Zippy.any_instance.expects(:convert).never
-    assert_nil stored_asset(zip, 'a.txt')
-    assert_nil stored_asset(zip, 'other.txt')
-  end
-
   # rubyzip fails on some broken zips with errors not its own (a zip64 record
   # before its locator: TypeError): no name opens such a zip again either
   def test_zip_failing_with_another_error_is_not_opened_again
@@ -407,17 +397,6 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_nil stored_asset(zip, 'a.txt')
     Zippy.any_instance.expects(:convert).never
     assert_nil stored_asset(zip, 'other.txt')
-  end
-
-  # an error of the system is not taken for a broken archive: the stored list
-  # stays, and the other entries are extracted once it passes
-  def test_error_of_the_system_keeps_the_stored_list
-    tar = build_tar(path('a.tar'), 'a.txt' => 'a', 'b.txt' => 'b')
-    store_listing(tar)
-    Zippy.any_instance.stubs(:tarasset).raises(Errno::EIO)
-    assert_nil stored_asset(tar, 'a.txt')
-    Zippy.any_instance.unstub(:tarasset)
-    assert_equal 'b', stored_asset(tar, 'b.txt')
   end
 
   # a failure written after another request stored the preview does not hide

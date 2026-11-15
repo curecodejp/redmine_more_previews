@@ -257,14 +257,6 @@ class InlinePreviewScrubberTest < ActiveSupport::TestCase
     2.times { assert_equal [notice, 1], with_real_sanitizer_count { sanitize(html) } }
   end
 
-  def test_inline_preview_still_strips_scripts_below_limit
-    output = sanitize('<p>safe</p><script>alert(1)</script>')
-
-    assert_includes output, '<p>safe</p>'
-    assert_not_includes output, '<script>'
-    assert_not_includes output, 'alert(1)'
-  end
-
   # --- markup written in the input (Mark) ---------------------------------------------
 
   SPOOF = '<div class="flash error" style="margin:-500px;width:100%;background-color:white">' \

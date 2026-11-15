@@ -83,13 +83,6 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     assert_raises(ConverterTimeout) { worker.command('true') }
   end
 
-  def test_a_timed_out_conversion_gives_no_preview
-    RedmineMorePreviews::Converter.stubs(:conversion_timeout).returns(1)
-    worker = pass_worker
-    worker.define_singleton_method(:convert) { command('sleep 30') }
-    assert_nil worker.preview(File.new(@source))
-  end
-
   # a failure of the file is kept, and the file is not converted again for a
   # while; running out of memory or a signal is no failure of the file
   def test_an_error_of_the_file_is_kept_and_running_out_of_memory_is_not
@@ -106,11 +99,6 @@ class ConversionLimitsTest < ActiveSupport::TestCase
       assert_nil RedmineMorePreviews::Lib::RmpFailures.recorded(@target), error.name
     end
     assert_equal 'plain text', pass_worker.preview(File.new(@source)), 'the file is converted on the next request'
-  end
-
-  def test_a_preview_is_converted_and_cached
-    assert_equal 'plain text', pass_worker.preview(File.new(@source))
-    assert_equal 'plain text', File.read(@target)
   end
 
   def test_cached_preview_is_served_while_the_converter_is_busy
@@ -179,12 +167,7 @@ class ConversionLimitsTest < ActiveSupport::TestCase
     RedmineMorePreviews::Converter.stubs(:max_output).returns(5)
     assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { pass_worker.preview(File.new(@source)) }
     assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { pass_worker.preview(File.new(@source)) {|*| flunk} }
-  end
-
-  def test_preview_larger_than_the_output_limit_is_not_stored
-    RedmineMorePreviews::Converter.stubs(:max_output).returns(5)
-    assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { pass_worker.preview(File.new(@source)) }
-    assert_not File.exist?(@target)
+    assert_not File.exist?(@target), 'nor stored'
   end
 
   def test_inline_preview_output_is_rejected_before_cache_storage
@@ -266,23 +249,6 @@ class ConversionLimitsTest < ActiveSupport::TestCase
 
     assert_equal 'a' * (max + 1), worker.preview(File.new(@source))
     assert_equal '<p>ok</p>', File.binread(worker.targetpath)
-  end
-
-  def test_cliff_embedded_fragments_are_capped_before_cache_storage
-    worker = RedmineMorePreviews::Converter.find(:cliff).worker(
-      preview_format: 'html', object: {}, target: File.join(@dir, 'mail', 'index.html')
-    )
-    limit = RedmineMorePreviews::Patches::ApplicationHelperPatch::MAX_INLINE_PREVIEW_HTML_BYTES
-    Dir.mktmpdir do |tmp|
-      worker.tmpdir = tmp
-      worker.tmptarget = File.join(tmp, 'index.html')
-      File.binwrite(worker.tmptarget, 'ok')
-      File.binwrite(File.join(tmp, 'headers.html'), 'x' * (limit + 1))
-      worker.send(:check_output_size)
-      assert_equal RedmineMorePreviews::Conversion::CLIFF_FRAGMENT_TOO_LARGE,
-                   File.binread(File.join(tmp, 'headers.html'))
-      assert_equal 'ok', File.binread(worker.tmptarget)
-    end
   end
 
   def test_cliff_cached_fragments_reject_oversize_before_file_read

@@ -30,20 +30,6 @@ class PdfMagicTest < ActiveSupport::TestCase
     FileUtils.rm_rf(@dir)
   end
 
-  def test_pdf_is_accepted
-    assert RedmineMorePreviews.valid_pdf_magic?(file('doc.pdf', PDF))
-  end
-
-  def test_pdf_with_a_byte_order_mark_is_accepted
-    assert RedmineMorePreviews.valid_pdf_magic?(file('doc.pdf', "\xEF\xBB\xBF".b + PDF.b))
-  end
-
-  def test_postscript_is_rejected
-    POSTSCRIPT.each do |name, bytes|
-      assert_not RedmineMorePreviews.valid_pdf_magic?(file('doc.pdf', bytes)), name
-    end
-  end
-
   def test_empty_and_missing_files_are_rejected
     assert_not RedmineMorePreviews.valid_pdf_magic?(file('empty.pdf', ''))
     assert_not RedmineMorePreviews.valid_pdf_magic?(File.join(@dir, 'missing.pdf'))

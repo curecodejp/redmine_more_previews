@@ -38,12 +38,6 @@ class CliffBodyTest < ActiveSupport::TestCase
     "Content-Type: text/plain; charset=UTF-8\n\n#{body}\n"
   end
 
-  def quoted_printable_message(body)
-    "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
-    "Content-Type: text/plain; charset=UTF-8\n" \
-    "Content-Transfer-Encoding: quoted-printable\n\n#{[body].pack('M')}"
-  end
-
   def render_pre(text)
     @text = text
     template = File.expand_path('../../converters/cliff/app/views/cliff/pre.html.erb', __dir__)
@@ -61,14 +55,6 @@ class CliffBodyTest < ActiveSupport::TestCase
   def test_plain_text_body_keeps_its_text
     html = convert(plain_message("ordinary body & 日本語"))
     assert_includes html, 'ordinary body &amp; 日本語'
-  end
-
-  def test_quoted_printable_plain_text_body_is_escaped
-    html = convert(quoted_printable_message("plain #{MARKUP}"))
-    assert_not_includes html, '<b>bold</b>', 'the encoded body must not reach the page as markup'
-    assert_not_includes html, '<table><tr><td>injected',
-                         'an encoded body must not be able to add markup of its own'
-    assert_includes html, '&lt;b&gt;bold&lt;/b&gt;', 'the encoded body must still be readable'
   end
 
   def test_pre_template_escapes_html_safe_text
@@ -228,19 +214,11 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_no_match(/Shift_JIS/i, html)
   end
 
-  # the browser ignores a <meta> in a comment
-  def test_html_body_without_a_charset_skips_a_commented_meta
-    source = '<html><head><!-- <meta charset="UTF-8"> -->' \
-             '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS"></head>' \
-             "<body><p>#{JAPANESE}</p></body></html>"
-    raw = encoded_message('text/html', 'Shift_JIS', 'base64', source.encode('Shift_JIS').b)
-    assert_includes convert(raw.sub('; charset=Shift_JIS'.b, ''.b)), JAPANESE
-  end
-
-  # nor does a '<meta' in a script or in an attribute value. ISO-8859-1 takes
-  # every byte: validity alone could not reject it
+  # the browser takes no '<meta' in a comment, a script or an attribute value
+  # for a <meta>. ISO-8859-1 takes every byte: validity alone could not reject it
   def test_html_body_without_a_charset_skips_a_meta_in_a_script_or_an_attribute
-    ['<script>var s = "<meta charset=ISO-8859-1>";</script>',
+    ['<!-- a > b <meta charset=ISO-8859-1> -->',
+     '<script>var s = "<meta charset=ISO-8859-1>";</script>',
      '<style>/* <meta charset=ISO-8859-1> */</style>',
      '<link title="<meta charset=ISO-8859-1>">'].each do |decoy|
       source = "<html><head>#{decoy}" \

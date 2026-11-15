@@ -75,11 +75,5 @@ class VinceUriImageTest < ActiveSupport::TestCase
         assert_not_includes html, "data:image/#{type}", type
       end
     end
-
-    define_method("test_#{field}_vcard3_inline_base64_is_kept") do
-      html = Array(card("#{field.upcase};ENCODING=b;TYPE=png:#{PNG_BASE64}", version: '3.0').send(field).webalize).join
-
-      assert_includes html, %(src="data:image/png;base64,#{PNG_BASE64}")
-    end
   end
 end

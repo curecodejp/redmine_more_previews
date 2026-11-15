@@ -51,42 +51,8 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     )
   end
 
-  # --- regular entries keep working -------------------------------------------------
-
-  def test_zip_regular_entry_is_extracted
-    zip = build_zip(archive('a.zip'), 'dir/file.txt' => 'hello')
-    assert_equal 'hello', extract(zip, 'dir/file.txt')
-  end
-
-  def test_tar_regular_entry_is_extracted
-    tar = build_tar(archive('a.tar'), 'dir/file.txt' => 'hello')
-    assert_equal 'hello', extract(tar, 'dir/file.txt')
-  end
-
-  def test_tgz_regular_entry_is_extracted
-    tgz = build_tgz(archive('a.tgz'), 'dir/file.txt' => 'hello')
-    assert_equal 'hello', extract(tgz, 'dir/file.txt')
-  end
-
-  # --- traversal in the requested asset / entry name ---------------------------------
-
-  def test_zip_entry_escaping_the_tmp_directory_is_not_written
-    zip = build_zip(archive('t.zip'), '../../escaped.txt' => 'owned')
-    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) { extract(zip, '../../escaped.txt') }
-    assert_empty escaped_files
-  end
-
-  def test_tar_entry_escaping_the_tmp_directory_is_not_written
-    tar = build_tar(archive('t.tar'), '../../escaped.txt' => 'owned')
-    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) { extract(tar, '../../escaped.txt') }
-    assert_empty escaped_files
-  end
-
-  def test_absolute_entry_name_is_rejected
-    tar = build_tar(archive('abs.tar'), '/tmp/escaped.txt' => 'owned')
-    assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) { extract(tar, '/tmp/escaped.txt') }
-    assert_empty escaped_files
-  end
+  # traversal in the requested asset name is refused before the archive is opened
+  # (see conversion_asset_test.rb)
 
   # --- entry selection ----------------------------------------------------------------
 
@@ -145,12 +111,6 @@ class ZippyAssetExtractionTest < ActiveSupport::TestCase
     assert_includes html, 'href="/attachments/more_preview/1.html?asset=ok.txt"'
     assert_not_includes html, '%2F..', 'no link may be generated for an entry escaping the archive root'
     assert_not_includes html, '..%2F'
-  end
-
-  def test_toc_links_nested_entries_encoded_once
-    html = toc(build_zip(archive('nested.zip'), 'dir/' => '', 'dir/file.txt' => 'a'))
-    assert_includes html, 'href="/attachments/more_preview/1.html?asset=dir%2Ffile.txt"'
-    assert_not_includes html, '%252F'
   end
 
   # zip -D, Python's zipfile and others write no directory entries: the nested

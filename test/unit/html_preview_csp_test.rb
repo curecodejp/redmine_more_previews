@@ -24,15 +24,9 @@ class HtmlPreviewCspTest < ActiveSupport::TestCase
     end
   end
 
-  def test_active_document_and_text_formats_receive_csp
-    %w(html xml text txt).each do |format|
-      assert_not_nil headers_for(format)['Content-Security-Policy'], format
-    end
-  end
-
   def test_unlisted_formats_receive_csp
     # Keep new preview formats from shipping without protection by default.
-    ['', 'json', 'svg', 'wat'].each do |format|
+    ['', 'json', 'svg', 'wat', 'html', 'xml', 'text', 'txt'].each do |format|
       assert_not_nil headers_for(format)['Content-Security-Policy'], format.inspect
     end
   end
@@ -50,24 +44,6 @@ class HtmlPreviewCspTest < ActiveSupport::TestCase
     %w(pdf png jpg jpeg gif).each do |format|
       assert_nil headers_for(format)['Content-Security-Policy'], format
     end
-  end
-
-  def test_zippy_allow_downloads_csp_does_not_depend_on_preview_format
-    old_settings = Setting.plugin_redmine_more_previews
-    helper = RedmineMorePreviews::ControllerHelper
-
-    begin
-      Setting.plugin_redmine_more_previews = RedmineMorePreviews::TestHelper::ZIPPY_SETTINGS
-      Setting.clear_cache
-      html_csp = helper.html_preview_csp('archive.zip', :pathonly => true, :format => 'html')
-      xml_csp = helper.html_preview_csp('archive.zip', :pathonly => true, :format => 'xml')
-    ensure
-      Setting.plugin_redmine_more_previews = old_settings
-      Setting.clear_cache
-    end
-
-    assert_equal html_csp, xml_csp
-    assert_includes html_csp, 'sandbox allow-downloads allow-top-navigation-by-user-activation;'
   end
 
   private

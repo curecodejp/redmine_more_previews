@@ -413,8 +413,13 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
       assert_response :not_found
       get :more_asset, params: {id: a.id, asset: 'nope', assetformat: 'txt'}
       assert_response :not_found
-      # uncached (transient) branch
-      get :more_preview, params: {id: a.id, format: 'html', asset: 'nope.txt', unsafe: '1'}
+      # uncached (transient) conversion, of an archive not converted before: the
+      # requests above left the list of its entries. unsafe is for administrators
+      # only, and that branch takes no ETag
+      b = attach(build_zip(File.join(dir, 'ok2.zip'), 'ok.txt' => 'x'))
+      @request.session[:user_id] = 1
+      Attachment.any_instance.expects(:asset_mtime).never
+      get :more_preview, params: {id: b.id, format: 'html', asset: 'nope.txt', unsafe: '1'}
       assert_response :not_found
     end
   end
@@ -425,7 +430,13 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
       Zip::Entry.any_instance.stubs(:size).returns(10)
       get :more_preview, params: {id: a.id, format: 'html', asset: 'big.txt'}
       assert_response :not_found
-      get :more_preview, params: {id: a.id, format: 'html', asset: 'big.txt', unsafe: '1'}
+      # uncached (transient) conversion, of an archive not converted before: the
+      # request above left its failure. unsafe is for administrators only, and
+      # that branch takes no ETag
+      b = attach(build_zip(File.join(dir, 'lie2.zip'), 'big.txt' => 'x' * 20_000))
+      @request.session[:user_id] = 1
+      Attachment.any_instance.expects(:asset_mtime).never
+      get :more_preview, params: {id: b.id, format: 'html', asset: 'big.txt', unsafe: '1'}
       assert_response :not_found
     end
   end

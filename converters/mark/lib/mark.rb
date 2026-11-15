@@ -46,6 +46,12 @@ class Mark < RedmineMorePreviews::Conversion
     # the version of pandoc, asked once per process (see #pandoc_bin)
     attr_accessor :pandoc_version
   end
+
+  # previews stored before were converted without --sandbox: they are
+  # converted again
+  def self.cache_revision
+    "mark-1"
+  end #def
   
   #---------------------------------------------------------------------------------
   # check: is Pandoc available?

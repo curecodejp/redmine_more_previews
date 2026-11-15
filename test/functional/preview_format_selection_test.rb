@@ -308,6 +308,33 @@ class PreviewFormatSelectionTest < Redmine::ControllerTest
     assert_equal ['preview.inline'], preview_directories(a)
   end
 
+  # a preview stored before Mark passed --sandbox is converted again when it is
+  # first viewed; the previews of the other converters keep their markers
+  def test_a_mark_preview_stored_before_the_sandbox_is_converted_again
+    skip 'pandoc is not installed' unless pandoc?
+    settings = SETTINGS.deep_dup
+    settings['converter']['mark'] = {'active' => '1', 'mime_types' => {'md' => {'active' => '1', 'format' => 'inline'}}}
+    use_settings(settings)
+    a = attach(write('notes.md', "# A heading\n"), 'text/markdown')
+    get :show, params: {id: a.id}
+    assert_response :success
+    index  = a.preview_filepath
+    marker = "#{File.dirname(index)}.converter"
+    assert_equal RedmineMorePreviews::Conversion.cache_marker_for(:mark), File.read(marker)
+    assert_includes File.read(marker), Mark.cache_revision.to_s
+
+    # as 6.1.9 stored it
+    File.write(index, '<p>old preview of Mark</p>')
+    File.write(marker, "mark:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal")
+    get :show, params: {id: a.id}
+    assert_response :success
+    assert_not_includes response.body, 'old preview of Mark'
+    assert_select 'h1', text: 'A heading'
+    assert_equal RedmineMorePreviews::Conversion.cache_marker_for(:mark), File.read(marker)
+    assert_equal "teddie:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal",
+                 RedmineMorePreviews::Conversion.cache_marker_for(:teddie)
+  end
+
   def test_a_plain_text_file_is_still_previewed_as_text
     a = attach(write('notes.txt', "plain text\n"), 'text/plain')
     get :more_preview, params: {id: a.id, format: 'txt'}

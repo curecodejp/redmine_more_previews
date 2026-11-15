@@ -30,13 +30,13 @@ jobs:
 
     steps:
       - name: Checkout plugin
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: plugin
           persist-credentials: false
 
       - name: Checkout Redmine ${{ matrix.redmine }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: redmine/redmine
           ref: ${{ matrix.redmine }}
@@ -44,7 +44,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Ruby 3.3.8
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
         with:
           ruby-version: 3.3.8
 

@@ -243,10 +243,12 @@ module RedmineMorePreviews
           end #def
 
           # the path of the entry as a directory below preview_storagepath; nil
-          # for a path that could leave it (see RmpFile.safe_relative_path): git
-          # and Filesystem refuse "..", not every SCM is known to
+          # for a path that could leave it (see RmpFile.safe_relative_path: "..",
+          # also "..." and "c:x", which leave it on Windows) and for none. git
+          # and Filesystem give no file for "..", not every SCM is known to. A
+          # leading "/" names the same entry, as it named the same directory
           def preview_path(path)
-            RedmineMorePreviews::Lib::RmpFile.safe_relative_path(path)
+            RedmineMorePreviews::Lib::RmpFile.safe_relative_path(path.to_s.sub(%r{\A/+}, ""))
           end #def
           
           def preview_digest(path, rev)

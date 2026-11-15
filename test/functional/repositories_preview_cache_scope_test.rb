@@ -140,9 +140,24 @@ class RepositoriesPreviewCacheScopeTest < Redmine::ControllerTest
     assert_raises(RedmineMorePreviews::Exceptions::ConverterBadArgument) { @repo_a.preview_dirname(path, nil) }
   end
 
+  # the page of an entry adds the base format of an asset request to the path
+  def test_an_asset_base_format_that_would_leave_the_directory_is_not_found
+    get :entry, params: {id: PRJ_A, repository_id: @repo_a.identifier_param, path: 'a.zip',
+                         asset: 'dir/secret', assetformat: 'txt', baseformat: '/../../x.zip'}
+    assert_response :not_found
+    assert_empty Dir.glob(File.join(@storage, '**', 'x.zip*'))
+  end
+
+  # the preview of no path (the root of the repository) is not found
+  def test_the_preview_of_no_path_is_not_found
+    get :more_preview, params: {id: PRJ_A, repository_id: @repo_a.identifier_param, format: 'html'}
+    assert_response :not_found
+  end
+
   # the directory of a preview is named by the path as it is normalized
   def test_the_directory_is_named_by_the_normalized_path
     assert_equal @repo_a.preview_dirname('a.zip', nil), @repo_a.preview_dirname('./a.zip', nil)
+    assert_equal @repo_a.preview_dirname('a.zip', nil), @repo_a.preview_dirname('/a.zip', nil)
   end
 
   # the previous layout (per repository class and identifier) is removed on start

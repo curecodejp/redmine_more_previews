@@ -50,11 +50,12 @@ module RedmineMorePreviews
           #
           ################################################################################
           def more_preview
+            # see Repository#preview_path: checked before the SCM is asked
+            return render_404 unless @repository.preview_path(@path)
             @entry = @repository.preview_entry(@path, @rev)
             # see ControllerHelper#preview_format_requested?; the entry is read
             # here, once (a file too large to read is answered with 413)
-            if @entry&.convertible? && @repository.preview_path(@path) &&
-               preview_format_requested?(@repository.preview_format(@path, @rev))
+            if @entry&.convertible? && preview_format_requested?(@repository.preview_format(@path, @rev))
               respond_with_more_preview
             else #no convertible document
               render_404
@@ -62,8 +63,9 @@ module RedmineMorePreviews
           end #def
           
           def more_asset
+            return render_404 unless @repository.preview_path(@path)
             @entry = @repository.preview_entry(@path, @rev)
-            if @entry&.convertible? && @repository.preview_path(@path)
+            if @entry&.convertible?
               respond_with_more_asset
             else #no convertible document
               render_404
@@ -137,6 +139,8 @@ module RedmineMorePreviews
               # before_action here, so stop instead of sending the asset as well
               find_path_param
               return if performed?
+              # find_path_param adds params[:baseformat] to the path
+              return render_404 unless @repository.preview_path(@path)
               @disposition = "attachment"
               respond_with_more_asset
             else

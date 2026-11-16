@@ -112,7 +112,8 @@ module RedmineMorePreviews
       params.permit(:format).
       merge({:request => request, 
              :asset   => @asset, 
-             :format  => params[:format]&.downcase,
+             # a format given as a list or as keys and values names none
+             :format  => (params[:format].downcase if params[:format].is_a?(String)),
              :reload  => preview_reload?,
              :unsafe  => preview_unsafe?}.compact )
     end #def
@@ -342,10 +343,25 @@ module RedmineMorePreviews
     end #def
     private :send_more_asset
     
+    # params[:asset] as a name: a list of names is a path (the routes give the
+    # parts of one). Anything else (keys and values, a list of them) is given
+    # as it came, and refused by more_preview_asset
+    def more_preview_asset_param
+      asset = params[:asset]
+      asset.is_a?(Array) && asset.all?(String) ? asset.join('/') : asset
+    end #def
+    private :more_preview_asset_param
+
     # the asset named by a request, with params[:assetformat]; nil for none. The
     # converters join it to directories on disk: a name that could leave them
     # (see RmpFile.safe_relative_path) is answered with 404
     def more_preview_asset(asset)
+      # given as keys and values ("?asset[a]=b"), it names nothing: its text
+      # was taken for the name
+      unless (asset.nil? || asset.is_a?(String)) && (params[:assetformat].nil? || params[:assetformat].is_a?(String))
+        render_404
+        return
+      end
       asset = [asset, params[:assetformat]].compact.join(".").presence
       return if asset.nil?
       safe = RedmineMorePreviews::Lib::RmpFile.safe_relative_path(asset)

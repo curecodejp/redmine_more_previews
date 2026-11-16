@@ -102,7 +102,7 @@ module RedmineMorePreviews
           
           # see ControllerHelper#more_preview_asset
           def find_asset_param
-            @asset = more_preview_asset(params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset])
+            @asset = more_preview_asset(more_preview_asset_param)
           end #def
           private :find_asset_param
         end #base

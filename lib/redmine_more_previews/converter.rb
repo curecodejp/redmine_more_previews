@@ -348,17 +348,29 @@ module RedmineMorePreviews
     # gives the content of a file that is not written yet (a repository entry, see
     # Repository#more_preview): the worker writes it when it converts, and serves
     # a stored preview without it. The worker is given the path of the file: the
-    # file is opened only to fail as before when it cannot be read, and closed
+    # file is opened only to fail as before when it cannot be read, and closed.
+    # nil for a file that is gone
     def self.convert( file, storage_path, options={}, &block )
       content   = options[:source_content]
+      # the file of an attachment is removed when its deletion is committed: a
+      # conversion that found the attachment just before (see RmpLifecycle)
+      # finds no file. No preview, as for a deleted attachment
+      return nil unless content || File.exist?( file.to_s )
       converter = if options[:converter].present?
         find( options[:converter] ) rescue nil
       else
         responsible( file, content ? {:content => content.call.to_s} : {} )
       end
       worker    = converter&.worker(options.except(:converter).merge(:target => storage_path))
+      # removed since it was looked for above: no converter is found for a file
+      # that is gone, or the file cannot be opened
+      return nil unless worker || content || File.exist?( file.to_s )
       raise ConverterNotFound unless worker
-      File.open( file ) {} unless content
+      begin
+        File.open( file ) {} unless content
+      rescue Errno::ENOENT
+        return nil
+      end
       worker.preview( file.to_s, &block )
     end #def
     

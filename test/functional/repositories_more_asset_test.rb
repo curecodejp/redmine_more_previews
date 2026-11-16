@@ -408,6 +408,59 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
       select { |f| File.file?(f) }.map { |f| [f.delete_prefix(@storage), File.mtime(f)] }.sort
   end
 
+  # a directory named as a file that is converted has no preview: it was
+  # answered as a file too large to read (413), its size being unknown
+  def test_a_directory_named_like_a_convertible_file_is_answered_with_404
+    FileUtils.mkdir_p(File.join(@repo_dir, 'docs.zip'))
+    File.write(File.join(@repo_dir, 'docs.zip', 'readme.txt'), 'x')
+    params = entry_params(path: repository_path_hash(['docs.zip'])[:param])
+
+    get :more_preview, params: params.merge(format: 'html')
+    assert_response :not_found
+    get :more_asset, params: entry_params(path: repository_path_hash(['docs'])[:param], baseformat: 'zip', asset: 'readme', assetformat: 'txt')
+    assert_response :not_found
+    # the page of the directory is Redmine's own
+    get :entry, params: params
+    assert_response :success
+
+    # the page of a file takes the extension of the path of an asset: the entry
+    # of that path is checked, not the one of the page (it was 413 for a
+    # directory, and an error of the server for a file that is not converted)
+    FileUtils.mkdir_p(File.join(@repo_dir, 'a.zip.zip'))
+    File.write(File.join(@repo_dir, 'a.zip.bin'), 'x')
+    ['zip', 'bin', 'none', '', ' '].each do |baseformat|
+      get :entry, params: entry_params(asset: 'dir/file.txt', baseformat: baseformat)
+      assert_response :not_found, baseformat.inspect
+    end
+  end
+
+  # as for an attachment
+  def test_parameters_that_are_no_names_are_answered_with_404
+    stored = Dir.glob(File.join(@storage, '**', '*')).sort
+
+    [{asset: {'a' => ''}}, {asset: {'a' => 'dir/file.txt'}}, {asset: [{'a' => 'dir/file.txt'}]},
+     {asset: 'dir/file', assetformat: ['txt']}, {asset: 'dir/file', assetformat: {'a' => 'txt'}},
+     {format: ['html']}, {format: {'a' => 'html'}}].each do |params|
+      get :more_preview, params: entry_params({format: 'html'}.merge(params))
+      assert_response :not_found, params.inspect
+    end
+    [{asset: {'a' => 'dir/file.txt'}}, {asset: [{'a' => 'dir/file.txt'}]},
+     {asset: 'dir/file.txt', baseformat: ['zip']}, {asset: 'dir/file.txt', baseformat: {'a' => 'zip'}}].each do |params|
+      get :entry, params: entry_params(params)
+      assert_response :not_found, params.inspect
+    end
+    assert_equal stored, Dir.glob(File.join(@storage, '**', '*')).sort
+
+    # a list of names is a path, as the routes give it
+    get :more_preview, params: entry_params(format: 'html', asset: ['dir', 'file.txt'])
+    assert_response :success
+    assert_equal 'hello', response.body
+    # an asset has no format: one that names none is not looked at
+    get :more_asset, params: entry_params(path: repository_path_hash(['a'])[:param], baseformat: 'zip', asset: 'dir/file', assetformat: 'txt', format: ['html'])
+    assert_response :success
+    assert_equal 'hello', response.body
+  end
+
   def test_missing_entry_is_answered_with_404
     get :entry, params: entry_params(asset: 'nope.txt')
     assert_response :not_found

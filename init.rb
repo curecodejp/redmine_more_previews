@@ -165,6 +165,13 @@
 # 6.1.9
 #       - Maggie: preview HEIC/HEIF and TIFF images, within a size limit set by the administrator
 #       - Cliff, Libre: embed the images of HTML previews, so that they are shown in projects that are not public
+# 6.1.10
+#       - Convert a file only to the format configured for its converter, chosen by the content of the file
+#       - Remove the previews of a deleted attachment, also of one deleted during its conversion
+#       - Limit the memory of LibreOffice and Pandoc, and run Pandoc 2.15 and later with --sandbox
+#       - Keep no class nor style of a document's own HTML in an inline preview
+#       - Zippy, Vince, Maggie and Cliff fixes; no longer depend on the gems hbl_text, hash_base and deep_try
+#       - Translate the settings and messages added in recent versions
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -172,7 +179,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.9'
+  version      '6.1.10'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

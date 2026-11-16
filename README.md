@@ -2,7 +2,7 @@
 
 Preview files directly from **Redmine issue attachments, documents, files, and repository entries**. This plugin adds optional converters for office documents, email, archives, Markdown, images, PDFs, and vCards, so users can inspect content without manually downloading every file.
 
-**Current release:** [v6.1.9](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.9) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
+**Current release:** [v6.1.10](https://github.com/curecodejp/redmine_more_previews/releases/tag/v6.1.10) · [Release notes](#change-log) · [Security advisories](https://github.com/curecodejp/redmine_more_previews/security/advisories)
 
 > [!NOTE]
 > This is a **Cure Code Corp.-maintained fork**, based on [JVsup's fork](https://github.com/JVsup/redmine_more_previews) of the [original project by HugoHasenbein](https://github.com/HugoHasenbein/redmine_more_previews). It is not an official upstream release. The inherited license is **GNU GPL v2.0 or later**. General-purpose fixes can be proposed upstream separately.
@@ -29,7 +29,7 @@ Select which converters, file types, and output formats to enable in the plugin 
 | --- | --- |
 | **Redmine** | 6.0.x and 6.1.x; CI verified on **6.0.11 and 6.1.5**. For PDF previews with Maggie / Peek, use **6.0.10 / 6.1.3 or later**; see [Converter details](#converter-details) |
 | **Ruby** | 3.3.x verified (CI: **3.3.8**); other Ruby versions have not been verified |
-| **Plugin release** | **6.1.9** |
+| **Plugin release** | **6.1.10** |
 | **Operating system** | Converter-specific; **Libre needs Linux and working `bubblewrap`**; Vince requires `fork`, and its memory monitoring needs Linux `/proc` support |
 
 Redmine 7 is **not yet verified** by this fork. Support for a Redmine release does not imply that every optional converter is available on every operating system.
@@ -42,7 +42,7 @@ From the Redmine installation directory, install the maintained release into `pl
 
 ```bash
 cd /path/to/redmine
-git clone --branch v6.1.9 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
+git clone --branch v6.1.10 https://github.com/curecodejp/redmine_more_previews.git plugins/redmine_more_previews
 bundle install
 ```
 
@@ -50,7 +50,7 @@ Install the external programs needed by the **converters you intend to enable** 
 
 ### Upgrade an existing installation
 
-Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.9` tag, so its checkout has a **detached HEAD**, not a `main` branch.
+Back up your Redmine configuration and check for local plugin changes before updating. The [installation command above](#install) selects the `v6.1.10` tag, so its checkout has a **detached HEAD**, not a `main` branch.
 
 **Before fetching**, check which repository `origin` points to:
 
@@ -70,7 +70,7 @@ Once `origin` points to `https://github.com/curecodejp/redmine_more_previews.git
 
 ```bash
 git -C plugins/redmine_more_previews fetch --tags origin
-git -C plugins/redmine_more_previews switch --detach v6.1.9
+git -C plugins/redmine_more_previews switch --detach v6.1.10
 bundle install
 ```
 
@@ -81,11 +81,12 @@ Do not run `git pull origin main` from a tag checkout: that moves the detached c
 **Before restarting**, check the version you are upgrading **from**:
 
 - **6.1.3 or later:** Cached previews are versioned and regenerated as needed; no full cache purge is normally needed.
+- **6.1.9 or earlier:** 6.1.10 keeps the preview cache format. Mark previews, Zippy listings and Vince contacts are converted again when they are first viewed; the other previews are kept. The `bundle install` above removes the gems `hbl_text`, `hash_base` and `deep_try` from `Gemfile.lock`, unless another plugin needs them.
 - **6.1.8 or earlier:** 6.1.9 changes the preview cache format, so every preview is converted again when it is first viewed after the upgrade. This also renews Zippy listings cached by 6.1.7 or earlier, whose links showed the login page inside the frame. The older cache files stay on disk until the cache cleanup removes them.
 - **6.1.2 or earlier, including older upstream/JVsup builds:** Read the **6.1.3 Upgrade precaution** in the [Change-Log](#change-log). If converter debug mode was ever enabled, stop Redmine and preview workers and carefully clear the *plugin's actual preview cache directory* before restarting, because old diagnostic files may still contain sensitive data. The routine age-based cache task does not immediately remove all such files. Verify the directory path before deletion.
 - **Libre enabled:** Review the [Linux `bubblewrap` sandbox requirements](#libre-converter-sandbox); conversion fails closed without a working sandbox.
 
-Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.9** under *Administration → Plugins*.
+Restart Redmine using your deployment's standard method. For Passenger, run `touch tmp/restart.txt` from the Redmine root. Then confirm **Redmine More Previews 6.1.10** under *Administration → Plugins*.
 
 ### Configure and enable
 
@@ -286,7 +287,7 @@ Native speakers: please help to improve localizations
 
 ## Change-Log
 
-**6.1.10** (unreleased)
+**6.1.10**
 
 - A preview is requested in the output format configured for the file's converter only. A request for another format (f.i. `/attachments/more_preview/ID.pdf` for a file previewed as HTML) is answered with `404` before anything is converted: before, each such format ran the whole conversion, left a cache directory that was never served and remembered a failure.
 - The converter, the output format, the cache directory and the URL of a preview are decided once, on the content of the file. A file whose content and extension disagree (HTML, an email or a zip archive saved as `.txt`, with a converter of both types enabled) is now previewed in the format of its converter; it was answered with `404`. On the page of a repository file, the entry is now read once for this, also when the preview is not HTML.

@@ -434,6 +434,48 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
       select { |f| File.file?(f) }.map { |f| [f.delete_prefix(@storage), File.mtime(f)] }.sort
   end
 
+  # the file of an attachment is removed when its deletion is committed: a
+  # conversion that found the attachment just before finds no file. That is
+  # no error of the server
+  def test_a_source_file_gone_before_the_conversion_is_no_preview
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'gone.zip'), 'ok.txt' => 'x'))
+      File.delete(a.diskfile)
+      assert_nil a.more_preview(format: 'html')
+      yielded = :nothing
+      a.more_preview(format: 'html', unsafe: true) { |preview| yielded = preview }
+      assert_equal :nothing, yielded
+      assert_empty Dir.glob(File.join(@storage, 'attachments', a.id.to_s, '**', 'index.html'))
+      assert_empty Dir.glob(File.join(@storage, 'failures', '*')), 'no failure of the file is remembered'
+    end
+  end
+
+  # parameters that are no name: an asset or an assetformat given as keys and
+  # values, or as a list that is no list of names. Their text was taken for the
+  # name of an asset. Nothing is converted for them
+  def test_parameters_that_are_no_names_are_answered_with_404
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))
+      stored = Dir.glob(File.join(@storage, '**', '*')).sort
+
+      [{asset: {'a' => 'ok.txt'}}, {asset: [{'a' => 'ok.txt'}]}, {asset: 'ok', assetformat: ['txt']}].each do |params|
+        get :more_preview, params: {id: a.id, format: 'html'}.merge(params)
+        assert_response :not_found, params.inspect
+      end
+      assert_equal stored, Dir.glob(File.join(@storage, '**', '*')).sort
+
+      # a list of names is a path, as the routes give it
+      get :more_preview, params: {id: a.id, format: 'html', asset: ['ok.txt']}
+      assert_response :success
+      assert_equal 'x', response.body
+      # an asset has no format: one that names none is not looked at (it was an
+      # error of the server)
+      get :more_asset, params: {id: a.id, asset: 'ok', assetformat: 'txt', format: ['html']}
+      assert_response :success
+      assert_equal 'x', response.body
+    end
+  end
+
   def test_missing_entry_is_answered_with_404
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))

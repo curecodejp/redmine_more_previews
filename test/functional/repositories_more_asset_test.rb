@@ -408,6 +408,43 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
       select { |f| File.file?(f) }.map { |f| [f.delete_prefix(@storage), File.mtime(f)] }.sort
   end
 
+  # a directory named as a file that is converted has no preview: it was
+  # answered as a file too large to read (413), its size being unknown
+  def test_a_directory_named_like_a_convertible_file_is_answered_with_404
+    FileUtils.mkdir_p(File.join(@repo_dir, 'docs.zip'))
+    File.write(File.join(@repo_dir, 'docs.zip', 'readme.txt'), 'x')
+    params = entry_params(path: repository_path_hash(['docs.zip'])[:param])
+
+    get :more_preview, params: params.merge(format: 'html')
+    assert_response :not_found
+    get :more_asset, params: entry_params(path: repository_path_hash(['docs'])[:param], baseformat: 'zip', asset: 'readme', assetformat: 'txt')
+    assert_response :not_found
+    # the page of the directory is Redmine's own
+    get :entry, params: params
+    assert_response :success
+
+    # the page of a file takes the extension of the path of an asset: the entry
+    # of that path is checked, not the one of the page (it was 413 for a
+    # directory, and an error of the server for a file that is not converted)
+    FileUtils.mkdir_p(File.join(@repo_dir, 'a.zip.zip'))
+    File.write(File.join(@repo_dir, 'a.zip.bin'), 'x')
+    ['zip', 'bin', 'none', ''].each do |baseformat|
+      get :entry, params: entry_params(asset: 'dir/file.txt', baseformat: baseformat)
+      assert_response :not_found, baseformat.inspect
+    end
+  end
+
+  # what the controller of a repository adds to the check of an attachment (see
+  # AttachmentsMoreAssetTest): the page of a file, and the extension of the path
+  def test_parameters_that_are_no_names_are_answered_with_404
+    stored = Dir.glob(File.join(@storage, '**', '*')).sort
+    [{asset: {'a' => 'dir/file.txt'}}, {asset: 'dir/file.txt', baseformat: ['zip']}].each do |params|
+      get :entry, params: entry_params(params)
+      assert_response :not_found, params.inspect
+    end
+    assert_equal stored, Dir.glob(File.join(@storage, '**', '*')).sort
+  end
+
   def test_missing_entry_is_answered_with_404
     get :entry, params: entry_params(asset: 'nope.txt')
     assert_response :not_found

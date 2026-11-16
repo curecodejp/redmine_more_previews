@@ -29,10 +29,40 @@ class ConverterConvertSourceTest < ActiveSupport::TestCase
     assert_not (given.is_a?(IO) && !given.closed?), 'the file of the conversion is left open'
   end
 
+  # the file of an attachment deleted since it was found: no preview, and no
+  # error (it was Errno::ENOENT, an error of the server)
   def test_a_missing_file_is_not_converted
     File.delete(@source)
     Pass.any_instance.expects(:preview).never
-    assert_raises(Errno::ENOENT) { convert }
+    assert_nil convert
+    yielded = false
+    assert_nil convert { |*| yielded = true }
+    assert_not yielded
+  end
+
+  # a file that is there and cannot be looked at (no permission to search its
+  # directory) is not a file that is gone: an error, as before
+  def test_a_file_that_cannot_be_looked_at_is_an_error
+    skip 'the superuser may search any directory' if Process.uid.zero?
+    locked  = File.join(@dir, 'locked')
+    FileUtils.mkdir_p(locked)
+    @source = File.join(locked, 'a.txt')
+    File.write(@source, 'text')
+    File.chmod(0o000, locked)
+    Pass.any_instance.expects(:preview).never
+    assert_raises(Errno::EACCES) { convert }
+  ensure
+    File.chmod(0o700, locked) if locked && File.directory?(locked)
+  end
+
+  # the file goes after it was looked for, before it is opened
+  def test_a_file_removed_before_it_is_opened_is_not_converted
+    converter = RedmineMorePreviews::Converter.find(:pass)
+    worker    = converter.worker(:preview_format => 'txt', :object => {}, :target => File.join(@dir, 'preview', 'index.txt'))
+    converter.stubs(:worker).with { File.delete(@source); true }.returns(worker)
+    Pass.any_instance.expects(:preview).never
+    assert_nil convert
+    assert_empty Dir.glob(File.join(@dir, 'storage', 'failures', '*')), 'no failure of the file is remembered'
   end
 
   # a repository entry is given by its content: it is written when it is

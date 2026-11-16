@@ -291,6 +291,10 @@ Native speakers: please help to improve localizations
 **6.1.11** (unreleased)
 
 - A request for a preview with an asset parameter that names nothing (`/attachments/more_preview/ID.html?asset=`) is answered with the preview. It was taken for a request for an asset without a name: the previews of the file were removed and converted again, a preview was stored one directory above them, and the request was answered with `404`. Any user who may view the file could send it. The same held for a repository file, also on its page.
+- A preview requested just while its attachment is deleted is answered with `404`, as for a deleted attachment: where the file was already removed, it was an error of the server (`500`).
+- A folder of a repository named as a file that is converted (`docs.md/`) has no preview (`404`); a request for one was answered as a file too large to read (`413`).
+- Parameters that are no names: an asset, or the extension of one, given as keys and values (`?asset[a]=b`) is answered with `404`; its text was taken for the name of the asset. A list of names (`?asset[]=dir&asset[]=file.txt`) is a path, as before. A format given as a list or as keys and values (`?format[]=html`) is not looked at on a request for an asset, where it was an error of the server (`500`); a request for a preview in such a format was answered with `404` already.
+- The page of a repository file that is asked for an asset with another extension (`?asset=...&baseformat=...`) looks at the file of that name: for a folder it was answered with `413`, and for a file that is not converted with an error of the server.
 
 **6.1.10**
 

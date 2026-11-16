@@ -55,7 +55,9 @@ module RedmineMorePreviews
             @entry = @repository.preview_entry(@path, @rev)
             # see ControllerHelper#preview_format_requested?; the entry is read
             # here, once (a file too large to read is answered with 413)
-            if @entry&.convertible? && preview_format_requested?(@repository.preview_format(@path, @rev))
+            # a directory has no preview, whatever its name (its size is unknown,
+            # and it was answered as a file too large to read)
+            if @entry&.convertible? && !@entry.is_dir? && preview_format_requested?(@repository.preview_format(@path, @rev))
               respond_with_more_preview
             else #no convertible document
               render_404
@@ -65,7 +67,7 @@ module RedmineMorePreviews
           def more_asset
             return render_404 unless @repository.preview_path(@path)
             @entry = @repository.preview_entry(@path, @rev)
-            if @entry&.convertible?
+            if @entry&.convertible? && !@entry.is_dir?
               respond_with_more_asset
             else #no convertible document
               render_404
@@ -99,8 +101,10 @@ module RedmineMorePreviews
           
           # see ControllerHelper#more_preview_asset
           def find_path_param
+            # the extension of the file, as the asset routes give it: a name
+            return render_404 unless params[:baseformat].nil? || params[:baseformat].is_a?(String)
             @path  = [@path, params[:baseformat]].compact.join(".")
-            asset  = params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]
+            asset  = more_preview_asset_param
             # the asset route matches ".../file.ext@/image.png": the name it
             # takes starts with the "/" after the "@", a link relative to the
             # preview (".../file.ext@/index.html") always has it
@@ -136,13 +140,19 @@ module RedmineMorePreviews
             
             # an asset parameter that names nothing ("?asset=") asks for the page
             # (see ControllerHelper#respond_with_more_preview)
-            if (params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]).present?
+            if more_preview_asset_param.present?
               # find_path_param renders 404 for an unsafe asset name; it is not a
               # before_action here, so stop instead of sending the asset as well
               find_path_param
               return if performed?
-              # find_path_param adds params[:baseformat] to the path
+              # find_path_param adds params[:baseformat] to the path: the entry
+              # of that path is the one of the asset, and is checked as the
+              # entry of the page was
               return render_404 unless @repository.preview_path(@path)
+              # (the entry is kept for the request: nothing is asked twice when
+              # the path is the one of the page)
+              @entry = @repository.preview_entry(@path, @rev)
+              return render_404 unless @entry&.convertible? && !@entry.is_dir?
               @disposition = "attachment"
               respond_with_more_asset
             else

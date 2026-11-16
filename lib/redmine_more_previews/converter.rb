@@ -354,8 +354,14 @@ module RedmineMorePreviews
       content   = options[:source_content]
       # the file of an attachment is removed when its deletion is committed: a
       # conversion that found the attachment just before (see RmpLifecycle)
-      # finds no file. No preview, as for a deleted attachment
-      return nil unless content || File.exist?( file.to_s )
+      # finds no file. No preview, as for a deleted attachment. Only a file
+      # that is gone: one that cannot be looked at (File.exist? is false for
+      # it as well) is an error, as before
+      begin
+        File.stat( file.to_s ) unless content
+      rescue Errno::ENOENT
+        return nil
+      end
       converter = if options[:converter].present?
         find( options[:converter] ) rescue nil
       else
@@ -363,7 +369,12 @@ module RedmineMorePreviews
       end
       worker    = converter&.worker(options.except(:converter).merge(:target => storage_path))
       raise ConverterNotFound unless worker
-      File.open( file ) {} unless content
+      begin
+        File.open( file ) {} unless content
+      rescue Errno::ENOENT
+        # removed since it was looked for above
+        return nil
+      end
       worker.preview( file.to_s, &block )
     end #def
     

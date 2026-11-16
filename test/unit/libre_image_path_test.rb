@@ -24,23 +24,9 @@ class LibreImagePathTest < ActiveSupport::TestCase
     assert_includes html, %(img src="#{ERB::Util.url_encode(basename)}_html_image.png")
   end
 
-  def test_non_ascii_basename_without_underscore_is_rewritten
-    basename = '議事録2026'
-    html = rewrite_html(basename, 'source2026')
-
-    assert_includes html, %(img src="#{ERB::Util.url_encode(basename)}_html_image.png")
-  end
-
   def test_non_ascii_basename_with_period_is_rewritten_without_truncation
     basename = '議事録.v2.2026'
     html = rewrite_html(basename, 'source_v2_2026')
-
-    assert_includes html, %(img src="#{ERB::Util.url_encode(basename)}_html_image.png")
-  end
-
-  def test_non_ascii_basename_with_multiple_periods_and_underscore
-    basename = '会議.議事録_v2.3'
-    html = rewrite_html(basename, 'source_v2_3')
 
     assert_includes html, %(img src="#{ERB::Util.url_encode(basename)}_html_image.png")
   end

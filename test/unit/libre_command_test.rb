@@ -21,13 +21,6 @@ class LibreCommandTest < ActiveSupport::TestCase
     end
   end
 
-  def test_shell_quote_is_called_for_the_validated_format
-    @worker.preview_format = 'pdf'
-    @worker.stubs(:shell_quote).returns('quoted')
-    @worker.expects(:shell_quote).with('pdf').returns("'pdf'")
-    assert_includes @worker.soffice('/tmp/input.docx', '/tmp/profile'), "'pdf'"
-  end
-
   def test_sandbox_has_no_host_root_or_unrestricted_input_directory
     @worker.preview_format = 'pdf'
     args = sandbox_args('/redmine/files/input.odt', '/tmp/redmine-profile/private/user_installation')

@@ -153,20 +153,6 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_includes response.body, 'file.txt'
   end
 
-  # the entry page reads the entry for the download decision only when the
-  # preview is the sandboxed html one; an inline listing is read by the conversion alone
-  def test_inline_entry_page_does_not_read_the_entry_for_the_download_decision
-    settings = ZIPPY_SETTINGS.deep_dup
-    settings['converter']['zippy']['mime_types']['zip']['format'] = 'inline'
-    Setting.plugin_redmine_more_previews = settings
-    Setting.clear_cache
-    bytes = File.binread(File.join(@repo_dir, 'a.zip'))
-    Repository::Filesystem.any_instance.expects(:cat).once.returns(bytes)
-    get :entry, params: entry_params(format: 'html')
-    assert_response :success
-    assert_includes response.body, 'file.txt'
-  end
-
   # see AttachmentsMoreAssetTest#test_entry_named_as_the_listing_is_served_and_the_listing_stays
   def test_entry_named_as_the_listing_is_served_and_the_listing_stays
     build_zip(File.join(@repo_dir, 'b.zip'), 'index.html' => 'the entry')

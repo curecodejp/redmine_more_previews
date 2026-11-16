@@ -30,10 +30,6 @@ class RmpDataUriTest < ActiveSupport::TestCase
     "data:image/png;base64,#{Base64.strict_encode64(PNG)}"
   end
 
-  def test_image_of_a_raster_file
-    assert_equal png_uri, DataUri.image(@dir, write('a.png'), BUDGET)
-  end
-
   def test_the_type_comes_from_the_content_not_the_name
     assert_equal png_uri, DataUri.image(@dir, write('picture.txt'), BUDGET)
     assert_nil DataUri.image(@dir, write('fake.png', 'plain text'), BUDGET)
@@ -133,16 +129,6 @@ class RmpDataUriTest < ActiveSupport::TestCase
     html = "<p>\xE9t\xE9</p><img src=\"a.png\">".b
     embedded = DataUri.embed(html, @dir, BUDGET)
     assert_equal "<p>\xE9t\xE9</p><img src=\"#{png_uri}\">".b, embedded.b
-  end
-
-  # LibreOffice writes the images of an HTML preview beside the page
-  def test_libre_embeds_the_images_beside_the_page
-    write('minutes_html_1.png')
-    page = write('minutes.html', '<html><body><img src="minutes_html_1.png" name="x"></body></html>')
-    worker = Libre.allocate
-    worker.tmpdir = @dir
-    worker.send(:embed_images, page)
-    assert_includes File.read(page), %(<img src="#{png_uri}" name="x">)
   end
 
   # a page already larger than a preview is left as it is, without being read

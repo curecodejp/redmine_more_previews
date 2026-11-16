@@ -184,8 +184,7 @@ module RedmineMorePreviews
           
           # asset file name
           def preview_assetname(options={})
-            assetformat = options[:assetformat].presence
-            [options[:asset], assetformat].compact.join(".")
+            options[:asset].to_s
           end #def
           
           # full path to asset file on disk

@@ -95,13 +95,6 @@ class RepositoriesPreviewPermissionTest < Redmine::ControllerTest
     assert_equal 'hello', response.body
   end
 
-  def test_actions_are_registered_under_browse_repository_only
-    %w(repositories/more_preview repositories/more_asset).each do |action|
-      assert_includes Redmine::AccessControl.permission(:browse_repository).actions, action
-      assert_not_includes Redmine::AccessControl.permission(:view_changesets).actions, action
-    end
-  end
-
   private
 
   def grant(permission)

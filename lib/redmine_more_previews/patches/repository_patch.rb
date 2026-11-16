@@ -275,8 +275,7 @@ module RedmineMorePreviews
           # as Attachment#preview_assetname: the asset keeps its own name, the requested
           # preview format is not appended to it
           def preview_assetname(path, rev, options={})
-            assetformat = options[:assetformat].presence
-            [options[:asset], assetformat].compact.join(".")
+            options[:asset].to_s
           end #def
           
           # full path to asset file on disk

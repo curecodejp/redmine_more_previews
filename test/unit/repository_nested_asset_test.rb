@@ -15,12 +15,4 @@ class RepositoryNestedAssetTest < ActiveSupport::TestCase
     assert_equal '/tmp/rmp-nested-preview/images/icons/logo.png',
                  @repository.preview_assetpath('archive.zip', 'rev1', asset: 'images/icons/logo.png')
   end
-
-  def test_nested_asset_name_assembled_from_route_parameters
-    options = {asset: 'images/icons/logo', assetformat: 'png'}
-    assert_equal 'images/icons/logo.png',
-                 @repository.preview_assetname('archive.zip', 'rev1', options)
-    assert_equal '/tmp/rmp-nested-preview/images/icons/logo.png',
-                 @repository.preview_assetpath('archive.zip', 'rev1', options)
-  end
 end

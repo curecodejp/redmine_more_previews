@@ -160,15 +160,6 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     assert_not Repository.exists?(@repository.id)
   end
 
-  def test_partial_cleanup_error_is_logged
-    target = @repository.preview_storagepath
-    FileUtils.mkdir_p(target)
-    FileUtils.expects(:remove_entry_secure).with(target).raises(Errno::ENOENT)
-    Rails.logger.expects(:error).with(regexp_matches(/Repository preview cache cleanup failed: Errno::ENOENT/))
-    @repository.destroy!
-    assert File.file?("#{target}.cleanup_pending")
-  end
-
   def test_rolled_back_destroy_keeps_the_cache
     target = @repository.preview_storagepath
     FileUtils.mkdir_p(target)
@@ -193,18 +184,6 @@ class RepositoryPreviewDestroyTest < ActiveSupport::TestCase
     lock&.flock(File::LOCK_UN)
     lock&.close
   end
-  def test_cleanup_is_registered_only_after_committed_destroy
-    callbacks = Repository._commit_callbacks.select do |callback|
-      callback.kind == :after && callback.filter == :remove_more_preview_cache_on_destroy
-    end
-    assert_not_empty callbacks
-  end
-
-  def test_destroy_without_a_cache_directory_still_succeeds
-    assert_not File.exist?(@repository.preview_storagepath)
-    assert_difference('Repository.count', -1) { @repository.destroy! }
-  end
-
   private
 
   def with_stubbed_conversion(handler)

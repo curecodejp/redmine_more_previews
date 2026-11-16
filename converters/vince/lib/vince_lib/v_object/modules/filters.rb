@@ -64,14 +64,6 @@ module VObject
       end #def
       
       #-----------------------------------------------------------------------------------
-      # select fields matching ALL attributes with optional block providing field, value 
-      # and attributes
-      #
-      def select_by_all_attributes(*fields, **atts, &block)
-        select(*fields){|*f,**a|  match_hashes(a, atts, &block)}
-      end #def
-      
-      #-----------------------------------------------------------------------------------
       # select fields matching ANY attributes with optional block providing field, value 
       # and attributes
       #
@@ -80,31 +72,12 @@ module VObject
       end #def
       
       #-----------------------------------------------------------------------------------
-      # unselect fields matching ALL attributes with optional block providing field, value 
-      # and attributes
-      #
-      def unselect_by_all_attributes(*fields, **atts, &block)
-        select(*fields){|*f,**a| !match_hashes(a, atts, &block)}
-      end#def
-      
-      #-----------------------------------------------------------------------------------
       # unselect fields matching ANY attributes with optional block providing field, value 
       # and attributes
       #
       def unselect_by_any_attribute(*fields, **atts, &block)
         select(*fields){|*f,**a| !share_hashes(a, atts, &block)}
       end#def
-      
-      #-----------------------------------------------------------------------------------
-      # matches if all values in hash1 contains all of hash2 with indifferent access
-      # optionally manipulate values with block. h2 may contain Regular Expressions
-      #
-      def match_hashes(h1, h2, &block)
-        array_minus(
-          expand_hash( h2.transform_keys{|k| k.to_s.upcase } ).map{|k,v| [k, block_given? ? yield( v ) : v]},
-          expand_hash( h1.transform_keys{|k| k.to_s.upcase } ).map{|k,v| [k, block_given? ? yield( v ) : v]}
-        ).blank?
-      end #def
       
       #-------------------------------------------------------------------------------------
       # matches if any values in hash1 correspond to hash2 with indifferent access
@@ -152,24 +125,6 @@ module VObject
         end
         types = Array(att['TYPE']).flatten.compact.flat_map{|t| t.to_s.split(',') }
         types.any?{|t| t.strip.casecmp?('pref') } ? 1 : 101
-      end #def
-      
-      #-------------------------------------------------------------------------------------
-      # calculates array 1 - array 2. Array 1 may inlude Regexp
-      #
-      def array_minus(a1, a2)
-        arr = a1.dup
-        arr.each do |k1,v1| 
-         case v1
-          when Regexp
-            a2.each do |k2,v2|
-              arr -= [[k1,v1]] if k1 == k2 && v2.to_s =~ v1
-            end
-          else
-            arr -= [[k1, v1]] if a2.include?([k1, v1])
-          end
-        end
-        arr
       end #def
       
       #-------------------------------------------------------------------------------------

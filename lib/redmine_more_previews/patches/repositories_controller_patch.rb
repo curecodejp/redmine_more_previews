@@ -134,7 +134,9 @@ module RedmineMorePreviews
               @paginator = Redmine::Pagination::Paginator.new(@entries.size, 1, index+1)
             end
             
-            if params[:asset]
+            # an asset parameter that names nothing ("?asset=") asks for the page
+            # (see ControllerHelper#respond_with_more_preview)
+            if (params[:asset].is_a?(Array) ? params[:asset].join('/') : params[:asset]).present?
               # find_path_param renders 404 for an unsafe asset name; it is not a
               # before_action here, so stop instead of sending the asset as well
               find_path_param

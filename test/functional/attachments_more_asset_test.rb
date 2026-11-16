@@ -406,6 +406,34 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
+  # an asset parameter without a name ("?asset=") names no asset: the request is
+  # one for the preview. It took the directory of the preview for an asset
+  # without a name, removed the previews of the attachment and stored a preview
+  # one directory above
+  def test_an_empty_asset_parameter_asks_for_the_preview_and_keeps_the_cache
+    Dir.mktmpdir do |dir|
+      a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))
+      get :more_preview, params: {id: a.id, format: 'html'}
+      assert_response :success
+      get :more_preview, params: {id: a.id, format: 'html', asset: 'ok.txt'}
+      assert_response :success
+      stored = stored_files
+
+      ['', ' ', ['']].each do |empty|
+        get :more_preview, params: {id: a.id, format: 'html', asset: empty}
+        assert_response :success, empty.inspect
+        assert_includes response.body, 'ok.txt', empty.inspect
+        assert_equal stored, stored_files, empty.inspect
+      end
+    end
+  end
+
+  # the files of the previews, with the time they were written
+  def stored_files
+    Dir.glob(File.join(@storage, 'attachments', '**', '*'), File::FNM_DOTMATCH).
+      select { |f| File.file?(f) }.map { |f| [f.delete_prefix(@storage), File.mtime(f)] }.sort
+  end
+
   def test_missing_entry_is_answered_with_404
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))

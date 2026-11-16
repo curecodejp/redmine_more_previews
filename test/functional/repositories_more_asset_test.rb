@@ -381,6 +381,33 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     assert_empty Dir.glob(File.join(@storage, '**', 'escaped.txt'))
   end
 
+  # as for an attachment: an asset parameter without a name names no asset
+  def test_an_empty_asset_parameter_asks_for_the_preview_and_keeps_the_cache
+    get :more_preview, params: entry_params(format: 'html')
+    assert_response :success
+    get :more_preview, params: entry_params(format: 'html', asset: 'dir/file.txt')
+    assert_response :success
+    stored = stored_files
+
+    ['', ' ', ['']].each do |empty|
+      get :more_preview, params: entry_params(format: 'html', asset: empty)
+      assert_response :success, empty.inspect
+      assert_includes response.body, 'file.txt', empty.inspect
+      assert_equal stored, stored_files, empty.inspect
+      # the page of the entry shows the entry, not an asset
+      get :entry, params: entry_params(asset: empty)
+      assert_response :success, empty.inspect
+      assert_select 'iframe', {minimum: 1}, empty.inspect
+      assert_equal stored, stored_files, empty.inspect
+    end
+  end
+
+  # the files of the previews, with the time they were written
+  def stored_files
+    Dir.glob(File.join(@storage, 'repository_previews', '**', '*'), File::FNM_DOTMATCH).
+      select { |f| File.file?(f) }.map { |f| [f.delete_prefix(@storage), File.mtime(f)] }.sort
+  end
+
   def test_missing_entry_is_answered_with_404
     get :entry, params: entry_params(asset: 'nope.txt')
     assert_response :not_found

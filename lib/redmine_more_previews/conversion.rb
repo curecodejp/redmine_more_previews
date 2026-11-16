@@ -439,6 +439,11 @@ module RedmineMorePreviews
     # cached_preview
     #-------------------------------------------------------------------------------------
     def cached_preview
+      # a target that names no file (the path of an asset without a name) would
+      # take the directory above the previews for the one of this preview, and
+      # remove it. A transient conversion stores nothing, and may have such a
+      # target (the fragments of Cliff are asked for by :assets)
+      raise ConverterBadArgument, "target names no file" if targetpath.to_s.end_with?( "/" )
       # the converter semaphore is per converter (and per process): requests of
       # two converters for the same file, or two processes, must not interleave
       # the marker check, the replacement and the read of one cache directory.

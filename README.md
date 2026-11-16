@@ -288,6 +288,10 @@ Native speakers: please help to improve localizations
 
 ## Change-Log
 
+**6.1.11** (unreleased)
+
+- A request for a preview with an asset parameter that names nothing (`/attachments/more_preview/ID.html?asset=`) is answered with the preview. It was taken for a request for an asset without a name: the previews of the file were removed and converted again, a preview was stored one directory above them, and the request was answered with `404`. Any user who may view the file could send it. The same held for a repository file, also on its page.
+
 **6.1.10**
 
 - A preview is requested in the output format configured for the file's converter only. A request for another format (f.i. `/attachments/more_preview/ID.pdf` for a file previewed as HTML) is answered with `404` before anything is converted: before, each such format ran the whole conversion, left a cache directory that was never served and remembered a failure.

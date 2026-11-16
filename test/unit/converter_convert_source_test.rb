@@ -40,27 +40,6 @@ class ConverterConvertSourceTest < ActiveSupport::TestCase
     assert_not yielded
   end
 
-  # removed between the look for it and the selection of its converter, or
-  # the opening of it
-  def test_a_file_removed_while_it_is_looked_at_is_not_converted
-    Pass.any_instance.expects(:preview).never
-    File.stubs(:exist?).with(@source).returns(true, false)
-    RedmineMorePreviews::Converter.stubs(:responsible).returns(nil)
-    assert_nil convert(:converter => nil)
-
-    File.stubs(:exist?).with(@source).returns(true)
-    RedmineMorePreviews::Converter.unstub(:responsible)
-    File.stubs(:open).with(@source).raises(Errno::ENOENT)
-    assert_nil convert
-  end
-
-  # a file that is there and cannot be read is an error, as before
-  def test_a_file_that_cannot_be_read_is_an_error
-    File.stubs(:open).with(@source).raises(Errno::EACCES)
-    Pass.any_instance.expects(:preview).never
-    assert_raises(Errno::EACCES) { convert }
-  end
-
   # a repository entry is given by its content: it is written when it is
   # converted, an entry without content as an empty file
   def test_a_file_given_by_its_content_is_written_to_be_converted

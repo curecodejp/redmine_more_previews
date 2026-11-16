@@ -362,15 +362,8 @@ module RedmineMorePreviews
         responsible( file, content ? {:content => content.call.to_s} : {} )
       end
       worker    = converter&.worker(options.except(:converter).merge(:target => storage_path))
-      # removed since it was looked for above: no converter is found for a file
-      # that is gone, or the file cannot be opened
-      return nil unless worker || content || File.exist?( file.to_s )
       raise ConverterNotFound unless worker
-      begin
-        File.open( file ) {} unless content
-      rescue Errno::ENOENT
-        return nil
-      end
+      File.open( file ) {} unless content
       worker.preview( file.to_s, &block )
     end #def
     

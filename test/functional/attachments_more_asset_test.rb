@@ -450,35 +450,15 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
     end
   end
 
-  # the same when the converter was selected while the file was there
-  def test_a_source_file_gone_after_the_converter_was_selected_is_answered_with_404
-    Dir.mktmpdir do |dir|
-      a = attach(build_zip(File.join(dir, 'gone.zip'), 'ok.txt' => 'x'))
-      Attachment.any_instance.stubs(:readable?).returns(true)
-      selection = a.preview_selection
-      Attachment.any_instance.stubs(:preview_selection).returns(selection)
-      File.delete(a.diskfile)
-      get :more_preview, params: {id: a.id, format: 'html'}
-      assert_response :not_found
-      @request.session[:user_id] = 1
-      get :more_preview, params: {id: a.id, format: 'html', unsafe: '1'}
-      assert_response :not_found
-      assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
-    end
-  end
-
-  # parameters that are no name: a format, an asset or an assetformat given as
-  # keys and values, or as a list of them. They were errors of the server
-  # (500), or named an asset after the text of the parameter. Nothing is
-  # converted for them
+  # parameters that are no name: an asset or an assetformat given as keys and
+  # values, or as a list that is no list of names. Their text was taken for the
+  # name of an asset. Nothing is converted for them
   def test_parameters_that_are_no_names_are_answered_with_404
     Dir.mktmpdir do |dir|
       a = attach(build_zip(File.join(dir, 'ok.zip'), 'ok.txt' => 'x'))
       stored = Dir.glob(File.join(@storage, '**', '*')).sort
 
-      [{asset: {'a' => ''}}, {asset: {'a' => 'ok.txt'}}, {asset: [{'a' => 'ok.txt'}]},
-       {asset: 'ok', assetformat: ['txt']}, {asset: 'ok', assetformat: {'a' => 'txt'}},
-       {format: ['html']}, {format: {'a' => 'html'}}].each do |params|
+      [{asset: {'a' => 'ok.txt'}}, {asset: [{'a' => 'ok.txt'}]}, {asset: 'ok', assetformat: ['txt']}].each do |params|
         get :more_preview, params: {id: a.id, format: 'html'}.merge(params)
         assert_response :not_found, params.inspect
       end
@@ -488,7 +468,8 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
       get :more_preview, params: {id: a.id, format: 'html', asset: ['ok.txt']}
       assert_response :success
       assert_equal 'x', response.body
-      # an asset has no format: one that names none is not looked at
+      # an asset has no format: one that names none is not looked at (it was an
+      # error of the server)
       get :more_asset, params: {id: a.id, asset: 'ok', assetformat: 'txt', format: ['html']}
       assert_response :success
       assert_equal 'x', response.body

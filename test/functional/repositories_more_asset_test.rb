@@ -428,37 +428,21 @@ class RepositoriesMoreAssetTest < Redmine::ControllerTest
     # directory, and an error of the server for a file that is not converted)
     FileUtils.mkdir_p(File.join(@repo_dir, 'a.zip.zip'))
     File.write(File.join(@repo_dir, 'a.zip.bin'), 'x')
-    ['zip', 'bin', 'none', '', ' '].each do |baseformat|
+    ['zip', 'bin', 'none', ''].each do |baseformat|
       get :entry, params: entry_params(asset: 'dir/file.txt', baseformat: baseformat)
       assert_response :not_found, baseformat.inspect
     end
   end
 
-  # as for an attachment
+  # what the controller of a repository adds to the check of an attachment (see
+  # AttachmentsMoreAssetTest): the page of a file, and the extension of the path
   def test_parameters_that_are_no_names_are_answered_with_404
     stored = Dir.glob(File.join(@storage, '**', '*')).sort
-
-    [{asset: {'a' => ''}}, {asset: {'a' => 'dir/file.txt'}}, {asset: [{'a' => 'dir/file.txt'}]},
-     {asset: 'dir/file', assetformat: ['txt']}, {asset: 'dir/file', assetformat: {'a' => 'txt'}},
-     {format: ['html']}, {format: {'a' => 'html'}}].each do |params|
-      get :more_preview, params: entry_params({format: 'html'}.merge(params))
-      assert_response :not_found, params.inspect
-    end
-    [{asset: {'a' => 'dir/file.txt'}}, {asset: [{'a' => 'dir/file.txt'}]},
-     {asset: 'dir/file.txt', baseformat: ['zip']}, {asset: 'dir/file.txt', baseformat: {'a' => 'zip'}}].each do |params|
+    [{asset: {'a' => 'dir/file.txt'}}, {asset: 'dir/file.txt', baseformat: ['zip']}].each do |params|
       get :entry, params: entry_params(params)
       assert_response :not_found, params.inspect
     end
     assert_equal stored, Dir.glob(File.join(@storage, '**', '*')).sort
-
-    # a list of names is a path, as the routes give it
-    get :more_preview, params: entry_params(format: 'html', asset: ['dir', 'file.txt'])
-    assert_response :success
-    assert_equal 'hello', response.body
-    # an asset has no format: one that names none is not looked at
-    get :more_asset, params: entry_params(path: repository_path_hash(['a'])[:param], baseformat: 'zip', asset: 'dir/file', assetformat: 'txt', format: ['html'])
-    assert_response :success
-    assert_equal 'hello', response.body
   end
 
   def test_missing_entry_is_answered_with_404

@@ -56,6 +56,20 @@ class VinceIsolationTest < ActiveSupport::TestCase
     end
   end
 
+  # the text preview writes a line for each kind of field (a value, a symbol,
+  # named parts, a URI): nothing else looks at what it writes but the name
+  def test_text_preview_writes_the_fields_of_a_card
+    File.binwrite(@src, ["BEGIN:VCARD", "VERSION:4.0", "FN:Test Person", "N:Person;Test;;Dr.;", "KIND:individual",
+                         "TEL;TYPE=work:+81-3-1234-5678", "NOTE:A note", "END:VCARD", ""].join("\r\n"))
+    text = File.open(@src) { |io| worker('txt').preview(io) }.to_s
+
+    assert_match(/^Note:\s+A note$/, text)
+    assert_match(/^Kind:\s+individual$/, text)
+    assert_match(/^Name:\n  LastName:\s+Person\n  First name:\s+Test$/, text)
+    assert_match(/^  Title:\s+Dr\.$/, text)
+    assert_match(/^Work\n-+\nTelephone:\s+\+81-3-1234-5678$/, text)
+  end
+
   def test_parsing_and_rendering_run_inside_bounded_fork
     calls = []
     with_fork_spy(->(timeout, memory) { calls << [timeout, memory] }) do

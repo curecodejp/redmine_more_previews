@@ -106,8 +106,10 @@ module RedmineMorePreviews
     end #def
     private :preview_format_requested?
 
+    # the asset is the name the controller validated (@asset, see
+    # more_preview_asset), never the parameter as it came
     def preview_params
-      params.permit(:format, :asset).
+      params.permit(:format).
       merge({:request => request, 
              :asset   => @asset, 
              :format  => params[:format]&.downcase,
@@ -237,9 +239,11 @@ module RedmineMorePreviews
     #
     ################################################################################
     
-    # a preview, or the asset named by params[:asset]
+    # a preview, or the asset named by params[:asset]. An asset parameter that
+    # names nothing ("?asset=") is no request for an asset: taken for one, it
+    # named the directory of the preview, and the previews were removed
     def respond_with_more_preview
-      if params[:asset]
+      if @asset.present?
         @disposition = "attachment"
         respond_with_more_asset
       else

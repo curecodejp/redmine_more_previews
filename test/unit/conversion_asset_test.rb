@@ -25,6 +25,23 @@ class ConversionAssetTest < ActiveSupport::TestCase
     end
   end
 
+  # the path of an asset without a name is the directory of the preview: the
+  # directory above it was taken for the one of the preview, and removed
+  def test_a_target_that_names_no_file_is_not_stored_and_removes_nothing
+    # below the storage: nothing outside it is removed anyway
+    Dir.mktmpdir('nameless', RedmineMorePreviews::Constants::Defaults::MORE_PREVIEWS_STORAGE_PATH) do |cache|
+      zip    = build_zip(File.join(cache, 'a.zip'), 'ok.txt' => 'x')
+      stored = File.join(cache, 'previews', 'preview.html', 'index.html')
+      FileUtils.mkdir_p(File.dirname(stored))
+      File.write(stored, 'kept')
+
+      worker = zippy_worker(target: File.join(cache, 'previews', 'preview.html', ''))
+      assert_nil worker.preview(zip)
+      assert_equal 'kept', File.read(stored)
+      assert_equal ['preview.html'], Dir.children(File.join(cache, 'previews'))
+    end
+  end
+
   def test_worker_normalizes_accepted_asset_names
     Dir.mktmpdir do |cache|
       target = File.join(cache, 'preview.html', 'index.html')

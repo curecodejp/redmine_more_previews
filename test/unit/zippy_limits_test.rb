@@ -559,8 +559,8 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     File.binwrite(zip, data + comment)
   end
 
-  def zip64_record(entries, size)
-    [0x06064b50, 44, 45, 45, 0, 0, entries, entries, size, 0].pack('VQ<vvVVQ<Q<Q<Q<')
+  def zip64_record(entries, size, offset = 0)
+    [0x06064b50, 44, 45, 45, 0, 0, entries, entries, size, offset].pack('VQ<vvVVQ<Q<Q<Q<')
   end
 
   def eocd_record(entries, size, offset, comment_length = 0)

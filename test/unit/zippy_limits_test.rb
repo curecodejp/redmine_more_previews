@@ -212,6 +212,28 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     end
   end
 
+  # A Zip64 signature *after* a locator, in an EOCD comment, is not a
+  # usable Zip64 record. Rubyzip 2 fails to parse it, while rubyzip 3 reads
+  # the complete ordinary EOCD. Neither should read more than the normal 5.
+  def test_reversed_zip64_signature_in_comment_cannot_hide_more_entries
+    zip = build_zip(path('zip64-reversed-comment.zip'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    add_comment(zip, zip64_locator + zip64_record(70_000, 5_000_000))
+    worker = zippy_worker(target: @target)
+    worker.source = zip
+    assert_equal 5, worker.send(:central_directory).first
+
+    loaded = begin
+      Zip::File.open(zip) { |archive| archive.entries.size }
+    rescue Zip::Error, TypeError, NoMethodError
+      nil
+    end
+    assert_includes [nil, 5], loaded
+    with_zippy_limits('max_entries' => '4') do
+      Zip::File.expects(:open).never
+      assert_raises(ConverterTooLarge) { listing(zip) }
+    end
+  end
+
   # A long comment may put the genuine Zip64 EOCD outside the tail. This is
   # valid for rubyzip 3 and must not be mistaken for a 65,535-entry archive.
   def test_zip64_long_comment_uses_real_directory_values

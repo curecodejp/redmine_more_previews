@@ -262,6 +262,8 @@ module RedmineMorePreviews
     private :respond_with_more_preview
     
     def respond_with_more_asset
+      # the routes of an asset take an extension of blanks, which names nothing
+      return render_404 if @asset.blank?
       respond_to do |format|
         format.any { send_more_asset }
       end

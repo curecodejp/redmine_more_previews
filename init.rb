@@ -172,6 +172,9 @@
 #       - Keep no class nor style of a document's own HTML in an inline preview
 #       - Zippy, Vince, Maggie and Cliff fixes; no longer depend on the gems hbl_text, hash_base and deep_try
 #       - Translate the settings and messages added in recent versions
+# 6.1.11
+#       - Answer a preview request with an empty asset parameter with the preview: it removed the previews of the file
+#       - Answer with 404 a preview of a file just deleted, of a repository folder, and parameters that are no names
 #-----------------------------------------------------------------------------------------
 # Register plugin
 #-----------------------------------------------------------------------------------------
@@ -179,7 +182,7 @@ Redmine::Plugin.register :redmine_more_previews do
   name         'Redmine More Previews'
   author       'Cure Code Corp. (maintained fork based on JVsup / Stephan Wenzel)'
   description  'Preview various file types in redmine\'s preview pane'
-  version      '6.1.10'
+  version      '6.1.11'
   url          'https://github.com/curecodejp/redmine_more_previews'
   author_url   'https://github.com/curecodejp/redmine_more_previews'
   

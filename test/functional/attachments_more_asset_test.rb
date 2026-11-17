@@ -425,6 +425,12 @@ class AttachmentsMoreAssetTest < Redmine::ControllerTest
         assert_includes response.body, 'ok.txt', empty.inspect
         assert_equal stored, stored_files, empty.inspect
       end
+      # the route of an asset takes an extension of blanks: no name either, and
+      # nothing to convert or to remember a failure of
+      get :more_asset, params: {id: a.id, assetformat: ' '}
+      assert_response :not_found
+      assert_equal stored, stored_files
+      assert_empty Dir.glob(File.join(@storage, 'failures', '*'))
     end
   end
 

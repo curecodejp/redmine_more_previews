@@ -537,39 +537,61 @@ class Zippy < RedmineMorePreviews::Conversion
     end
   end #def
   
-  # [entries, size] of the central directory. rubyzip 2 may prefer a Zip64
-  # signature embedded in a comment, while rubyzip 3 uses the ordinary EOCD
-  # when its fields are complete. Check both declarations conservatively: the
-  # preflight limit must not underestimate what either version might load.
-  # Reserve enough bytes for the EOCD, maximum comment and Zip64 locator.
-  END_OF_CDS_SIZE = 65_535 + 22 + 20
+  # Bound the number of entries and central-directory bytes *before* rubyzip
+  # opens the archive. rubyzip 2 and 3 read different EOCD windows and prefer
+  # different records in ambiguous ZIPs; the preflight must cover either reader.
+  END_OF_CDS_SIZE = 65_535 + 22 + 20  # rubyzip 3, including the Zip64 locator
+  RUBYZIP2_TAIL   = 65_536 + 18       # rubyzip 2's smaller tail window
 
-  def central_directory
-    buf = File.open( source, "rb" ) do |file|
-      file.seek( [file.size - END_OF_CDS_SIZE, 0].max )
-      file.read.to_s.b
-    end
-    standard = if (index = buf.rindex( EOCD_SIGNATURE ))
-      # disks (2 + 2), entries on disk (2), entries (2), size (4)
+  def rubyzip2_central_directory( buf )
+    buf = buf.byteslice( [buf.bytesize - RUBYZIP2_TAIL, 0].max..-1 )
+    zip64   = buf.rindex( ZIP64_EOCD_SIGNATURE )
+    locator = buf.rindex( ZIP64_LOCATOR )
+    if zip64 && locator
+      # rubyzip 2 takes the last Zip64 signature even if it is in a comment,
+      # provided both signatures fall in its own (smaller) tail window.
+      record = buf.byteslice( (zip64 + 4)..locator ).to_s
+      record.byteslice( 28, 16 ).unpack( "Q<Q<" ) if record.bytesize >= 44
+    elsif (index = buf.rindex( EOCD_SIGNATURE ))
       record = buf.byteslice( (index + 4)..-1 ).to_s
       record.byteslice( 6, 6 ).unpack( "vV" ) if record.bytesize >= 12
     end
-    zip64_index = buf.rindex( ZIP64_EOCD_SIGNATURE )
-    locator     = buf.rindex( ZIP64_LOCATOR )
-    extended = if zip64_index && locator && zip64_index < locator
-      # size of record (8), versions (2 + 2), disks (4 + 4), entries on disk (8),
-      # entries (8), size (8): the fields through the end of the size value
-      record = buf.byteslice( (zip64_index + 4)..locator ).to_s
-      record.byteslice( 28, 16 ).unpack( "Q<Q<" ) if record.bytesize >= 44
-    end
-    return standard unless extended
-    return extended unless standard
+  end #def
+  private :rubyzip2_central_directory
 
-    # 0xFFFF and 0xFFFFFFFF are Zip64 placeholders, not actual counts/sizes.
-    # Otherwise take the larger claim so neither rubyzip version bypasses the
-    # entry-count and central-directory-byte limits.
-    [standard[0] == 0xFFFF ? extended[0] : [standard[0], extended[0]].max,
-     standard[1] == 0xFFFFFFFF ? extended[1] : [standard[1], extended[1]].max]
+  def rubyzip3_central_directory( file, buf )
+    index = buf.rindex( EOCD_SIGNATURE ) or return
+    # EOCD after its signature: 4 disk/count fields, count, size, offset.
+    record = buf.byteslice( index + 4, 16 ).to_s
+    return unless record.bytesize == 16
+    *disks, entries, size, offset = record.unpack( "vvvvVV" )
+    # Even if entry count and size look valid, an offset/disk placeholder means
+    # rubyzip 3 will use Zip64 values for *all* fields.
+    return [entries, size] unless (disks + [entries]).include?( 0xFFFF ) ||
+                                  [size, offset].include?( 0xFFFFFFFF )
+
+    locator = buf.rindex( ZIP64_LOCATOR, index ) or return
+    if (zip64 = buf.rindex( ZIP64_EOCD_SIGNATURE, locator ))
+      record = buf.byteslice( zip64..locator ).to_s
+    else
+      # rubyzip 3 follows the locator to a Zip64 EOCD outside the tail window.
+      at = buf.byteslice( locator + 8, 8 ).to_s.unpack1( "Q<" ) or return
+      return if at > file.size - 48  # not enough bytes for the two limit fields
+      file.seek( at )
+      record = file.read( 56 ).to_s.b
+    end
+    record.byteslice( 32, 16 ).unpack( "Q<Q<" ) if record.bytesize >= 48
+  end #def
+  private :rubyzip3_central_directory
+
+  def central_directory
+    File.open( source, "rb" ) do |file|
+      file.seek( [file.size - END_OF_CDS_SIZE, 0].max )
+      buf = file.read.to_s.b
+      found = [rubyzip2_central_directory( buf ), rubyzip3_central_directory( file, buf )].compact
+      # Fail closed if either supported rubyzip reader would load more entries.
+      found.transpose.map( &:max ) unless found.empty?
+    end
   rescue SystemCallError, IOError
     nil
   end #def

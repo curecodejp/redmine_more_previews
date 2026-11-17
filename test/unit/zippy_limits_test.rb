@@ -146,17 +146,23 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_equal [70_000, 5_000_000], worker.send(:central_directory)
   end
 
-  # a zip64 record in the comment: rubyzip goes by it whatever the end of central
-  # directory record says, and so must the check
-  def test_entries_are_counted_as_rubyzip_counts_them
+  # rubyzip 2 and 3 differ when a Zip64 signature appears in a ZIP comment:
+  # 2 reads the fake record (3), while 3 reads the regular EOCD (5). The
+  # preflight must not underestimate either interpretation of this archive.
+  def test_entries_are_bounded_across_rubyzip_versions
     zip = build_zip(path('comment.zip'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
     add_comment(zip, zip64_record(3, 1000) + zip64_locator)
     worker = zippy_worker(target: @target)
     worker.source = zip
     rubyzip = Zip::CentralDirectory.new
     File.open(zip, 'rb') { |io| rubyzip.read_from_stream(io) rescue nil }
-    assert_equal 3, rubyzip.instance_variable_get(:@size)
-    assert_equal 3, worker.send(:central_directory).first
+    assert_operator worker.send(:central_directory).first, :>=, rubyzip.instance_variable_get(:@size)
+    assert_equal 5, worker.send(:central_directory).first
+
+    with_zippy_limits('max_entries' => '4') do
+      Zip::File.expects(:open).never
+      assert_raises(ConverterTooLarge) { listing(zip) }
+    end
   end
 
   def test_zip64_record_in_the_comment_beyond_the_limit_is_refused

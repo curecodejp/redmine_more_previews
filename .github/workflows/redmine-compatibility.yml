@@ -19,14 +19,22 @@ jobs:
       RMP_LIBRE_REQUIRE_SANDBOX: '1'
       # the real HEIC and TIFF conversions of Maggie fail rather than skip
       RMP_REQUIRE_IMAGE_CODERS: '1'
+    # Keep existing 6.x checks required while 7.0 compatibility is investigated.
+    # A failing experimental job remains visible but does not fail the PR.
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - redmine: '6.0.11'
             rubyzip_requirement: '~> 2.3.0'
+            experimental: false
           - redmine: '6.1.5'
             rubyzip_requirement: '~> 2.4.0'
+            experimental: false
+          - redmine: '7.0.3'
+            rubyzip_requirement: '~> 3.4.0'
+            experimental: true
 
     steps:
       - name: Checkout plugin

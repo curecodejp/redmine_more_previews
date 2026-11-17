@@ -19,8 +19,9 @@ jobs:
       RMP_LIBRE_REQUIRE_SANDBOX: '1'
       # the real HEIC and TIFF conversions of Maggie fail rather than skip
       RMP_REQUIRE_IMAGE_CODERS: '1'
-    # Keep existing 6.x checks required while 7.0 compatibility is investigated.
-    # A failing experimental job remains visible but does not fail the PR.
+    # Fail the workflow run if a 6.x job fails. A 7.0 failure still appears
+    # as a failed job check, but does not fail the workflow run. These checks
+    # are not currently enforced as required checks by repository rulesets.
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false

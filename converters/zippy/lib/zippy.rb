@@ -664,7 +664,8 @@ class Zippy < RedmineMorePreviews::Conversion
       write_asset do |f|
         while( chunk = io.read(8192)) do
           written += chunk.bytesize
-          raise Zip::EntrySizeError, "#{entry.name} exceeds its declared size #{entry.size}" if written > entry.size
+          # rubyzip 3 expects the entry, not a message; rubyzip 2 accepts it too.
+          raise Zip::EntrySizeError.new(entry) if written > entry.size
           f.write chunk
         end
       end

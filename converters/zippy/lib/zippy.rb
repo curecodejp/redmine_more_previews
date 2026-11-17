@@ -537,37 +537,43 @@ class Zippy < RedmineMorePreviews::Conversion
     end
   end #def
   
-  # [entries, size] of the central directory as rubyzip (2.4) reads them, nil where
-  # rubyzip fails as well. rubyzip reads the last END_OF_CDS_SIZE bytes, and takes
-  # the last zip64 record in them whenever a zip64 record and a zip64 locator
-  # signature appear anywhere in them (where the locator points is not checked),
-  # else the last end of central directory record. Reading them any other way
-  # would check other numbers than rubyzip goes by.
-  END_OF_CDS_SIZE = 65_536 + 18
-  
+  # [entries, size] of the central directory. rubyzip 2 may prefer a Zip64
+  # signature embedded in a comment, while rubyzip 3 uses the ordinary EOCD
+  # when its fields are complete. Check both declarations conservatively: the
+  # preflight limit must not underestimate what either version might load.
+  # Reserve enough bytes for the EOCD, maximum comment and Zip64 locator.
+  END_OF_CDS_SIZE = 65_535 + 22 + 20
+
   def central_directory
     buf = File.open( source, "rb" ) do |file|
       file.seek( [file.size - END_OF_CDS_SIZE, 0].max )
       file.read.to_s.b
     end
-    zip64   = buf.rindex( ZIP64_EOCD_SIGNATURE )
-    locator = buf.rindex( ZIP64_LOCATOR )
-    if zip64 && locator
-      # size of record (8), versions (2 + 2), disks (4 + 4), entries on disk (8),
-      # entries (8), size (8): rubyzip reads them from the record up to the locator
-      record = buf.byteslice( (zip64 + 4)..locator ).to_s
-      return nil unless record.bytesize >= 44
-      record.byteslice( 28, 16 ).unpack( "Q<Q<" )
-    elsif (index = buf.rindex( EOCD_SIGNATURE ))
+    standard = if (index = buf.rindex( EOCD_SIGNATURE ))
       # disks (2 + 2), entries on disk (2), entries (2), size (4)
       record = buf.byteslice( (index + 4)..-1 ).to_s
-      return nil unless record.bytesize >= 12
-      record.byteslice( 6, 6 ).unpack( "vV" )
+      record.byteslice( 6, 6 ).unpack( "vV" ) if record.bytesize >= 12
     end
+    zip64_index = buf.rindex( ZIP64_EOCD_SIGNATURE )
+    locator     = buf.rindex( ZIP64_LOCATOR )
+    extended = if zip64_index && locator && zip64_index < locator
+      # size of record (8), versions (2 + 2), disks (4 + 4), entries on disk (8),
+      # entries (8), size (8): the fields through the end of the size value
+      record = buf.byteslice( (zip64_index + 4)..locator ).to_s
+      record.byteslice( 28, 16 ).unpack( "Q<Q<" ) if record.bytesize >= 44
+    end
+    return standard unless extended
+    return extended unless standard
+
+    # 0xFFFF and 0xFFFFFFFF are Zip64 placeholders, not actual counts/sizes.
+    # Otherwise take the larger claim so neither rubyzip version bypasses the
+    # entry-count and central-directory-byte limits.
+    [standard[0] == 0xFFFF ? extended[0] : [standard[0], extended[0]].max,
+     standard[1] == 0xFFFFFFFF ? extended[1] : [standard[1], extended[1]].max]
   rescue SystemCallError, IOError
     nil
   end #def
-  
+
   #---------------------------------------------------------------------------------------
   # tartoc
   #---------------------------------------------------------------------------------------

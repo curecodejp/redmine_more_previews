@@ -59,6 +59,11 @@ class Cliff < RedmineMorePreviews::Conversion
   MAX_MEMORY     = 1024 * 1024 * 1024
   LOCALE_MARKER  = '.cliff_locale'.freeze
 
+  # Rebuild old email previews that still contain external resource tags.
+  def self.cache_revision
+    'cliff-1'
+  end
+
   # Cached headers contain translated labels and localized date strings.
   # A fragment generated for another viewer's locale must not be reused.
   def self.cache_locale_matches?(preview_path, locale)
@@ -457,8 +462,9 @@ class Cliff < RedmineMorePreviews::Conversion
   # sweep
   #---------------------------------------------------------------------------------------
   # Strip active/embedded documents and external resource references from
-  # untrusted email HTML before it reaches the preview iframe. CSP and the
-  # sandbox remain independent backstops, not the primary HTML filter.
+  # untrusted email HTML before it reaches the preview iframe. Nokogiri::HTML
+  # (libxml2) does not parse exactly like a browser, so the preview's CSP and
+  # sandbox remain required, not optional backstops.
   UNSAFETAGS   = %w(script iframe frame frameset object embed applet base link)
   
   def sweep( html )
@@ -470,7 +476,9 @@ class Cliff < RedmineMorePreviews::Conversion
     #
     UNSAFETAGS.each do |ust|
       doc.xpath("//*[self::#{ust}]").each do |node|
-        node.remove
+        # libxml2 can nest following siblings inside an unclosed <embed>.
+        # Preserve that content instead of truncating the rest of the email.
+        ust == 'embed' ? node.replace(node.children) : node.remove
       end
     end
     

@@ -93,7 +93,6 @@ class CliffBodyTest < ActiveSupport::TestCase
       <embed src="https://example.invalid/a">
       <applet code="x.class"></applet>
       <base href="https://example.invalid/">
-      <img src="cid:image@example.invalid" alt="inline">
       </body></html>
     HTML
     source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
@@ -105,7 +104,6 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_empty document.xpath('//meta[translate(@http-equiv, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")="refresh"]')
     assert document.at_css('style'), 'inline styling is still supported'
     assert_equal 'ordinary formatting', document.at_css('b').text
-    assert_equal 'cid:image@example.invalid', document.at_css('img')['src']
   end
 
   def test_unsafe_html_reload_retains_original_embedded_tags

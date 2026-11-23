@@ -96,8 +96,8 @@ class CliffBodyTest < ActiveSupport::TestCase
       <img src="cid:image@example.invalid" alt="inline">
       </body></html>
     HTML
-    source = "From: a@example.test\\nTo: b@example.test\\nSubject: s\\n" \
-             "Content-Type: text/html; charset=UTF-8\\n\\n#{body}"
+    source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
+             "Content-Type: text/html; charset=UTF-8\n\n#{body}"
     html = convert(source)
     document = Nokogiri::HTML(html)
 
@@ -111,8 +111,8 @@ class CliffBodyTest < ActiveSupport::TestCase
   def test_unsafe_html_reload_retains_original_embedded_tags
     body = '<link rel="stylesheet" href="https://assets.example.invalid/x.css">' \
            '<iframe src="https://example.invalid/a"></iframe>'
-    source = "From: a@example.test\\nTo: b@example.test\\nSubject: s\\n" \
-             "Content-Type: text/html; charset=UTF-8\\n\\n#{body}"
+    source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
+             "Content-Type: text/html; charset=UTF-8\n\n#{body}"
     document = Nokogiri::HTML(convert(source, unsafe: true))
 
     assert document.at_css('link[rel="stylesheet"]')

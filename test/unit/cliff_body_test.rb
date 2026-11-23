@@ -93,6 +93,8 @@ class CliffBodyTest < ActiveSupport::TestCase
       <embed src="https://example.invalid/a">
       <applet code="x.class"></applet>
       <base href="https://example.invalid/">
+      <img src="cid:image@example.invalid" alt="inline">
+      <p>Text after embed survives.</p>
       </body></html>
     HTML
     source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
@@ -100,10 +102,20 @@ class CliffBodyTest < ActiveSupport::TestCase
     html = convert(source)
     document = Nokogiri::HTML(html)
 
-    assert_empty document.css('link, meta[http-equiv="refresh"], iframe, object, embed, applet, base')
+    assert_empty document.css('link, iframe, object, embed, applet, base')
     assert_empty document.xpath('//meta[translate(@http-equiv, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")="refresh"]')
     assert document.at_css('style'), 'inline styling is still supported'
     assert_equal 'ordinary formatting', document.at_css('b').text
+    assert_equal 'cid:image@example.invalid', document.at_css('img')['src']
+    assert_includes document.text, 'Text after embed survives.'
+  end
+
+  def test_frame_and_frameset_are_removed
+    body = '<html><frameset><frame src="https://example.invalid/a"></frameset></html>'
+    source = "From: a@example.test\\nTo: b@example.test\\nSubject: s\\n" \\
+             "Content-Type: text/html; charset=UTF-8\\n\\n#{body}"
+    document = Nokogiri::HTML(convert(source))
+    assert_empty document.css('frame, frameset')
   end
 
   def test_unsafe_html_reload_retains_original_embedded_tags

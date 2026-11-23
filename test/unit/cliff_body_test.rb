@@ -77,6 +77,58 @@ class CliffBodyTest < ActiveSupport::TestCase
     assert_includes html, '<b>world</b>'
   end
 
+  # Even with strict preview CSP, untrusted email HTML must not retain tags
+  # that request external styles or embed other browsing contexts. Removing
+  # them in Cliff keeps the output safe if browser policy changes.
+  def test_html_mail_drops_external_resource_and_embedded_document_tags
+    body = <<~HTML
+      <html><head>
+      <link rel="stylesheet" href="https://assets.example.invalid/x.css">
+      <meta http-equiv="REFRESH" content="0;url=https://example.invalid/">
+      <style>p { color: green; }</style>
+      </head><body>
+      <p>Keep <b>ordinary formatting</b>.</p>
+      <iframe src="https://example.invalid/a"></iframe>
+      <object data="https://example.invalid/a"></object>
+      <embed src="https://example.invalid/a">
+      <applet code="x.class"></applet>
+      <base href="https://example.invalid/">
+      <img src="cid:image@example.invalid" alt="inline">
+      <p>Text after embed survives.</p>
+      </body></html>
+    HTML
+    source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
+             "Content-Type: text/html; charset=UTF-8\n\n#{body}"
+    html = convert(source)
+    document = Nokogiri::HTML(html)
+
+    assert_empty document.css('link, iframe, object, embed, applet, base')
+    assert_empty document.xpath('//meta[translate(@http-equiv, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")="refresh"]')
+    assert document.at_css('style'), 'inline styling is still supported'
+    assert_equal 'ordinary formatting', document.at_css('b').text
+    assert_equal 'cid:image@example.invalid', document.at_css('img')['src']
+    assert_includes document.text, 'Text after embed survives.'
+  end
+
+  def test_frame_and_frameset_are_removed
+    body = '<html><frameset><frame src="https://example.invalid/a"></frameset></html>'
+    source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
+             "Content-Type: text/html; charset=UTF-8\n\n#{body}"
+    document = Nokogiri::HTML(convert(source))
+    assert_empty document.css('frame, frameset')
+  end
+
+  def test_unsafe_html_reload_retains_original_embedded_tags
+    body = '<link rel="stylesheet" href="https://assets.example.invalid/x.css">' \
+           '<iframe src="https://example.invalid/a"></iframe>'
+    source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
+             "Content-Type: text/html; charset=UTF-8\n\n#{body}"
+    document = Nokogiri::HTML(convert(source, unsafe: true))
+
+    assert document.at_css('link[rel="stylesheet"]')
+    assert document.at_css('iframe')
+  end
+
   # the message of a parse failure quotes the mail, so it is attacker controlled:
   # the error page does not show it. The email is parsed in a child process: a
   # stub works there, an expectation is not counted

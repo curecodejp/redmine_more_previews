@@ -200,7 +200,7 @@ Cliff converts
 
 to html.
 
-You can view the .eml file almost like in a professional email viewer, see mail headers and download attachments. Cliff filters scripts, event-handler attributes, CSS `url()` references, and external images from email previews. Only administrators can request an unsafe preview, and they should do so only for trusted `.eml` or `.mime` files.
+You can view the .eml file almost like in a professional email viewer, see mail headers and download attachments. Cliff filters scripts, event-handler attributes, CSS `url()` references, external images, external stylesheet links, embedded content (`iframe`, `frame`, `frameset`, `object`, `embed`, `applet`, `base`), and meta refresh redirects from email previews. The preview sandbox and CSP remain essential defenses. Only administrators can request an unsafe preview, and they should do so only for trusted `.eml` or `.mime` files.
 
 An email larger than 50 MiB, with more than 1,000 MIME parts, or with multipart parts nested more than 100 levels deep or adding up to more than five times the size limit is not previewed, and at most 1,000 attachments are extracted (the others are counted in the list). The size, parts and attachments limits can be changed in Cliff's settings. On platforms with Ruby `fork` support, Cliff parses an email in a child process within the conversion time limit and with a 1 GiB additional-memory budget (monitored on supported Linux hosts). On Windows or without `fork`, parsing runs in the Redmine worker **without those process time and memory limits**; do not enable untrusted email previews there without an equivalent isolation mechanism. The Mail library can take many times the size of an email to parse some of its lines.
 
@@ -288,6 +288,11 @@ NilText is a development and diagnostics converter for understanding the plugin'
 Native speakers: please help to improve localizations
 
 ## Change-Log
+
+**Unreleased**
+
+- **Cliff:** remove external stylesheet links, embedded content and meta refresh redirects from HTML email previews; preserve the content after unclosed `<embed>` tags. Existing Cliff previews are regenerated when next viewed.
+
 
 **6.1.11**
 

@@ -211,7 +211,23 @@ class CliffCachedFragmentsTest < Redmine::ControllerTest
     assert_response :success
     assert_includes response.body, 'cached-mail-subject'
     assert_not_includes response.body, 'old header'
-    assert_equal "cliff:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal", File.read("#{cache_dir}.converter")
+    assert_equal "cliff:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:cliff-1:normal", File.read("#{cache_dir}.converter")
+  end
+
+  def test_old_cliff_cache_without_converter_revision_is_invalidated
+    cache_dir = @attachment.preview_dirname
+    FileUtils.mkdir_p(cache_dir)
+    File.write(@attachment.preview_filepath, 'old cached mail body')
+    File.write(@attachment.preview_assetpath(asset: 'headers.html'), 'old header')
+    old_marker = "cliff:#{RedmineMorePreviews::Conversion::CACHE_FORMAT_VERSION}:normal"
+    File.write("#{cache_dir}.converter", old_marker)
+
+    get :show, params: {id: @attachment.id, filename: @attachment.filename, format: 'html'}
+    assert_response :success
+    assert_includes response.body, 'cached-mail-subject'
+    assert_not_includes response.body, 'old header'
+    assert_equal RedmineMorePreviews::Conversion.cache_marker_for(:cliff), File.read("#{cache_dir}.converter")
+    assert_not_equal old_marker, File.read("#{cache_dir}.converter")
   end
 
   WITH_ATTACHMENT = "From: writer@example.test\r\nTo: reader@example.test\r\nSubject: slot-mail-subject\r\n" \

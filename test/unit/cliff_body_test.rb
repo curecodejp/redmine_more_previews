@@ -112,8 +112,8 @@ class CliffBodyTest < ActiveSupport::TestCase
 
   def test_frame_and_frameset_are_removed
     body = '<html><frameset><frame src="https://example.invalid/a"></frameset></html>'
-    source = "From: a@example.test\\nTo: b@example.test\\nSubject: s\\n" \\
-             "Content-Type: text/html; charset=UTF-8\\n\\n#{body}"
+    source = "From: a@example.test\nTo: b@example.test\nSubject: s\n" \
+             "Content-Type: text/html; charset=UTF-8\n\n#{body}"
     document = Nokogiri::HTML(convert(source))
     assert_empty document.css('frame, frameset')
   end

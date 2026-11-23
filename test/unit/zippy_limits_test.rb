@@ -146,17 +146,112 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     assert_equal [70_000, 5_000_000], worker.send(:central_directory)
   end
 
-  # a zip64 record in the comment: rubyzip goes by it whatever the end of central
-  # directory record says, and so must the check
-  def test_entries_are_counted_as_rubyzip_counts_them
+  # rubyzip 2 and 3 differ when a Zip64 signature appears in a ZIP comment:
+  # 2 reads the fake record (3), while 3 reads the regular EOCD (5). The
+  # preflight must not underestimate either interpretation of this archive.
+  def test_entries_are_bounded_across_rubyzip_versions
     zip = build_zip(path('comment.zip'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
     add_comment(zip, zip64_record(3, 1000) + zip64_locator)
     worker = zippy_worker(target: @target)
     worker.source = zip
     rubyzip = Zip::CentralDirectory.new
     File.open(zip, 'rb') { |io| rubyzip.read_from_stream(io) rescue nil }
-    assert_equal 3, rubyzip.instance_variable_get(:@size)
-    assert_equal 3, worker.send(:central_directory).first
+    assert_operator worker.send(:central_directory).first, :>=, rubyzip.instance_variable_get(:@size)
+    assert_equal 5, worker.send(:central_directory).first
+
+    with_zippy_limits('max_entries' => '4') do
+      Zip::File.expects(:open).never
+      assert_raises(ConverterTooLarge) { listing(zip) }
+    end
+  end
+
+  # rubyzip 2 reads only the last 65,554 bytes. A fake Zip64 record just
+  # outside that window must not replace the 0xFFFF count it actually reads.
+  def test_zip64_decoy_outside_rubyzip2_tail_does_not_lower_entry_limit
+    zip = path('tail-boundary.zip')
+    comment = 'x' * 65_470
+    File.binwrite(zip, zip64_record(1, 100) + zip64_locator +
+                   eocd_record(0xFFFF, 3_473_355, 0, comment.bytesize) + comment)
+    worker = zippy_worker(target: @target)
+    worker.source = zip
+    assert_equal 65_535, worker.send(:central_directory).first
+    with_zippy_limits('max_entries' => '10') do
+      Zip::File.expects(:open).never
+      assert_raises(ConverterTooLarge) { listing(zip) }
+    end
+  end
+
+  # A fake Zip64 header in an EOCD comment can fool rubyzip 2, but rubyzip 3
+  # follows the real locator *before* the EOCD; check both declared counts.
+  def test_zip64_decoy_in_comment_does_not_hide_large_entry_count
+    zip = path('zip64-decoy.zip')
+    comment = zip64_record(1, 100) + zip64_locator
+    File.binwrite(zip, zip64_record(70_000, 5_000_000) + zip64_locator +
+                   eocd_record(0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF, comment.bytesize) + comment)
+    worker = zippy_worker(target: @target)
+    worker.source = zip
+    assert_equal [70_000, 5_000_000], worker.send(:central_directory)
+    with_zippy_limits('max_entries' => '10') do
+      Zip::File.expects(:open).never
+      assert_raises(ConverterTooLarge) { listing(zip) }
+    end
+  end
+
+  # Rubyzip 3 follows the locator when a Zip64 record is beyond its tail.
+  # An offset sentinel selects Zip64 even if the ordinary count looks small.
+  def test_zip64_large_record_outside_tail_is_not_missed
+    zip = path('zip64-far-record.zip')
+    File.binwrite(zip, zip64_record(70_000, 5_000_000) + ('x' * 70_000) + zip64_locator +
+                   eocd_record(5, 230, 0xFFFFFFFF))
+    worker = zippy_worker(target: @target)
+    worker.source = zip
+    assert_equal [70_000, 5_000_000], worker.send(:central_directory)
+    with_zippy_limits('max_entries' => '10') do
+      Zip::File.expects(:open).never
+      assert_raises(ConverterTooLarge) { listing(zip) }
+    end
+  end
+
+  # A Zip64 signature *after* a locator, in an EOCD comment, is not a
+  # usable Zip64 record. Rubyzip 2 fails to parse it, while rubyzip 3 reads
+  # the complete ordinary EOCD. Neither should read more than the normal 5.
+  def test_reversed_zip64_signature_in_comment_cannot_hide_more_entries
+    zip = build_zip(path('zip64-reversed-comment.zip'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    add_comment(zip, zip64_locator + zip64_record(70_000, 5_000_000))
+    worker = zippy_worker(target: @target)
+    worker.source = zip
+    assert_equal 5, worker.send(:central_directory).first
+
+    loaded = begin
+      Zip::File.open(zip) { |archive| archive.entries.size }
+    rescue Zip::Error, TypeError, NoMethodError
+      nil
+    end
+    assert_includes [nil, 5], loaded
+    with_zippy_limits('max_entries' => '4') do
+      Zip::File.expects(:open).never
+      assert_raises(ConverterTooLarge) { listing(zip) }
+    end
+  end
+
+  # A long comment may put the genuine Zip64 EOCD outside the tail. This is
+  # valid for rubyzip 3 and must not be mistaken for a 65,535-entry archive.
+  def test_zip64_long_comment_uses_real_directory_values
+    zip = build_zip(path('zip64-long-comment.zip'), (1..5).to_h { |n| ["f#{n}.txt", "file #{n}"] })
+    data = File.binread(zip)
+    index = data.rindex(Zippy::EOCD_SIGNATURE)
+    assert_not_nil index
+    size, offset = data.byteslice(index + 12, 8).unpack('VV')
+    zip64 = zip64_record(5, size, offset)
+    locator = [0x07064b50, 0, index, 1].pack('VVQ<V')
+    File.binwrite(zip, data.byteslice(0, index) + zip64 + locator +
+                   eocd_record(0xFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 65_535) + ('x' * 65_535))
+    worker = zippy_worker(target: @target)
+    worker.source = zip
+    assert_equal [5, size], worker.send(:central_directory)
+    if Gem.loaded_specs.fetch('rubyzip').version.segments.first >= 3
+      Zip::File.open(zip) { |archive| assert_equal 5, archive.entries.size }
+    end
   end
 
   def test_zip64_record_in_the_comment_beyond_the_limit_is_refused
@@ -486,8 +581,12 @@ class ZippyLimitsTest < ActiveSupport::TestCase
     File.binwrite(zip, data + comment)
   end
 
-  def zip64_record(entries, size)
-    [0x06064b50, 44, 45, 45, 0, 0, entries, entries, size, 0].pack('VQ<vvVVQ<Q<Q<Q<')
+  def zip64_record(entries, size, offset = 0)
+    [0x06064b50, 44, 45, 45, 0, 0, entries, entries, size, offset].pack('VQ<vvVVQ<Q<Q<Q<')
+  end
+
+  def eocd_record(entries, size, offset, comment_length = 0)
+    [0x06054b50, 0, 0, entries, entries, size, offset, comment_length].pack('VvvvvVVv')
   end
 
   def fake_request

@@ -97,11 +97,12 @@ class CliffLimitsTest < ActiveSupport::TestCase
     end
   end
 
-  # Mail makes a lone CR in the body a line break as well
+  # The raw preflight must count lone-CR delimiters conservatively,
+  # even though Mail versions differ in whether they split on these bytes.
   def test_email_with_lone_carriage_returns_is_counted
     body = (1..20).map {|n| "--abc\rContent-Type: text/plain\r\rpart #{n}\r"}.join + "--abc--\r"
     source = "Subject: t\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"abc\"\n\n#{body}"
-    assert_operator Mail.new(source).parts.size, :>, 10, 'Mail splits the parts'
+    assert_operator source.scan(Cliff::DELIMITER).size, :>, 10
     with_cliff_settings('max_parts' => '10') do
       Mail.expects(:new).never
       assert_raises(RedmineMorePreviews::Exceptions::ConverterTooLarge) { convert(source) }

@@ -456,7 +456,10 @@ class Cliff < RedmineMorePreviews::Conversion
   #---------------------------------------------------------------------------------------
   # sweep
   #---------------------------------------------------------------------------------------
-  UNSAFETAGS   = %w(script)
+  # Strip active/embedded documents and external resource references from
+  # untrusted email HTML before it reaches the preview iframe. CSP and the
+  # sandbox remain independent backstops, not the primary HTML filter.
+  UNSAFETAGS   = %w(script iframe frame frameset object embed applet base link)
   
   def sweep( html )
   
@@ -471,6 +474,9 @@ class Cliff < RedmineMorePreviews::Conversion
       end
     end
     
+    # A meta refresh can navigate the preview without a user click.
+    doc.xpath("//meta[translate(@http-equiv, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz') = 'refresh']").each(&:remove)
+
     #
     # remove link= attribute of style tags
     #

@@ -101,7 +101,8 @@ class CliffBodyTest < ActiveSupport::TestCase
     html = convert(source)
     document = Nokogiri::HTML(html)
 
-    assert_empty document.css('link, meta[http-equiv], iframe, object, embed, applet, base')
+    assert_empty document.css('link, meta[http-equiv="refresh"], iframe, object, embed, applet, base')
+    assert_empty document.xpath('//meta[translate(@http-equiv, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")="refresh"]')
     assert document.at_css('style'), 'inline styling is still supported'
     assert_equal 'ordinary formatting', document.at_css('b').text
     assert_equal 'cid:image@example.invalid', document.at_css('img')['src']
